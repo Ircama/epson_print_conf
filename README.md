@@ -83,7 +83,7 @@ print("get_stats:", ret)
 
 printer.session.reset_waste_ink_levels()
 printer.session.brute_force_read_key()
-printer.session.write_first_ti_received_time(2000, 1 , 2)
+printer.session.write_first_ti_received_time(2000, 1, 2)
 ```
 
 ### Exceptions
@@ -130,6 +130,8 @@ ReInk: https://github.com/lion-simba/reink (especially https://github.com/lion-s
 reink-net: https://github.com/gentu/reink-net
 
 epson-l4160-ink-waste-resetter: https://github.com/nicootto/epson-l4160-ink-waste-resetter
+
+emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
 
 ### Not used resources
 
