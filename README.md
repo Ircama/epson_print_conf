@@ -33,7 +33,7 @@ optional arguments:
 Epson Printer Configuration accessed via SNMP (TCP/IP)
 ```
 
-Example:
+Examples:
 
 ```
 # Print informations
