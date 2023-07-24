@@ -7,6 +7,7 @@ import re
 from typing import Any
 import datetime
 import easysnmp  # pip3 install easysnmp
+import time
 
 
 class EpsonPrinter:
@@ -168,11 +169,10 @@ class EpsonPrinter:
     def stats(self):
         """Return information about the printer."""
         methods = [
-            "get_model_full",
+            "get_sys_info",
             "get_serial_number",
             "get_firmware_version",
             "get_printer_head_id",
-            "get_eeps2_version",
             "get_cartridges",
             "get_printer_status",
             "get_ink_replacement_counters",
@@ -288,13 +288,35 @@ class EpsonSession(easysnmp.Session):
             d[oid] = int(self.read_eeprom(oid), 16)
         return d
 
-    def get_model(self) -> str:
+    def get_sys_info(self) -> str:
         """Return model of printer."""
-        return self.get_value("1.3.6.1.2.1.1.5.0")
-
-    def get_model_full(self) -> str:
-        """Return full model of printer."""
-        return self.get_value("1.3.6.1.2.1.25.3.2.1.3.1")
+        info_dict = {
+            "model": "1.3.6.1.2.1.25.3.2.1.3.1",
+            "model_short": "1.3.6.1.4.1.1248.1.1.3.1.3.8.0",
+            "EEPS2 version": "1.3.6.1.2.1.2.2.1.2.1",
+            "descr": "1.3.6.1.2.1.1.1.0",
+            #"ObjectID": "1.3.6.1.2.1.1.2.0",
+            "UpTime": "1.3.6.1.2.1.1.3.0",
+            #"Contact": "1.3.6.1.2.1.1.4.0",
+            "Name": "1.3.6.1.2.1.1.5.0",
+            #"Location": "1.3.6.1.2.1.1.6.0",
+            #"Services": "1.3.6.1.2.1.1.7.0",
+            #"ORLastChange ": "1.3.6.1.2.1.1.8.0",
+            #"sORTable ": "1.3.6.1.2.1.1.9.0",
+            "MAC Address": "1.3.6.1.2.1.2.2.1.6.1",
+        }
+        sys_info = {}
+        for name, mib in info_dict.items():
+            try:
+                sys_info[name] = self.get_value(mib)
+            except Exception:
+                sys_info[name] = None
+        if sys_info["UpTime"]:
+            sys_info["UpTime"] = time.strftime(
+                '%H:%M:%S', time.gmtime(int(sys_info["UpTime"])/100))
+        if sys_info["MAC Address"]:
+            sys_info["MAC Address"] = bytes([ord(i) for i in sys_info["MAC Address"]]).hex("-").upper()
+        return sys_info
 
     def get_serial_number(self) -> str:
         """Return serial number of printer."""
@@ -336,10 +358,6 @@ class EpsonSession(easysnmp.Session):
         a = self.read_eeprom_many(self.printer.parm["printer_head_id_h"])
         b = self.read_eeprom_many(self.printer.parm["printer_head_id_f"])
         return(f'{"".join(a)} - {"".join(b)}')
-
-    def get_eeps2_version(self) -> str:
-        """Return EEPS2 version."""
-        return self.get_value("1.3.6.1.2.1.2.2.1.2.1")
 
     def get_firmware_version(self) -> str:
         """Return firmware version."""
