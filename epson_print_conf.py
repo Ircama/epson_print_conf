@@ -13,15 +13,6 @@ import time
 class EpsonPrinter:
     """Known Epson models"""
     PRINTER_MODEL = {
-        "L355": {
-            "read_key": [65, 9],
-            # to be completed
-        },
-        "L4160": {
-            "read_key": [73, 8],
-            "write_key": b'Arantifo',
-            # to be completed
-        },
         "XP-205": {
             "read_key": [25, 7],
             "write_key": b'Wakatobi',
@@ -47,6 +38,15 @@ class EpsonPrinter:
             },
             "last_printer_fatal_errors": [60, 203, 204, 205, 206],
             "last_printer_fatal_err_ext": [211],
+        },
+        "L355": {
+            "read_key": [65, 9],
+            # to be completed
+        },
+        "L4160": {
+            "read_key": [73, 8],
+            "write_key": b'Arantifo',
+            # to be completed
         },
         "XP-315": {
             "read_key": [129, 8],
@@ -281,11 +281,11 @@ class EpsonSession(easysnmp.Session):
         except Exception as e:
             raise ValueError(str(e))
 
-    def dump_eeprom(self, start: int = 0, end: int = 0xFF):
+    def dump_eeprom(self, ext: str="0", start: int = 0, end: int = 0xFF):
         """Dump EEPROM data from start to end."""
         d = {}
         for oid in range(start, end):
-            d[oid] = int(self.read_eeprom(oid), 16)
+            d[oid] = int(self.read_eeprom(oid, ext), 16)
         return d
 
     def get_sys_info(self) -> str:
@@ -638,6 +638,14 @@ if __name__ == "__main__":
         action='store_true',
         help='Print debug information')
     parser.add_argument(
+        '-e',
+        '--eeprom-dump',
+        dest='dump_eeprom',
+        action='store',
+        type=int,
+        nargs=3,
+        help='Dump EEPROM (arguments: extension, start, stop)')
+    parser.add_argument(
         '--dry-run',
         dest='dry_run',
         action='store_true',
@@ -645,7 +653,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--write-first-ti-received-time',
         dest='ftrt',
-        type=int, 
+        type=int,
         help='Change the first TI received time (year, month, day)',
         nargs=3,
     )
@@ -665,6 +673,13 @@ if __name__ == "__main__":
         if args.ftrt:
             printer.session.write_first_ti_received_time(
                 int(args.ftrt[0]), int(args.ftrt[1]), int(args.ftrt[2]))
+        if args.dump_eeprom:
+            for addr, val in printer.session.dump_eeprom(
+                        str(args.dump_eeprom[0] % 256),
+                        args.dump_eeprom[1] % 256,
+                        int(args.dump_eeprom[2] % 256 + 1)
+                    ).items():
+                print(f"{str(addr).rjust(3)}: {val:#04x} = {str(val).rjust(3)}")
         if args.info:
             pprint(printer.stats)
     except TimeoutError as e:

@@ -13,7 +13,8 @@ cd epson_print_conf
 
 ```
 usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [--reset_waste_ink] [--brute-force-read-key] [-d]
-                           [--dry-run] [--write-first-ti-received-time FTRT FTRT FTRT]
+                           [-e DUMP_EEPROM DUMP_EEPROM DUMP_EEPROM] [--dry-run]
+                           [--write-first-ti-received-time FTRT FTRT FTRT]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -26,6 +27,8 @@ optional arguments:
   --brute-force-read-key
                         Detect the read_key via brute force
   -d, --debug           Print debug information
+  -e DUMP_EEPROM DUMP_EEPROM DUMP_EEPROM, --eeprom-dump DUMP_EEPROM DUMP_EEPROM DUMP_EEPROM
+                        Dump EEPROM (arguments: extension, start, stop)
   --dry-run             Dry-run change operations
   --write-first-ti-received-time FTRT FTRT FTRT
                         Change the first TI received time (year, month, day)
