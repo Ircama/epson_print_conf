@@ -470,15 +470,20 @@ class EpsonSession(easysnmp.Session):
                 data_set["self_print_code"] = item
 
             elif ftype == 0x04: # warning
-                data_set["warncode"] = item
+                data_set["warning_code"] = item
 
             elif ftype == 0x06: # Paper path
                 data_set["paper_path"] = item
                 if item == b'\x01\xff':
                     data_set["paper_path"] = "Cut sheet (Rear)"
 
+            elif ftype == 0x0e: # Replace cartridge information
+                data_set["replace_cartridge"] = "{:08b}".format(item[0])
+
             elif ftype == 0x10: # Loading path information
                 data_set["loading_path"] = item.hex().upper()
+                if data_set["loading_path"] == "01094E":
+                    data_set["loading_path"] = "fixed"
 
             elif ftype == 0x13: # Cancel code
                 data_set["cancel_code"] = item
@@ -488,6 +493,19 @@ class EpsonSession(easysnmp.Session):
                     data_set["cancel_code"] = "The status during received cancel command and initialize the printer"
                 if item == b'\x81':
                     data_set["cancel_code"] = "Request"
+
+            elif ftype == 0x37: # Maintenance box information
+                i = 1
+                for j in range(item[0]):
+                    if item[i] == 0:
+                        data_set[f"maintenance_box_{j}"] = f"not full ({item[i + 1]})"
+                    elif item[i] == 1:
+                        data_set[f"maintenance_box_{j}"] = f"near full ({item[i + 1]})"
+                    elif item[i] == 2:
+                        data_set[f"maintenance_box_{j}"] = f"full ({item[i + 1]})"
+                    else:
+                        data_set[f"maintenance_box_{j}"] = f"unknown ({item[i + 1]})"
+                    i += 2
 
             else:   # mystery stuff
                 if "unknown" not in data_set:
