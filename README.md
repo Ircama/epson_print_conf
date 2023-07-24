@@ -49,6 +49,50 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -d --write-first-ti-receiv
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --brute-force-read-key
 ```
 
+## API Interface
+
+```python
+import epson_print_conf
+printer = epson_print_conf.EpsonPrinter("XP-205", "192.168.1.87")
+
+stats = printer.stats
+print("stats:", stats)
+
+ret = printer.session.get_model_full()
+print("get_model_full:", ret)
+ret = printer.session.get_serial_number()
+print("get_serial_number:", ret)
+ret = printer.session.get_firmware_version()
+print("get_firmware_version:", ret)
+ret = printer.session.get_printer_head_id()
+print("get_printer_head_id:", ret)
+ret = printer.session.get_eeps2_version()
+print("get_eeps2_version:", ret)
+ret = printer.session.get_cartridges()
+print("get_cartridges:", ret)
+ret = printer.session.get_printer_status()
+print("get_printer_status:", ret)
+ret = printer.session.get_ink_replacement_counters()
+print("get_ink_replacement_counters:", ret)
+ret = printer.session.get_waste_ink_levels()
+print("get_waste_ink_levels:", ret)
+ret = printer.session.get_last_printer_fatal_errors()
+print("get_last_printer_fatal_errors:", ret)
+ret = printer.session.get_stats()
+print("get_stats:", ret)
+
+printer.session.reset_waste_ink_levels()
+printer.session.brute_force_read_key()
+printer.session.write_first_ti_received_time(2000, 1 , 2)
+```
+
+### Exceptions
+
+```
+TimeoutError
+ValueError
+```
+
 ## Resources
 
 ### snmpget

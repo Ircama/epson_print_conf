@@ -210,11 +210,9 @@ class EpsonSession(easysnmp.Session):
         try:
             value = self.get(oids).value
         except easysnmp.exceptions.EasySNMPTimeoutError as e:
-            print("Timeout error:", str(e))
-            quit()
+            raise TimeoutError(str(e))
         except Exception as e:
-            print("Generic error:", str(e))
-            quit()
+            raise ValueError(str(e))
         return value
 
     def get_read_eeprom_oid(self, oid: int, ext: str="0") -> str:
@@ -276,7 +274,12 @@ class EpsonSession(easysnmp.Session):
 
     def write_eeprom(self, oid: int, value: int) -> None:
         """Write value to OID with specified type to EEPROM."""
-        self.get(self.get_write_eeprom_oid(oid, value))
+        try:
+            self.get(self.get_write_eeprom_oid(oid, value))
+        except easysnmp.exceptions.EasySNMPTimeoutError as e:
+            raise TimeoutError(str(e))
+        except Exception as e:
+            raise ValueError(str(e))
 
     def dump_eeprom(self, start: int = 0, end: int = 0xFF):
         """Dump EEPROM data from start to end."""
@@ -328,7 +331,7 @@ class EpsonSession(easysnmp.Session):
         self.write_eeprom(b, n // 256)
         self.write_eeprom(l, n % 256)
 
-    def get_printer_head_id(self) -> str:
+    def get_printer_head_id(self) -> str:  # to be revised
         """Return printer head id."""
         a = self.read_eeprom_many(self.printer.parm["printer_head_id_h"])
         b = self.read_eeprom_many(self.printer.parm["printer_head_id_f"])
@@ -548,11 +551,12 @@ class EpsonSession(easysnmp.Session):
                 return self.printer.parm['read_key']
             except IndexError:
                 continue
+            except KeyboardInterrupt:
+                return None
         return None
 
 
 if __name__ == "__main__":
-    import sys
     import argparse
     from pprint import pprint
 
@@ -616,14 +620,20 @@ if __name__ == "__main__":
     if not printer.parm:
         print("Unknown printer. Valid printers:",
             list(printer.PRINTER_MODEL.keys()))
-        sys.exit(1)
-    session = EpsonSession(printer, debug=args.debug, dry_run=args.dry_run)
-    if args.reset_waste_ink:
-        session.reset_waste_ink_levels()
-    if args.brute_force:
-        session.brute_force_read_key()
-    if args.ftrt:
-        session.write_first_ti_received_time(
-            int(args.ftrt[0]), int(args.ftrt[1]), int(args.ftrt[2]))
-    if args.info:
-        pprint(printer.stats)
+        quit(1)
+    try:
+        if args.reset_waste_ink:
+            printer.session.reset_waste_ink_levels()
+        if args.brute_force:
+            printer.session.brute_force_read_key()
+        if args.ftrt:
+            printer.session.write_first_ti_received_time(
+                int(args.ftrt[0]), int(args.ftrt[1]), int(args.ftrt[2]))
+        if args.info:
+            pprint(printer.stats)
+    except TimeoutError as e:
+        print(f"Timeout error: {str(e)}")
+    except ValueError as e:
+        raise(f"Generic error: {str(e)}")
+    except KeyboardInterrupt:
+        quit(2)
