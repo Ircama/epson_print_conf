@@ -1,7 +1,15 @@
 # epson_print_conf
 Epson Printer Configuration accessed via SNMP (TCP/IP)
 
-Usage:
+## Installation
+
+```
+git clone https://github.com/Ircama/epson_print_conf
+pip3 install easysnmp
+cd epson_print_conf
+```
+
+## Usage
 
 ```
 usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [--reset_waste_ink] [--brute-force-read-key] [-d]

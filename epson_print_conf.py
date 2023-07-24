@@ -6,7 +6,7 @@ import itertools
 import re
 from typing import Any
 import datetime
-import easysnmp
+import easysnmp  # pip3 install easysnmp
 
 
 class EpsonPrinter:
