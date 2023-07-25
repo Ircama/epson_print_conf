@@ -1,5 +1,5 @@
 # epson_print_conf
-Epson Printer Configuration accessed via SNMP (TCP/IP)
+Epson Printer Configuration tool via SNMP (TCP/IP)
 
 ## Installation
 
@@ -202,7 +202,7 @@ snmpget -v1 -d -c public 192.168.1.87 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.
 snmpget -v1 -d -c public 192.168.1.87 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.16.0.25.7.66.189.33.172.0.153.88.98.108.98.117.112.99.106
 ```
 
-### Other resources
+### Development resources
 
 epson-printer-snmp: https://github.com/Zedeldi/epson-printer-snmp
 
@@ -216,13 +216,14 @@ epson-l4160-ink-waste-resetter: https://github.com/nicootto/epson-l4160-ink-wast
 
 emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
 
-### Not used resources
+### GUI resources
+
+*epson_print_conf* is a Python command line tool, including API.
+
+The following GUIs are available.
+
+- Epson Adjustment Program (developed by EPSON)
+- WIC-Reset: https://wic-reset.com / https://www.2manuals.com / https://resetters.com
+- PrintHelp: https://printhelp.info/
 
 Use at your risk.
-
-WICreset: https://wic-reset.com / https://www.2manuals.com / https://resetters.com
-
-The key, trial, can be used to reset your counters to 80%. After packet sniffing with wireshark, the correct OIDs can be found
-This application also stores a log containing SNMP information at ~/.wicreset/application.log
-
-Printhelp: https://printhelp.info/
