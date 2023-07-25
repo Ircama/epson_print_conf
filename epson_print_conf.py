@@ -206,13 +206,17 @@ class EpsonPrinter:
         return(filter(lambda x: x.startswith("get_") and x not in dir(
             easysnmp.Session), dir(self.session)))
 
-    @property
     def stats(self):
         """Return all available information about the printer."""
-        return {
-            method[4:]: self.session.__getattribute__(method)()
-                for method in self.list_methods
-        }
+        stat_set = {}
+        for method in self.list_methods:
+            ret = self.session.__getattribute__(method)()
+            if ret:
+                stat_set[method[4:]] = ret
+            else:
+                if self.debug:
+                    print(f"No value for method '{method}'.")
+        return stat_set
 
     def caesar(self, key):
         return ".".join(str(b + 1) for b in key)
@@ -475,7 +479,8 @@ class EpsonSession(easysnmp.Session):
             try:
                 sys_info[name] = self.read_value(oid)
             except Exception:
-                sys_info[name] = None
+                if self.debug:
+                    print(f"No value for SNMP OID '{name}'.")
         if "UpTime" in sys_info:
             sys_info["UpTime"] = time.strftime(
                 '%H:%M:%S', time.gmtime(int(sys_info["UpTime"])/100))
@@ -776,7 +781,7 @@ if __name__ == "__main__":
                         ", ".join(printer.snmp_info.keys())
                     )
         if args.info or not print_opt:
-            ret = printer.stats
+            ret = printer.stats()
             if ret:
                 pprint(ret)
             else:

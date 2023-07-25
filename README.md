@@ -78,7 +78,7 @@ if not printer.parm:
     print("Unknown printer")
     quit()
 
-stats = printer.stats
+stats = printer.stats()
 print("stats:", stats)
 
 ret = printer.session.get_snmp_info()
