@@ -12,17 +12,23 @@ cd epson_print_conf
 ## Usage
 
 ```
-usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [--reset_waste_ink] [--brute-force-read-key] [-d]
+usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY]
+                           [--reset_waste_ink] [--brute-force-read-key] [-d]
                            [-e DUMP_EEPROM DUMP_EEPROM DUMP_EEPROM] [--dry-run]
                            [--write-first-ti-received-time FTRT FTRT FTRT]
 
 optional arguments:
   -h, --help            show this help message and exit
   -m MODEL, --model MODEL
-                        Printer model. Example: -m XP-205 (use ? to print all supported models)
+                        Printer model. Example: -m XP-205 (use ? to print all
+                        supported models)
   -a HOSTNAME, --address HOSTNAME
-                        Printer host name or IP address. Example: -m 192.168.1.87
-  -i, --info            Print information and statistics
+                        Printer host name or IP address. (Example: -m 192.168.1.87)
+  -i, --info            Print all available information and statistics (default
+                        option)
+  -q QUERY, --query QUERY
+                        Print specific information. (Use ? to list all available
+                        queries)
   --reset_waste_ink     Reset all waste ink levels to 0
   --brute-force-read-key
                         Detect the read_key via brute force
@@ -31,7 +37,8 @@ optional arguments:
                         Dump EEPROM (arguments: extension, start, stop)
   --dry-run             Dry-run change operations
   --write-first-ti-received-time FTRT FTRT FTRT
-                        Change the first TI received time (year, month, day)
+                        Change the first TI received time (arguments: year, month,
+                        day)
 
 Epson Printer Configuration accessed via SNMP (TCP/IP)
 ```
@@ -45,11 +52,20 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -i
 # Reset all waste ink levels to 0
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --reset_waste_ink
 
-# Change the first TI received time to 25 December 2012
-python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -d --write-first-ti-received-time 2012 12 25
+# Change the first TI received time to 31 December 2016
+python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --write-first-ti-received-time 2016 12 31
 
 # Detect the read_key via brute force
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --brute-force-read-key
+
+# Only print status information
+python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -q printer_status
+
+# Only print SNMP 'MAC Address' name
+python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -q 'MAC Address'
+
+# Only print SNMP 'Lang 5' name
+python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -q 'Lang 5'
 ```
 
 ## API Interface
@@ -58,11 +74,15 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --brute-force-read-key
 import epson_print_conf
 printer = epson_print_conf.EpsonPrinter("XP-205", "192.168.1.87")
 
+if not printer.parm:
+    print("Unknown printer")
+    quit()
+
 stats = printer.stats
 print("stats:", stats)
 
-ret = printer.session.get_sys_info()
-print("get_sys_info:", ret)
+ret = printer.session.get_snmp_info()
+print("get_snmp_info:", ret)
 ret = printer.session.get_serial_number()
 print("get_serial_number:", ret)
 ret = printer.session.get_firmware_version()
@@ -92,6 +112,68 @@ printer.session.write_first_ti_received_time(2000, 1, 2)
 ```
 TimeoutError
 ValueError
+```
+
+## Output example
+
+```
+{'cartridges': ['18XL', '18XL', '18XL', '18XL'],
+ 'firmware_version': 'RF11I5 11 May 2018',
+ 'ink_replacement_counters': {('Black', '1B', 1),
+                              ('Black', '1L', 19),
+                              ('Black', '1S', 2),
+                              ('Cyan', '1B', 1),
+                              ('Cyan', '1L', 8),
+                              ('Cyan', '1S', 1),
+                              ('Magenta', '1B', 1),
+                              ('Magenta', '1L', 6),
+                              ('Magenta', '1S', 1),
+                              ('Yellow', '1B', 1),
+                              ('Yellow', '1L', 10),
+                              ('Yellow', '1S', 1)},
+ 'last_printer_fatal_errors': ['08', 'F1', 'F1', 'F1', 'F1', '10'],
+ 'printer_head_id': '...',
+ 'printer_status': {'cancel_code': 'No request',
+                    'ink_level': [(1, 89, 'Black'),
+                                  (5, 77, 'Yellow'),
+                                  (4, 59, 'Magenta'),
+                                  (3, 40, 'Cyan')],
+                    'jobname': 'Not defined',
+                    'loading_path': 'fixed',
+                    'maintenance_box_0': 'not full (0)',
+                    'maintenance_box_1': 'not full (0)',
+                    'paper_path': 'Cut sheet (Rear)',
+                    'ready': True,
+                    'replace_cartridge': '00000001',
+                    'status': (4, 'Idle'),
+                    'unknown': [('0x24', b'\x0f\x0f')]},
+ 'serial_number': '...',
+ 'snmp_info': {'Descr': 'EPSON Built-in 11b/g/n Print Server',
+               'EEPS2 firmware version': 'EEPS2 Hard Ver.1.00 Firm Ver.0.50',
+               'Emulation 1': 'unknown',
+               'Emulation 2': 'ESC/P2',
+               'Emulation 3': 'BDC',
+               'Emulation 4': 'other',
+               'Emulation 5': 'other',
+               'Lang 1': 'unknown',
+               'Lang 2': 'ESCPL2',
+               'Lang 3': 'BDC',
+               'Lang 4': 'D4',
+               'Lang 5': 'ESCPR1',
+               'MAC Address': '...',
+               'Model': 'EPSON XP-205 207 Series',
+               'Model short': 'XP-205 207 Series',
+               'Name': '...',
+               'Print input': 'Auto sheet feeder',
+               'UpTime': '00:32:38'},
+ 'stats': {'First TI received time': '...',
+           'Ink replacement cleaning counter': 78,
+           'Manual cleaning counter': 129,
+           'Timer cleaning counter': 4,
+           'Total print page counter': 11504,
+           'Total print pass counter': 510136,
+           'Total scan counter': 4967},
+ 'waste_ink_levels': [90.45, 4.63]}
 ```
 
 ## Resources

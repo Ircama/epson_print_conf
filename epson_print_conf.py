@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
 Epson Printer Configuration accessed via SNMP (TCP/IP)
 """
@@ -11,8 +14,9 @@ import time
 
 
 class EpsonPrinter:
-    """Known Epson models"""
-    PRINTER_MODEL = {
+    """SNMP Epson Printer Configuration."""
+
+    PRINTER_MODEL = {  # Known Epson models
         "XP-205": {
             "read_key": [25, 7],
             "write_key": b'Wakatobi',
@@ -76,6 +80,7 @@ class EpsonPrinter:
         "XP-540": {
             "read_key": [20, 4],
             "write_key": b'Firmiana',
+
             "addr_waste": range(0x10, 0x16),  # To be changed
             "main_waste": {"oids": [24, 25], "divider": 69},  # To be changed
             "borderless_waste": {"oids": [26, 27], "divider": 32.53},  # To be changed
@@ -107,6 +112,7 @@ class EpsonPrinter:
         "XP-830": {
             "read_key": [40, 9],
             "write_key": b'Irisgarm',  #  (Iris graminea with typo?)
+
             "addr_waste": (  # To be changed
                 0x10, 0x11,  # '>H' "main pad counter" Max: 0x2102 (8450)
                 0x06,
@@ -127,11 +133,33 @@ class EpsonPrinter:
         "XP-7100": {
             "read_key": [40, 5],
             "write_key": b'Leucojum',
+
             "addr_waste": range(0x10, 0x16),   # To be changed
             "main_waste": {"oids": [24, 25], "divider": 69},   # To be changed
             "borderless_waste": {"oids": [26, 27], "divider": 32.53},   # To be changed
             # to be completed
         },
+    }
+
+    snmp_info = {
+        "Model": "1.3.6.1.2.1.25.3.2.1.3.1",
+        "Model short": "1.3.6.1.4.1.1248.1.1.3.1.3.8.0",
+        "EEPS2 firmware version": "1.3.6.1.2.1.2.2.1.2.1",
+        "Descr": "1.3.6.1.2.1.1.1.0",
+        "UpTime": "1.3.6.1.2.1.1.3.0",
+        "Name": "1.3.6.1.2.1.1.5.0",
+        "MAC Address": "1.3.6.1.2.1.2.2.1.6.1",
+        "Print input": "1.3.6.1.2.1.43.8.2.1.13.1.1",
+        "Lang 1": "1.3.6.1.2.1.43.15.1.1.3.1.1",
+        "Lang 2": "1.3.6.1.2.1.43.15.1.1.3.1.2",
+        "Lang 3": "1.3.6.1.2.1.43.15.1.1.3.1.3",
+        "Lang 4": "1.3.6.1.2.1.43.15.1.1.3.1.4",
+        "Lang 5": "1.3.6.1.2.1.43.15.1.1.3.1.5",
+        "Emulation 1": "1.3.6.1.2.1.43.15.1.1.5.1.1",
+        "Emulation 2": "1.3.6.1.2.1.43.15.1.1.5.1.2",
+        "Emulation 3": "1.3.6.1.2.1.43.15.1.1.5.1.3",
+        "Emulation 4": "1.3.6.1.2.1.43.15.1.1.5.1.4",
+        "Emulation 5": "1.3.6.1.2.1.43.15.1.1.5.1.5",
     }
 
     SNMP_OID_ENTERPRISE = "1.3.6.1.4.1"
@@ -145,9 +173,6 @@ class EpsonPrinter:
     hostname: str
     parm: dict
 
-    def caesar(self, key):
-        return ".".join(str(b + 1) for b in key)
-
     def __init__(
             self,
             printer_model:
@@ -159,35 +184,42 @@ class EpsonPrinter:
         self.hostname = hostname
         self.debug = debug
         self.dry_run = dry_run
-        if self.printer_model in self.PRINTER_MODEL:
+        if self.printer_model in self.valid_printers:
             self.parm = self.PRINTER_MODEL[self.printer_model]
         else:
             self.parm = None
         self.session = EpsonSession(printer=self, debug=debug, dry_run=dry_run)
 
     @property
+    def valid_printers(self):
+        """Return list of valid printers."""
+        return {
+            printer_name
+                for printer_name in self.PRINTER_MODEL.keys()
+                if "read_key" in self.PRINTER_MODEL[printer_name] and
+                "write_key" in self.PRINTER_MODEL[printer_name]
+        }
+
+    @property
+    def list_methods(self):
+        """Return list of available information methods about the printer."""
+        return(filter(lambda x: x.startswith("get_") and x not in dir(
+            easysnmp.Session), dir(self.session)))
+
+    @property
     def stats(self):
-        """Return information about the printer."""
-        methods = [
-            "get_sys_info",
-            "get_serial_number",
-            "get_firmware_version",
-            "get_printer_head_id",
-            "get_cartridges",
-            "get_printer_status",
-            "get_ink_replacement_counters",
-            "get_waste_ink_levels",
-            "get_last_printer_fatal_errors",
-            "get_stats"
-        ]
+        """Return all available information about the printer."""
         return {
             method[4:]: self.session.__getattribute__(method)()
-                for method in methods
+                for method in self.list_methods
         }
+
+    def caesar(self, key):
+        return ".".join(str(b + 1) for b in key)
 
 
 class EpsonSession(easysnmp.Session):
-    """SNMP session wrapper."""
+    """SNMP session wrapper for Epson printer."""
 
     def __init__(
         self,
@@ -205,17 +237,7 @@ class EpsonSession(easysnmp.Session):
             hostname=self.printer.hostname, community=community, version=version
         )
 
-    def get_value(self, oids: str):
-        """Return value of OIDs."""
-        try:
-            value = self.get(oids).value
-        except easysnmp.exceptions.EasySNMPTimeoutError as e:
-            raise TimeoutError(str(e))
-        except Exception as e:
-            raise ValueError(str(e))
-        return value
-
-    def get_read_eeprom_oid(self, oid: int, ext: str="0") -> str:
+    def read_eeprom_oid_address(self, oid: int, ext: str="0") -> str:
         """Return address for reading from EEPROM for specified OID."""
         return (
             f"{self.printer.eeprom_link}"
@@ -227,16 +249,8 @@ class EpsonSession(easysnmp.Session):
             f".{oid}.{ext}"
         )
 
-    def reset_waste_ink_levels(self) -> None:
-        """
-        First TI received time":.
-        """
-        for oid in self.printer.parm["main_waste"]["oids"] + self.printer.parm[
-                "borderless_waste"]["oids"]:
-            self.write_eeprom(oid, 0)
-
-
-    def get_write_eeprom_oid(self, oid: int, value: Any, ext: str="0") -> str:
+    def write_eeprom_oid_address(
+            self, oid: int, value: Any, ext: str="0") -> str:
         """Return address for writing to EEPROM for specified OID."""
         write_op = (
             f"{self.printer.eeprom_link}"
@@ -250,21 +264,37 @@ class EpsonSession(easysnmp.Session):
         )
         if self.dry_run:
             print("WRITE_DRY_RUN:", write_op)
-            return self.get_read_eeprom_oid(oid, ext)
+            return self.read_eeprom_oid_address(oid, ext)
         else:
             return write_op
 
+    def read_value(self, oids: str):
+        """Return value of OIDs."""
+        try:
+            value = self.get(oids).value
+        except easysnmp.exceptions.EasySNMPTimeoutError as e:
+            raise TimeoutError(str(e))
+        except Exception as e:
+            raise ValueError(str(e))
+        return value
+
     def read_eeprom(self, oid: int, ext: str="0") -> str:
         """Read EEPROM data."""
-        response = self.get_value(self.get_read_eeprom_oid(oid, ext))
+        response = self.read_value(self.read_eeprom_oid_address(oid, ext))
         if self.debug:
-            print("EEPROM_DUMP", self.get_read_eeprom_oid(oid, ext), oid, response)
+            print(
+                "EEPROM_DUMP"
+                f": ADDRESS: {self.read_eeprom_oid_address(oid, ext)}"
+                f". OID: {oid}"
+                f". RESPONSE: {response}"
+            )
         response = re.findall(r"EE:[0-9A-F]{6}", response)[0][3:]
         chk_addr = response[2:4]
         value = response[4:6]
         if int(chk_addr, 16) != oid:
             raise ValueError(
-                f"Address and response address are not equal: {oid} != {chk_addr}"
+                f"Address and response address are"
+                f" not equal: {oid} != {chk_addr}"
             )
         return value
 
@@ -275,120 +305,14 @@ class EpsonSession(easysnmp.Session):
     def write_eeprom(self, oid: int, value: int) -> None:
         """Write value to OID with specified type to EEPROM."""
         try:
-            self.get(self.get_write_eeprom_oid(oid, value))
+            self.get(self.write_eeprom_oid_address(oid, value))
         except easysnmp.exceptions.EasySNMPTimeoutError as e:
             raise TimeoutError(str(e))
         except Exception as e:
             raise ValueError(str(e))
 
-    def dump_eeprom(self, ext: str="0", start: int = 0, end: int = 0xFF):
-        """Dump EEPROM data from start to end."""
-        d = {}
-        for oid in range(start, end):
-            d[oid] = int(self.read_eeprom(oid, ext), 16)
-        return d
-
-    def get_sys_info(self) -> str:
-        """Return model of printer."""
-        info_dict = {
-            "model": "1.3.6.1.2.1.25.3.2.1.3.1",
-            "model_short": "1.3.6.1.4.1.1248.1.1.3.1.3.8.0",
-            "EEPS2 version": "1.3.6.1.2.1.2.2.1.2.1",
-            "descr": "1.3.6.1.2.1.1.1.0",
-            #"ObjectID": "1.3.6.1.2.1.1.2.0",
-            "UpTime": "1.3.6.1.2.1.1.3.0",
-            #"Contact": "1.3.6.1.2.1.1.4.0",
-            "Name": "1.3.6.1.2.1.1.5.0",
-            #"Location": "1.3.6.1.2.1.1.6.0",
-            #"Services": "1.3.6.1.2.1.1.7.0",
-            #"ORLastChange ": "1.3.6.1.2.1.1.8.0",
-            #"sORTable ": "1.3.6.1.2.1.1.9.0",
-            "MAC Address": "1.3.6.1.2.1.2.2.1.6.1",
-        }
-        sys_info = {}
-        for name, mib in info_dict.items():
-            try:
-                sys_info[name] = self.get_value(mib)
-            except Exception:
-                sys_info[name] = None
-        if sys_info["UpTime"]:
-            sys_info["UpTime"] = time.strftime(
-                '%H:%M:%S', time.gmtime(int(sys_info["UpTime"])/100))
-        if sys_info["MAC Address"]:
-            sys_info["MAC Address"] = bytes([ord(i) for i in sys_info["MAC Address"]]).hex("-").upper()
-        return sys_info
-
-    def get_serial_number(self) -> str:
-        """Return serial number of printer."""
-        return "".join(
-            chr(int(value, 16))
-            for value in self.read_eeprom_many(
-                self.printer.parm["serial_number"])
-        )
-
-    def get_stats(self) -> str:
-        """Return printer statistics."""
-        stats_result = {}
-        for stat_name, oids in self.printer.parm["stats"].items():
-            total = 0
-            for val in self.read_eeprom_many(oids[0], oids[1]):
-                total = (total << 8) + int(val, 16)
-            stats_result[stat_name] = total
-        ftrt = stats_result["First TI received time"]
-        year = 2000 + ftrt // (16 * 32)
-        month = (ftrt - (year - 2000) * (16 * 32)) // 32
-        day = (ftrt - (year - 2000) * (16 * 32)) // 16
-        stats_result["First TI received time"] = datetime.datetime(
-            year, month, day).strftime('%d %b %Y')
-        return stats_result
-
-    def write_first_ti_received_time(
-            self, year: int, month: int, day: int) -> None:
-        """Update first TI received time"""
-        b = self.printer.parm["stats"]["First TI received time"][0][0]
-        l = self.printer.parm["stats"]["First TI received time"][0][1]
-        n = (year - 2000) * 16 * 32 + 32 * month + day
-        if self.debug:
-            print("FTRT:", hex(n // 256), hex(n % 256))
-        self.write_eeprom(b, n // 256)
-        self.write_eeprom(l, n % 256)
-
-    def get_printer_head_id(self) -> str:  # to be revised
-        """Return printer head id."""
-        a = self.read_eeprom_many(self.printer.parm["printer_head_id_h"])
-        b = self.read_eeprom_many(self.printer.parm["printer_head_id_f"])
-        return(f'{"".join(a)} - {"".join(b)}')
-
-    def get_firmware_version(self) -> str:
-        """Return firmware version."""
-        firmware_string = self.get_value(
-            f"{self.printer.eeprom_link}.118.105.1.0.0")
-        firmware = re.sub(r".*vi:00:(.{6}).*", r'\g<1>', firmware_string)
-        year = ord(firmware[4:5]) + 1945
-        month = int(firmware[5:], 16)
-        day = int(firmware[2:4])
-        return firmware + " " + datetime.datetime(
-            year, month, day).strftime('%d %b %Y')
-
-    def get_cartridges(self) -> str:
-        """Return firmware version."""
-        cartridges_string = self.get_value(
-            f"{self.printer.eeprom_link}.105.97.1.0.0")
-        cartridges = re.sub(
-            r".*IA:00;(.*);.*", r'\g<1>', cartridges_string, flags=re.S)
-        return [i.strip() for i in cartridges.split(',')]
-
-    def get_ink_replacement_counters(self) -> str:
-        irc = {
-            (color, counter, int(self.read_eeprom(value), 16))
-                for color, data in self.printer.parm[
-                        "ink_replacement_counters"].items()
-                    for counter, value in data.items()
-        }
-        return irc
-
     def status_parser(self, data):
-        "Parse an ST2 status response and decode as much as possible."
+        """Parse an ST2 status response and decode as much as possible."""
         colour_ids = {
                 0x01: 'Black',
                 0x03: 'Cyan',
@@ -414,13 +338,11 @@ class EpsonSession(easysnmp.Session):
             15: 'Nozzle Check',
         }
 
-        "Parse a status in ST2 format."
         if len(data) < 16:
             return "invalid packet"
         if data[:11] != b'\x00@BDC ST2\r\n':
             return "printer status error"
         len_p = int.from_bytes(data[11:13], byteorder='little')
-        #import pdb;pdb.set_trace()
         if len(data) - 13 != len_p:
             return "message error"
         buf = data[13:]
@@ -436,9 +358,10 @@ class EpsonSession(easysnmp.Session):
             buf = buf[length:]
 
             if self.debug:
-                print("Processing ftype", hex(ftype), "length:", length, "item:", item, "buf:", buf)
+                print("Processing status. ftype", hex(ftype),
+                "length:", length, "item:", item, "buf:", buf)
 
-            if ftype == 0x0f: # ink
+            if ftype == 0x0f:  # ink
                 colourlen = item[0]
                 offset = 1
                 inks = []
@@ -456,19 +379,19 @@ class EpsonSession(easysnmp.Session):
 
                 data_set["ink_level"] = inks
 
-            elif ftype == 0x0d: # maintenance tanks
+            elif ftype == 0x0d:  # maintenance tanks
                 (tank1, tank2) = item[0:2]
                 data_set["tanks"] = (tank1, tank2)
 
-            elif ftype == 0x19: # current job name
+            elif ftype == 0x19:  # current job name
                 data_set["jobname"] = item
                 if item == b'\x00\x00\x00\x00\x00unknown':
                     data_set["jobname"] = "Not defined"
 
-            elif ftype == 0x1f: # serial
+            elif ftype == 0x1f:  # serial
                 data_set["serial"] = str(item)
 
-            elif ftype == 0x01: # status
+            elif ftype == 0x01:  # status
                 printer_status = item[0]
                 status_text = "unknown"
                 if printer_status in status_ids:
@@ -481,34 +404,36 @@ class EpsonSession(easysnmp.Session):
                     data_set["ready"] = False
                 data_set["status"] = (printer_status, status_text)
 
-            elif ftype == 0x02: # errcode
+            elif ftype == 0x02:  # errcode
                 data_set["errcode"] = item
 
-            elif ftype == 0x03: # Self print code
+            elif ftype == 0x03:  # Self print code
                 data_set["self_print_code"] = item
 
-            elif ftype == 0x04: # warning
+            elif ftype == 0x04:  # warning
                 data_set["warning_code"] = item
 
-            elif ftype == 0x06: # Paper path
+            elif ftype == 0x06:  # Paper path
                 data_set["paper_path"] = item
                 if item == b'\x01\xff':
                     data_set["paper_path"] = "Cut sheet (Rear)"
 
-            elif ftype == 0x0e: # Replace cartridge information
+            elif ftype == 0x0e:  # Replace cartridge information
                 data_set["replace_cartridge"] = "{:08b}".format(item[0])
 
-            elif ftype == 0x10: # Loading path information
+            elif ftype == 0x10:  # Loading path information
                 data_set["loading_path"] = item.hex().upper()
                 if data_set["loading_path"] == "01094E":
                     data_set["loading_path"] = "fixed"
 
-            elif ftype == 0x13: # Cancel code
+            elif ftype == 0x13:  # Cancel code
                 data_set["cancel_code"] = item
                 if item == b'\x01':
                     data_set["cancel_code"] = "No request"
                 if item == b'\xA1':
-                    data_set["cancel_code"] = "The status during received cancel command and initialize the printer"
+                    data_set["cancel_code"] = (
+                        "Received cancel command and printer initialization"
+                    )
                 if item == b'\x81':
                     data_set["cancel_code"] = "Request"
 
@@ -516,30 +441,135 @@ class EpsonSession(easysnmp.Session):
                 i = 1
                 for j in range(item[0]):
                     if item[i] == 0:
-                        data_set[f"maintenance_box_{j}"] = f"not full ({item[i + 1]})"
+                        data_set[f"maintenance_box_{j}"] = (
+                            f"not full ({item[i + 1]})"
+                        )
                     elif item[i] == 1:
-                        data_set[f"maintenance_box_{j}"] = f"near full ({item[i + 1]})"
+                        data_set[f"maintenance_box_{j}"] = (
+                            f"near full ({item[i + 1]})"
+                        )
                     elif item[i] == 2:
-                        data_set[f"maintenance_box_{j}"] = f"full ({item[i + 1]})"
+                        data_set[f"maintenance_box_{j}"] = (
+                            f"full ({item[i + 1]})"
+                        )
                     else:
-                        data_set[f"maintenance_box_{j}"] = f"unknown ({item[i + 1]})"
+                        data_set[f"maintenance_box_{j}"] = (
+                            f"unknown ({item[i + 1]})"
+                        )
                     i += 2
 
-            else:   # mystery stuff
+            else:  # unknown stuff
                 if "unknown" not in data_set:
                     data_set["unknown"] = []
                 data_set["unknown"].append((hex(ftype), item))
         return data_set
 
+    def get_snmp_info(self, mib_name: str=None) -> str:
+        """Return general SNMP information of printer."""
+        sys_info = {}
+        if mib_name and mib_name in self.printer.snmp_info.keys():
+            snmp_info = { mib_name: self.printer.snmp_info[mib_name] }
+        else:
+            snmp_info = self.printer.snmp_info
+        for name, oid in snmp_info.items():
+            try:
+                sys_info[name] = self.read_value(oid)
+            except Exception:
+                sys_info[name] = None
+        if "UpTime" in sys_info:
+            sys_info["UpTime"] = time.strftime(
+                '%H:%M:%S', time.gmtime(int(sys_info["UpTime"])/100))
+        if "MAC Address" in sys_info:
+            sys_info["MAC Address"] = bytes(
+                [ord(i) for i in sys_info["MAC Address"]]).hex("-").upper()
+        return sys_info
+
+    def get_serial_number(self) -> str:
+        """Return serial number of printer."""
+        if "serial_number" not in self.printer.parm:
+            return None
+        return "".join(
+            chr(int(value, 16))
+            for value in self.read_eeprom_many(
+                self.printer.parm["serial_number"])
+        )
+
+    def get_stats(self) -> str:
+        """Return printer statistics."""
+        if "stats" not in self.printer.parm:
+            return None
+        stats_result = {}
+        for stat_name, oids in self.printer.parm["stats"].items():
+            total = 0
+            for val in self.read_eeprom_many(oids[0], oids[1]):
+                total = (total << 8) + int(val, 16)
+            stats_result[stat_name] = total
+        ftrt = stats_result["First TI received time"]
+        year = 2000 + ftrt // (16 * 32)
+        month = (ftrt - (year - 2000) * (16 * 32)) // 32
+        day = (ftrt - (year - 2000) * (16 * 32)) // 16
+        stats_result["First TI received time"] = datetime.datetime(
+            year, month, day).strftime('%d %b %Y')
+        return stats_result
+
+    def get_printer_head_id(self) -> str:  # to be revised
+        """Return printer head id."""
+        if "printer_head_id_h" not in self.printer.parm:
+            return None
+        if "printer_head_id_f" not in self.printer.parm:
+            return None
+        a = self.read_eeprom_many(self.printer.parm["printer_head_id_h"])
+        b = self.read_eeprom_many(self.printer.parm["printer_head_id_f"])
+        return(f'{"".join(a)} - {"".join(b)}')
+
+    def get_firmware_version(self) -> str:
+        """Return firmware version."""
+        firmware_string = self.read_value(
+            f"{self.printer.eeprom_link}.118.105.1.0.0")
+        if not firmware_string:
+            return None
+        firmware = re.sub(r".*vi:00:(.{6}).*", r'\g<1>', firmware_string)
+        year = ord(firmware[4:5]) + 1945
+        month = int(firmware[5:], 16)
+        day = int(firmware[2:4])
+        return firmware + " " + datetime.datetime(
+            year, month, day).strftime('%d %b %Y')
+
+    def get_cartridges(self) -> str:
+        """Return list of cartridge types."""
+        cartridges_string = self.read_value(
+            f"{self.printer.eeprom_link}.105.97.1.0.0")
+        if not cartridges_string:
+            return None
+        cartridges = re.sub(
+            r".*IA:00;(.*);.*", r'\g<1>', cartridges_string, flags=re.S)
+        return [i.strip() for i in cartridges.split(',')]
+
+    def get_ink_replacement_counters(self) -> str:
+        """Return list of ink replacement counters."""
+        if "ink_replacement_counters" not in self.printer.parm:
+            return None
+        irc = {
+            (color, counter, int(self.read_eeprom(value), 16))
+                for color, data in self.printer.parm[
+                        "ink_replacement_counters"].items()
+                    for counter, value in data.items()
+        }
+        return irc
+
     def get_printer_status(self):
         """Return printer status and ink levels."""
-        result = self.get_value(f"{self.printer.eeprom_link}.115.116.1.0.1")
+        result = self.read_value(f"{self.printer.eeprom_link}.115.116.1.0.1")
+        if not result:
+            return None
         if self.debug:
             print("PRINTER_STATUS", bytes([ord(i) for i in result]).hex(" "))
         return self.status_parser(bytes([ord(i) for i in result]))
 
     def get_waste_ink_levels(self):
         """Return waste ink levels as a percentage."""
+        if "main_waste" not in self.printer.parm:
+            return None
         results = []
         
         level = self.read_eeprom_many(self.printer.parm["main_waste"]["oids"])
@@ -549,22 +579,35 @@ class EpsonSession(easysnmp.Session):
             2)
         )
 
-        level = self.read_eeprom_many(
-            self.printer.parm["borderless_waste"]["oids"])
-        level_b10 = int("".join(reversed(level)), 16)
-        results.append(
-            round(level_b10 / self.printer.parm["borderless_waste"]["divider"],
-            2)
-        )
+        if "borderless_waste" in self.printer.parm:
+            level = self.read_eeprom_many(
+                self.printer.parm["borderless_waste"]["oids"])
+            level_b10 = int("".join(reversed(level)), 16)
+            results.append(round(level_b10 / self.printer.parm[
+                "borderless_waste"]["divider"], 2))
 
         return results
 
     def get_last_printer_fatal_errors(self) -> str:
+        """Return list of last printer fatal errors in hex format."""
+        if "last_printer_fatal_errors" not in self.printer.parm:
+            return None
         err = self.read_eeprom_many(
             self.printer.parm["last_printer_fatal_errors"])
-        err.extend(self.read_eeprom_many(
-            self.printer.parm["last_printer_fatal_err_ext"], "1"))
+        if "last_printer_fatal_err_ext" in self.printer.parm:
+            err.extend(self.read_eeprom_many(
+                self.printer.parm["last_printer_fatal_err_ext"], "1"))
         return err
+
+    def dump_eeprom(self, ext: str="0", start: int = 0, end: int = 0xFF):
+        """
+        Dump EEPROM data from start to end (less significant byte).
+        ext = most significant byte
+        """
+        d = {}
+        for oid in range(start, end):
+            d[oid] = int(self.read_eeprom(oid, ext), 16)
+        return d
 
     def reset_waste_ink_levels(self) -> None:
         """
@@ -573,6 +616,17 @@ class EpsonSession(easysnmp.Session):
         for oid in self.printer.parm["main_waste"]["oids"] + self.printer.parm[
                 "borderless_waste"]["oids"]:
             self.write_eeprom(oid, 0)
+
+    def write_first_ti_received_time(
+            self, year: int, month: int, day: int) -> None:
+        """Update first TI received time"""
+        b = self.printer.parm["stats"]["First TI received time"][0][0]
+        l = self.printer.parm["stats"]["First TI received time"][0][1]
+        n = (year - 2000) * 16 * 32 + 32 * month + day
+        if self.debug:
+            print("FTRT:", hex(n // 256), hex(n % 256))
+        self.write_eeprom(b, n // 256)
+        self.write_eeprom(l, n % 256)
 
     def brute_force_read_key(
         self, minimum: int = 0x00, maximum: int = 0xFF
@@ -613,14 +667,23 @@ if __name__ == "__main__":
         '--address',
         dest='hostname',
         action="store",
-        help='Printer host name or IP address. Example: -m 192.168.1.87',
+        help='Printer host name or IP address. (Example: -m 192.168.1.87)',
         required=True)
     parser.add_argument(
         '-i',
         '--info',
         dest='info',
         action='store_true',
-        help='Print information and statistics')
+        help='Print all available information and statistics (default option)')
+    parser.add_argument(
+        '-q',
+        '--query',
+        dest='query',
+        action='store',
+        type=str,
+        nargs=1,
+        help='Print specific information.'
+            ' (Use ? to list all available queries)')
     parser.add_argument(
         '--reset_waste_ink',
         dest='reset_waste_ink',
@@ -654,7 +717,7 @@ if __name__ == "__main__":
         '--write-first-ti-received-time',
         dest='ftrt',
         type=int,
-        help='Change the first TI received time (year, month, day)',
+        help='Change the first TI received time (arguments: year, month, day)',
         nargs=3,
     )
     args = parser.parse_args()
@@ -662,26 +725,62 @@ if __name__ == "__main__":
     printer = EpsonPrinter(
         args.model, args.hostname, debug=args.debug, dry_run=args.dry_run)
     if not printer.parm:
-        print("Unknown printer. Valid printers:",
-            list(printer.PRINTER_MODEL.keys()))
+        print("Unknown printer. Valid printers:", ", ".join(
+            printer.valid_printers))
         quit(1)
+    print_opt = False
     try:
         if args.reset_waste_ink:
+            print_opt = True
             printer.session.reset_waste_ink_levels()
         if args.brute_force:
+            print_opt = True
             printer.session.brute_force_read_key()
         if args.ftrt:
+            print_opt = True
             printer.session.write_first_ti_received_time(
                 int(args.ftrt[0]), int(args.ftrt[1]), int(args.ftrt[2]))
         if args.dump_eeprom:
+            print_opt = True
             for addr, val in printer.session.dump_eeprom(
                         str(args.dump_eeprom[0] % 256),
                         args.dump_eeprom[1] % 256,
                         int(args.dump_eeprom[2] % 256 + 1)
                     ).items():
                 print(f"{str(addr).rjust(3)}: {val:#04x} = {str(val).rjust(3)}")
-        if args.info:
-            pprint(printer.stats)
+        if args.query:
+            print_opt = True
+            if args.query[0] in printer.snmp_info.keys():
+                ret = printer.session.get_snmp_info(args.query[0])
+                if ret:
+                    pprint(ret)
+                else:
+                    print("No information returned. Check printer definition.")
+            else:
+                if args.query[0].startswith("get_"):
+                    method = args.query[0]
+                else:
+                    method = "get_" + args.query[0]
+                if method in printer.list_methods:
+                    ret = printer.session.__getattribute__(method)()
+                    if ret:
+                        pprint(ret)
+                    else:
+                        print("No information returned."
+                            " Check printer definition.")
+                else:
+                    print(
+                        "Option error: unavailable query.\nAvailable queries:",
+                        ", ".join(printer.list_methods),
+                        "\nAvailable SNMP elements:",
+                        ", ".join(printer.snmp_info.keys())
+                    )
+        if args.info or not print_opt:
+            ret = printer.stats
+            if ret:
+                pprint(ret)
+            else:
+                print("No information returned. Check printer definition.")
     except TimeoutError as e:
         print(f"Timeout error: {str(e)}")
     except ValueError as e:
