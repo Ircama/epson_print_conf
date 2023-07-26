@@ -11,13 +11,15 @@ from typing import Any
 import datetime
 import easysnmp  # pip3 install easysnmp
 import time
+import textwrap
 
 
 class EpsonPrinter:
     """SNMP Epson Printer Configuration."""
 
-    PRINTER_MODEL = {  # Known Epson models
+    PRINTER_CONFIG = {  # Known Epson models
         "XP-205": {
+            "alias": ["XP-202"],
             "read_key": [25, 7],
             "write_key": b'Wakatobi',
             "main_waste": {"oids": [24, 25], "divider": 73.5},
@@ -42,6 +44,40 @@ class EpsonPrinter:
             },
             "last_printer_fatal_errors": [60, 203, 204, 205, 206],
             "last_printer_fatal_err_ext": [211],
+        },
+        "Stylus Photo PX730WD": {
+            "alias": ["Epson Artisan 730"],
+            "read_key": [0x8, 0x77],
+            "write_key": b'Cattleya',
+            "main_waste": {"oids": [0xe, 0xf], "divider": 81.82},
+            "borderless_waste": {"oids": [0x10, 0x11], "divider": 122.88},
+            "stats": {
+                "Manual cleaning counter": [[0x7e], "0"],
+                "Timer cleaning counter": [[0x61], "0"],
+                "Total print pass counter": [[0x2C, 0x2D, 0x2E, 0x2F], "0"],
+                "Total print page counter": [[0x9E, 0x9F], "0"],
+                "Total print page counter (duplex)": [[0xA0, 0xA1], "0"],
+                "Total print CD-R counter": [[0x4A, 0x4B], "0"],
+                "Total print CD-R tray open/close counter": [[0xA2, 0xA3], "0"],
+                "Total scan counter": [[0xDA, 0xDB, 0xDC, 0xDD], "1"],
+            },
+            "last_printer_fatal_errors": [0x3B, 0xC0, 0xC1, 0xC2, 0xC3, 0x5C],
+            "ink_replacement_counters": {
+                "Black": { "1S": 0x66, "2S": 0x67, "3S": 0x62},
+                "Yellow": { "1S": 0x70, "2S": 0x71, "3S": 0xAB},
+                "Magenta": { "1S": 0x68, "2S": 0x69, "3S": 0x63},
+                "Cyan": { "1S": 0x6C, "2S": 0x6D, "3S": 0x65},
+                "Light magenta": { "1S": 0x6A, "2S": 0x6B, "3S": 0x64},
+                "Light cyan": { "1S": 0x6E, "2S": 0x6F, "3S": 0x9B},
+            },
+            "serial_number": range(0xE7, 0xF0),
+        },
+        "WF-7525": {
+            "read_key": [101, 0],
+            "write_key": b'Sasanqua',
+            "main_waste": {"oids": [20, 21], "divider": 196.5},
+            "borderless_waste": {"oids": [22, 23], "divider": 52.05},
+            "serial_number": range(192, 202),
         },
         "L355": {
             "read_key": [65, 9],
@@ -180,12 +216,23 @@ class EpsonPrinter:
             debug: bool=False,
             dry_run: bool=False) -> None:
         """Initialise printer model."""
+        for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
+            if "alias" in printer_data:
+                aliases = printer_data["alias"]
+                del printer_data["alias"]
+                for alias_name in aliases:
+                    if alias_name in self.PRINTER_CONFIG:
+                        self.PRINTER_CONFIG[alias_name] = {
+                            **printer_data, **self.PRINTER_CONFIG[alias_name]
+                        }
+                    else:
+                        self.PRINTER_CONFIG[alias_name] = printer_data
         self.printer_model = printer_model
         self.hostname = hostname
         self.debug = debug
         self.dry_run = dry_run
         if self.printer_model in self.valid_printers:
-            self.parm = self.PRINTER_MODEL[self.printer_model]
+            self.parm = self.PRINTER_CONFIG[self.printer_model]
         else:
             self.parm = None
         self.session = EpsonSession(printer=self, debug=debug, dry_run=dry_run)
@@ -195,9 +242,9 @@ class EpsonPrinter:
         """Return list of valid printers."""
         return {
             printer_name
-                for printer_name in self.PRINTER_MODEL.keys()
-                if "read_key" in self.PRINTER_MODEL[printer_name] and
-                "write_key" in self.PRINTER_MODEL[printer_name]
+                for printer_name in self.PRINTER_CONFIG.keys()
+                if "read_key" in self.PRINTER_CONFIG[printer_name] and
+                "write_key" in self.PRINTER_CONFIG[printer_name]
         }
 
     @property
@@ -730,8 +777,10 @@ if __name__ == "__main__":
     printer = EpsonPrinter(
         args.model, args.hostname, debug=args.debug, dry_run=args.dry_run)
     if not printer.parm:
-        print("Unknown printer. Valid printers:", ", ".join(
-            printer.valid_printers))
+        print(textwrap.fill("Unknown printer. Valid printers: " + ", ".join(
+            printer.valid_printers),
+            initial_indent='', subsequent_indent='  ')
+        )
         quit(1)
     print_opt = False
     try:
@@ -774,11 +823,13 @@ if __name__ == "__main__":
                         print("No information returned."
                             " Check printer definition.")
                 else:
-                    print(
-                        "Option error: unavailable query.\nAvailable queries:",
-                        ", ".join(printer.list_methods),
-                        "\nAvailable SNMP elements:",
-                        ", ".join(printer.snmp_info.keys())
+                    print("Option error: unavailable query.\n" +
+                        textwrap.fill(
+                            "Available queries: " +
+                            ", ".join(printer.list_methods) +
+                            "\nAvailable SNMP elements: " +
+                            ", ".join(printer.snmp_info.keys()),
+                        initial_indent='', subsequent_indent='  ')
                     )
         if args.info or not print_opt:
             ret = printer.stats()
