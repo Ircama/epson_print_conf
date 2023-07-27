@@ -19,7 +19,7 @@ class EpsonPrinter:
 
     PRINTER_CONFIG = {  # Known Epson models
         "XP-205": {
-            "alias": ["XP-202"],
+            "alias": ["XP-200", "XP-207"],
             "read_key": [25, 7],
             "write_key": b'Wakatobi',
             "main_waste": {"oids": [24, 25], "divider": 73.5},
@@ -117,10 +117,8 @@ class EpsonPrinter:
         "XP-540": {
             "read_key": [20, 4],
             "write_key": b'Firmiana',
-
-            "addr_waste": range(0x10, 0x16),  # To be changed
-            "main_waste": {"oids": [24, 25], "divider": 69},  # To be changed
-            "borderless_waste": {"oids": [26, 27], "divider": 32.53},  # To be changed
+            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
+            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
             # to be completed
         },
         "XP-610": {
@@ -149,16 +147,8 @@ class EpsonPrinter:
         "XP-830": {
             "read_key": [40, 9],
             "write_key": b'Irisgarm',  # (Iris graminea with typo?)
-
-            "addr_waste": (  # To be changed
-                0x10, 0x11,  # '>H' "main pad counter" Max: 0x2102 (8450)
-                0x06,
-                0x14, 0x15,
-                0x12, 0x13,  # '>H' "platen pad counter" Max: 0x0d2a (3370)
-                0x06
-            ),  # or 0x08?
-            "main_waste": {"oids": [24, 25], "divider": 69},   # To be changed
-            "borderless_waste": {"oids": [26, 27], "divider": 32.53},   # To be changed
+            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
+            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
             "idProduct": 0x110b,
             # to be completed
         },
@@ -170,10 +160,8 @@ class EpsonPrinter:
         "XP-7100": {
             "read_key": [40, 5],
             "write_key": b'Leucojum',
-
-            "addr_waste": range(0x10, 0x16),   # To be changed
-            "main_waste": {"oids": [24, 25], "divider": 69},   # To be changed
-            "borderless_waste": {"oids": [26, 27], "divider": 32.53},   # To be changed
+            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
+            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
             # to be completed
         },
     }
