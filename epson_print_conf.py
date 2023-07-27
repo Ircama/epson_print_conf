@@ -37,10 +37,10 @@ class EpsonPrinter:
                 "First TI received time": [173, 172]
             },
             "ink_replacement_counters": {
-                "Black": { "1B": 242, "1S": 208, "1L": 209},
-                "Yellow": { "1B": 248, "1S": 246, "1L": 247},
-                "Magenta": { "1B": 251, "1S": 249, "1L": 250},
-                "Cyan": { "1B": 245, "1S": 243, "1L": 244},
+                "Black": {"1B": 242, "1S": 208, "1L": 209},
+                "Yellow": {"1B": 248, "1S": 246, "1L": 247},
+                "Magenta": {"1B": 251, "1S": 249, "1L": 250},
+                "Cyan": {"1B": 245, "1S": 243, "1L": 244},
             },
             "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
         },
@@ -62,12 +62,12 @@ class EpsonPrinter:
             },
             "last_printer_fatal_errors": [0x3B, 0xC0, 0xC1, 0xC2, 0xC3, 0x5C],
             "ink_replacement_counters": {
-                "Black": { "1S": 0x66, "2S": 0x67, "3S": 0x62},
-                "Yellow": { "1S": 0x70, "2S": 0x71, "3S": 0xAB},
-                "Magenta": { "1S": 0x68, "2S": 0x69, "3S": 0x63},
-                "Cyan": { "1S": 0x6C, "2S": 0x6D, "3S": 0x65},
-                "Light magenta": { "1S": 0x6A, "2S": 0x6B, "3S": 0x64},
-                "Light cyan": { "1S": 0x6E, "2S": 0x6F, "3S": 0x9B},
+                "Black": {"1S": 0x66, "2S": 0x67, "3S": 0x62},
+                "Yellow": {"1S": 0x70, "2S": 0x71, "3S": 0xAB},
+                "Magenta": {"1S": 0x68, "2S": 0x69, "3S": 0x63},
+                "Cyan": {"1S": 0x6C, "2S": 0x6D, "3S": 0x65},
+                "Light magenta": {"1S": 0x6A, "2S": 0x6B, "3S": 0x64},
+                "Light cyan": {"1S": 0x6E, "2S": 0x6F, "3S": 0x9B},
             },
             "serial_number": range(0xE7, 0xF0),
             # untested
@@ -135,7 +135,7 @@ class EpsonPrinter:
         },
         "XP-630": {
             "read_key": [40, 9],
-            "write_key": b'Irisgarm',  #  (Iris graminea with typo?)
+            "write_key": b'Irisgarm',  # (Iris graminea with typo?)
             # to be completed
         },
         "XP-700": {
@@ -148,7 +148,7 @@ class EpsonPrinter:
         },
         "XP-830": {
             "read_key": [40, 9],
-            "write_key": b'Irisgarm',  #  (Iris graminea with typo?)
+            "write_key": b'Irisgarm',  # (Iris graminea with typo?)
 
             "addr_waste": (  # To be changed
                 0x10, 0x11,  # '>H' "main pad counter" Max: 0x2102 (8450)
@@ -214,8 +214,8 @@ class EpsonPrinter:
             self,
             printer_model:
             str, hostname: str,
-            debug: bool=False,
-            dry_run: bool=False) -> None:
+            debug: bool = False,
+            dry_run: bool = False) -> None:
         """Initialise printer model."""
         for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
             if "alias" in printer_data:
@@ -243,9 +243,9 @@ class EpsonPrinter:
         """Return list of valid printers."""
         return {
             printer_name
-                for printer_name in self.PRINTER_CONFIG.keys()
-                if "read_key" in self.PRINTER_CONFIG[printer_name] and
-                "write_key" in self.PRINTER_CONFIG[printer_name]
+            for printer_name in self.PRINTER_CONFIG.keys()
+            if "read_key" in self.PRINTER_CONFIG[printer_name]
+            and "write_key" in self.PRINTER_CONFIG[printer_name]
         }
 
     @property
@@ -276,10 +276,10 @@ class EpsonSession(easysnmp.Session):
     def __init__(
         self,
         printer: EpsonPrinter,
-        community: str="public",
-        version: int=1,
-        debug: bool=False,
-        dry_run: bool=False
+        community: str = "public",
+        version: int = 1,
+        debug: bool = False,
+        dry_run: bool = False
     ) -> None:
         """Initialise session."""
         self.printer = printer
@@ -292,8 +292,8 @@ class EpsonSession(easysnmp.Session):
     def eeprom_oid_read_address(
             self,
             oid: int,
-            msb: int=0,
-            label: str="unknown method") -> str:
+            msb: int = 0,
+            label: str = "unknown method") -> str:
         """Return address for reading from EEPROM for specified OID."""
         if oid > 255:
             msb = oid // 256
@@ -312,8 +312,8 @@ class EpsonSession(easysnmp.Session):
             self,
             oid: int,
             value: Any,
-            msb: int=0,
-            label: str="unknown method") -> str:
+            msb: int = 0,
+            label: str = "unknown method") -> str:
         """Return address for writing to EEPROM for specified OID."""
         if oid > 255:
             msb = oid // 256
@@ -347,7 +347,7 @@ class EpsonSession(easysnmp.Session):
     def read_eeprom(
             self,
             oid: int,
-            label: str="unknown method") -> str:
+            label: str = "unknown method") -> str:
         """Read EEPROM data."""
         response = self.read_value(
             self.eeprom_oid_read_address(oid, label=label))
@@ -372,7 +372,7 @@ class EpsonSession(easysnmp.Session):
     def read_eeprom_many(
             self,
             oids: list,
-            label: str="unknown method"):
+            label: str = "unknown method"):
         """Read EEPROM data with multiple values."""
         return [self.read_eeprom(oid, label=label) for oid in oids]
 
@@ -380,7 +380,7 @@ class EpsonSession(easysnmp.Session):
             self,
             oid: int,
             value: int,
-            label: str="unknown method") -> None:
+            label: str = "unknown method") -> None:
         """Write value to OID with specified type to EEPROM."""
         oid_string = self.eeprom_oid_write_address(oid, value, label=label)
         try:
@@ -444,8 +444,10 @@ class EpsonSession(easysnmp.Session):
             buf = buf[length:]
 
             if self.debug:
-                print("Processing status - ftype", hex(ftype),
-                "length:", length, "item:", item.hex(' '))
+                print(
+                    "Processing status - ftype", hex(ftype),
+                    "length:", length, "item:", item.hex(' ')
+                )
 
             if ftype == 0x0f:  # ink
                 colourlen = item[0]
@@ -460,7 +462,7 @@ class EpsonSession(easysnmp.Session):
                         name = colour_ids[colour]
                     else:
                         name = "0x%X" % colour
-                    
+
                     inks.append((colour, level, name))
 
                 data_set["ink_level"] = inks
@@ -523,7 +525,7 @@ class EpsonSession(easysnmp.Session):
                 if item == b'\x81':
                     data_set["cancel_code"] = "Request"
 
-            elif ftype == 0x37: # Maintenance box information
+            elif ftype == 0x37:  # Maintenance box information
                 i = 1
                 for j in range(item[0]):
                     if item[i] == 0:
@@ -550,11 +552,11 @@ class EpsonSession(easysnmp.Session):
                 data_set["unknown"].append((hex(ftype), item))
         return data_set
 
-    def get_snmp_info(self, mib_name: str=None) -> str:
+    def get_snmp_info(self, mib_name: str = None) -> str:
         """Return general SNMP information of printer."""
         sys_info = {}
         if mib_name and mib_name in self.printer.snmp_info.keys():
-            snmp_info = { mib_name: self.printer.snmp_info[mib_name] }
+            snmp_info = {mib_name: self.printer.snmp_info[mib_name]}
         else:
             snmp_info = self.printer.snmp_info
         for name, oid in snmp_info.items():
@@ -581,12 +583,12 @@ class EpsonSession(easysnmp.Session):
                 self.printer.parm["serial_number"], label="serial_number")
         )
 
-    def get_stats(self, stat_name: str=None) -> str:
+    def get_stats(self, stat_name: str = None) -> str:
         """Return printer statistics."""
         if "stats" not in self.printer.parm:
             return None
         if stat_name and stat_name in self.printer.parm["stats"].keys():
-            stat_info = { stat_name: self.printer.parm["stats"][stat_name] }
+            stat_info = {stat_name: self.printer.parm["stats"][stat_name]}
         else:
             stat_info = self.printer.parm["stats"]
         stats_result = {}
@@ -643,11 +645,15 @@ class EpsonSession(easysnmp.Session):
         if "ink_replacement_counters" not in self.printer.parm:
             return None
         irc = {
-            (color, counter, int(self.read_eeprom(
-                    value, label="ink_replacement_counters"), 16))
-                for color, data in self.printer.parm[
-                        "ink_replacement_counters"].items()
-                    for counter, value in data.items()
+            (
+                color,
+                counter,
+                int(self.read_eeprom(value, label="ink_replacement_counters"),
+                    16),
+            )
+            for color, data in self.printer.parm[
+                "ink_replacement_counters"].items()
+            for counter, value in data.items()
         }
         return irc
 
@@ -656,10 +662,14 @@ class EpsonSession(easysnmp.Session):
         result = self.read_value(f"{self.printer.eeprom_link}.115.116.1.0.1")
         if not result:
             return None
-        if self.debug:            
-            print(textwrap.fill("PRINTER_STATUS: " +
-                bytes([ord(i) for i in result]).hex(" "),
-                initial_indent='', subsequent_indent='    ')
+        if self.debug:
+            print(
+                textwrap.fill(
+                    "PRINTER_STATUS: " + bytes(
+                        [ord(i) for i in result]).hex(" "),
+                    initial_indent="",
+                    subsequent_indent="    ",
+                )
             )
         return self.status_parser(bytes([ord(i) for i in result]))
 
@@ -668,13 +678,12 @@ class EpsonSession(easysnmp.Session):
         if "main_waste" not in self.printer.parm:
             return None
         results = []
-        
+
         level = self.read_eeprom_many(
             self.printer.parm["main_waste"]["oids"], label="main_waste")
         level_b10 = int("".join(reversed(level)), 16)
         results.append(
-            round(level_b10 / self.printer.parm["main_waste"]["divider"],
-            2)
+            round(level_b10 / self.printer.parm["main_waste"]["divider"], 2)
         )
 
         if "borderless_waste" in self.printer.parm:
@@ -718,13 +727,13 @@ class EpsonSession(easysnmp.Session):
     def write_first_ti_received_time(
             self, year: int, month: int, day: int) -> None:
         """Update first TI received time"""
-        b = self.printer.parm["stats"]["First TI received time"][0]
-        l = self.printer.parm["stats"]["First TI received time"][1]
+        msb = self.printer.parm["stats"]["First TI received time"][0]
+        lsb = self.printer.parm["stats"]["First TI received time"][1]
         n = (year - 2000) * 16 * 32 + 32 * month + day
         if self.debug:
             print("FTRT:", hex(n // 256), hex(n % 256), "=", n // 256, n % 256)
-        self.write_eeprom(b, n // 256, label="First TI received time")
-        self.write_eeprom(l, n % 256, label="First TI received time")
+        self.write_eeprom(msb, n // 256, label="First TI received time")
+        self.write_eeprom(lsb, n % 256, label="First TI received time")
 
     def brute_force_read_key(
         self, minimum: int = 0x00, maximum: int = 0xFF
@@ -748,7 +757,6 @@ if __name__ == "__main__":
     import argparse
     from pprint import pprint
 
-
     parser = argparse.ArgumentParser(
         epilog='Epson Printer Configuration accessed via SNMP (TCP/IP)')
 
@@ -758,7 +766,7 @@ if __name__ == "__main__":
         dest='model',
         action="store",
         help='Printer model. Example: -m XP-205'
-            ' (use ? to print all supported models)',
+        ' (use ? to print all supported models)',
         required=True)
     parser.add_argument(
         '-a',
@@ -781,7 +789,7 @@ if __name__ == "__main__":
         type=str,
         nargs=1,
         help='Print specific information.'
-            ' (Use ? to list all available queries)')
+        ' (Use ? to list all available queries)')
     parser.add_argument(
         '--reset_waste_ink',
         dest='reset_waste_ink',
@@ -872,28 +880,31 @@ if __name__ == "__main__":
                     if ret:
                         pprint(ret)
                     else:
-                        print("No information returned."
-                            " Check printer definition.")
+                        print(
+                            "No information returned."
+                            " Check printer definition."
+                        )
                 else:
-                    print("Option error: unavailable query.\n" +
+                    print(
+                        "Option error: unavailable query.\n" +
                         textwrap.fill(
                             "Available queries: " +
                             ", ".join(printer.list_methods),
-                        initial_indent='', subsequent_indent='  '
+                            initial_indent='', subsequent_indent='  '
                         ) + "\n" +
                         (
                             (
                                 textwrap.fill(
                                     "Available statistics: " +
                                     ", ".join(printer.parm["stats"].keys()),
-                                initial_indent='', subsequent_indent='  '
+                                    initial_indent='', subsequent_indent='  '
                                 ) + "\n"
                             ) if "stats" in printer.parm else ""
                         ) +
                         textwrap.fill(
                             "Available SNMP elements: " +
                             ", ".join(printer.snmp_info.keys()),
-                        initial_indent='', subsequent_indent='  '
+                            initial_indent='', subsequent_indent='  '
                         )
                     )
         if args.info or not print_opt:
