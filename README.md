@@ -214,6 +214,8 @@ reink-net: https://github.com/gentu/reink-net
 
 epson-l4160-ink-waste-resetter: https://github.com/nicootto/epson-l4160-ink-waste-resetter
 
+epson-l3160-ink-waste-resetter: https://github.com/k3dt/epson-l3160-ink-waste-resetter
+
 emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
 
 ### GUI resources

@@ -84,9 +84,22 @@ class EpsonPrinter:
             "read_key": [65, 9],
             # to be completed
         },
+        "L3160": {
+            "read_key": [151, 7],
+            "write_key": b'Maribaya',
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
+                54: 94, 50: 0, 51: 0, 55: 94, 28: 0
+            }
+            # to be completed
+        },
         "L4160": {
             "read_key": [73, 8],
             "write_key": b'Arantifo',
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
+                54: 94, 50: 0, 51: 0, 55: 94, 28: 0
+            }
             # to be completed
         },
         "XP-315": {
@@ -381,7 +394,8 @@ class EpsonSession(easysnmp.Session):
                     f"  RESPONSE: {repr(response.value)}"
                 )
         except easysnmp.exceptions.EasySNMPTimeoutError as e:
-            raise TimeoutError(str(e))
+            if not self.dry_run:
+                raise TimeoutError(str(e))
         except Exception as e:
             raise ValueError(str(e))
 
@@ -707,6 +721,10 @@ class EpsonSession(easysnmp.Session):
         """
         Set waste ink levels to 0.
         """
+        if "raw_waste_reset" in self.printer.parm:
+            for oid, value in self.printer.parm["raw_waste_reset"].items():
+                self.write_eeprom(oid, value, label="raw_waste_reset")
+            return
         for oid in self.printer.parm["main_waste"]["oids"]:
             self.write_eeprom(oid, 0, label="main_waste")
         for oid in self.printer.parm["borderless_waste"]["oids"]:
