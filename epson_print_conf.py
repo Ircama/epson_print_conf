@@ -12,6 +12,7 @@ import datetime
 import easysnmp  # pip3 install easysnmp
 import time
 import textwrap
+import ast
 
 
 class EpsonPrinter:
@@ -22,8 +23,8 @@ class EpsonPrinter:
             "alias": ["XP-200", "XP-207"],
             "read_key": [25, 7],
             "write_key": b'Wakatobi',
-            "main_waste": {"oids": [24, 25], "divider": 73.5},
-            "borderless_waste": {"oids": [26, 27], "divider": 34.34},
+            "main_waste": {"oids": [24, 25, 30], "divider": 73.5},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 34.34},
             "serial_number": range(192, 202),
             "printer_head_id_h": range(122, 127),
             "printer_head_id_f": [136, 137, 138, 129],
@@ -34,7 +35,17 @@ class EpsonPrinter:
                 "Total print pass counter": [171, 170, 169, 168],
                 "Total print page counter": [167, 166, 165, 164],
                 "Total scan counter": [0x01d7, 0x01d6, 0x01d5, 0x01d4],
-                "First TI received time": [173, 172]
+                "First TI received time": [173, 172],
+                "Maintenance required level of 1st waste ink counter": [46],
+                "Maintenance required level of 2nd waste ink counter": [47],
+            },
+            "raw_waste_reset": {
+                24: 0, 25: 0, 30: 0,  # Data of 1st counter
+                28: 0, 29: 0,  # another store of 1st counter
+                46: 94,  # Maintenance required level of 1st counter
+                26: 0, 27: 0, 34: 0,  # Data of 2nd counter
+                47: 94,  # Maintenance required level of 2st counter
+                49: 0  # ?
             },
             "ink_replacement_counters": {
                 "Black": {"1B": 242, "1S": 208, "1L": 209},
@@ -78,7 +89,14 @@ class EpsonPrinter:
             "main_waste": {"oids": [20, 21], "divider": 196.5},
             "borderless_waste": {"oids": [22, 23], "divider": 52.05},
             "serial_number": range(192, 202),
-            # untested
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [60],
+                "Maintenance required level of 2nd waste ink counter": [61],
+            },
+            "raw_waste_reset": {
+                20: 0, 21: 0, 22: 0, 23: 0, 24: 0, 25: 0, 59: 0, 60: 94, 61: 94
+            }
+            # to be completed
         },
         "L355": {
             "read_key": [65, 9],
@@ -87,6 +105,10 @@ class EpsonPrinter:
         "L3160": {
             "read_key": [151, 7],
             "write_key": b'Maribaya',
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+            },
             "raw_waste_reset": {
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
                 54: 94, 50: 0, 51: 0, 55: 94, 28: 0
@@ -96,6 +118,10 @@ class EpsonPrinter:
         "L4160": {
             "read_key": [73, 8],
             "write_key": b'Arantifo',
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+            },
             "raw_waste_reset": {
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
                 54: 94, 50: 0, 51: 0, 55: 94, 28: 0
@@ -105,26 +131,36 @@ class EpsonPrinter:
         "XP-315": {
             "read_key": [129, 8],
             "write_key": b'Wakatobi',
+            "main_waste": {"oids": [24, 25, 30], "divider": 196.5},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 52.05},
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [46],
+                "Maintenance required level of 2nd waste ink counter": [47],
+            },
+            "raw_waste_reset": {
+                24: 0, 25: 0, 30: 0, 28: 0, 29: 0,
+                46: 94, 26: 0, 27: 0, 34: 0, 47: 94, 49: 0
+            }
             # to be completed
         },
         "XP-422": {
             "read_key": [85, 5],
             "write_key": b'Muscari.',
             # to be completed
+            "main_waste": {"oids": [24, 25, 30], "divider": 196.5},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 52.05},
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [46],
+                "Maintenance required level of 2nd waste ink counter": [47],
+            },
+            "raw_waste_reset": {
+                24: 0, 25: 0, 26: 0, 27: 0, 28: 0,
+                29: 0, 30: 0, 34: 0, 46: 94, 47: 94, 49: 0
+            }
         },
         "XP-435": {
             "read_key": [133, 5],
             "write_key": b'Polyxena',
-            # to be completed
-        },
-        "XP-510": {
-            "read_key": [121, 4],
-            "write_key": b'Gossypiu',
-            # to be completed
-        },
-        "XP-530": {
-            "read_key": [40, 9],
-            "write_key": b'Irisgarm',
             # to be completed
         },
         "XP-540": {
@@ -137,16 +173,14 @@ class EpsonPrinter:
         "XP-610": {
             "read_key": [121, 4],
             "write_key": b'Gossypiu',
+            "alias": ["XP-611", "XP-615", "XP-510"],
+            "main_waste": {"oids": [16, 17], "divider": 84.5},  # divider to be changed
+            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # divider to be changed
             # to be completed
         },
         "XP-620": {
             "read_key": [57, 5],
             "write_key": b'Althaea.',
-            # to be completed
-        },
-        "XP-630": {
-            "read_key": [40, 9],
-            "write_key": b'Irisgarm',  # (Iris graminea with typo?)
             # to be completed
         },
         "XP-700": {
@@ -160,6 +194,7 @@ class EpsonPrinter:
         "XP-830": {
             "read_key": [40, 9],
             "write_key": b'Irisgarm',  # (Iris graminea with typo?)
+            "alias": ["XP-530", "XP-630", "XP-635"],
             "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
             "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
             "idProduct": 0x110b,
@@ -168,6 +203,8 @@ class EpsonPrinter:
         "XP-850": {
             "read_key": [40, 0],
             "write_key": b'Hibiscus',
+            "main_waste": {"oids": [16, 17], "divider": 84.5},  # divider to be changed
+            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # divider to be changed
             # to be completed
         },
         "XP-7100": {
@@ -175,6 +212,15 @@ class EpsonPrinter:
             "write_key": b'Leucojum',
             "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
             "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
+            # to be completed
+        },
+        "ET-2500": {
+            "read_key": [68, 1],
+            "write_key": b'Gerbera*',  # (Iris graminea with typo?)
+            "stats": {
+                "Maintenance required level of waste ink counter": [46],
+            },
+            "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94}
             # to be completed
         },
     }
@@ -198,6 +244,7 @@ class EpsonPrinter:
         "Emulation 3": "1.3.6.1.2.1.43.15.1.1.5.1.3",
         "Emulation 4": "1.3.6.1.2.1.43.15.1.1.5.1.4",
         "Emulation 5": "1.3.6.1.2.1.43.15.1.1.5.1.5",
+        "Print counter": "1.3.6.1.2.1.43.10.2.1.4.1.1",
     }
 
     SNMP_OID_ENTERPRISE = "1.3.6.1.4.1"
@@ -246,7 +293,6 @@ class EpsonPrinter:
             printer_name
             for printer_name in self.PRINTER_CONFIG.keys()
             if "read_key" in self.PRINTER_CONFIG[printer_name]
-            and "write_key" in self.PRINTER_CONFIG[printer_name]
         }
 
     @property
@@ -299,6 +345,8 @@ class EpsonSession(easysnmp.Session):
         if oid > 255:
             msb = oid // 256
             oid = oid % 256
+        if 'read_key' not in self.printer.parm:
+            return None
         return (
             f"{self.printer.eeprom_link}"
             ".124.124"  # || (0x7C 0x7C)
@@ -319,6 +367,9 @@ class EpsonSession(easysnmp.Session):
         if oid > 255:
             msb = oid // 256
             oid = oid % 256
+        if ('write_key' not in self.printer.parm
+                or 'read_key' not in self.printer.parm):
+            return None
         write_op = (
             f"{self.printer.eeprom_link}"
             ".124.124"  # || (0x7C 0x7C)
@@ -350,17 +401,23 @@ class EpsonSession(easysnmp.Session):
             oid: int,
             label: str = "unknown method") -> str:
         """Read EEPROM data."""
-        response = self.read_value(
-            self.eeprom_oid_read_address(oid, label=label))
         if self.debug:
             print(
                 f"EEPROM_DUMP {label}:\n"
                 f"  ADDRESS: "
                 f"{self.eeprom_oid_read_address(oid, label=label)}\n"
-                f"  OID: {oid}={hex(oid)}\n"
-                f"  RESPONSE: {repr(response)}"
+                f"  OID: {oid}={hex(oid)}"
             )
-        response = re.findall(r"EE:[0-9A-F]{6}", response)[0][3:]
+        response = self.read_value(
+            self.eeprom_oid_read_address(oid, label=label))
+        if self.debug:
+            print(f"  RESPONSE: {repr(response)}")
+        try:
+            response = re.findall(r"EE:[0-9A-F]{6}", response)[0][3:]
+        except IndexError:
+            if self.debug:
+                print(f"Invalid read key.")
+            return None
         chk_addr = response[0:4]
         value = response[4:6]
         if int(chk_addr, 16) != oid:
@@ -383,21 +440,33 @@ class EpsonSession(easysnmp.Session):
             value: int,
             label: str = "unknown method") -> None:
         """Write value to OID with specified type to EEPROM."""
+        if "write_key" not in self.printer.parm:
+            if self.debug:
+                print(f"Missing 'write_key' parameter in configuration.")
+            return False
+        if not self.dry_run and self.debug:
+            response = self.read_eeprom(oid, label=label)
+            print(f"Previous value for {label}: {response}")
         oid_string = self.eeprom_oid_write_address(oid, value, label=label)
+        response = None
         try:
             response = self.get(oid_string)
-            if self.debug:
-                print(
-                    f"EEPROM_WRITE {label}:\n"
-                    f"  ADDRESS: {oid_string}\n"
-                    f"  OID: {oid}={hex(oid)}\n"
-                    f"  RESPONSE: {repr(response.value)}"
-                )
         except easysnmp.exceptions.EasySNMPTimeoutError as e:
             if not self.dry_run:
                 raise TimeoutError(str(e))
         except Exception as e:
             raise ValueError(str(e))
+        if self.debug:
+            print(
+                f"EEPROM_WRITE {label}:\n"
+                f"  ADDRESS: {oid_string}\n"
+                f"  OID: {oid}={hex(oid)}"
+            )
+        if self.debug and response:
+            print(f"  RESPONSE: {repr(response.value)}")
+        if response and not ":OK;" in repr(response.value):  # ":NA;" is an error
+            return False
+        return True
 
     def status_parser(self, data):
         """Parse an ST2 status response and decode as much as possible."""
@@ -717,46 +786,69 @@ class EpsonSession(easysnmp.Session):
             d[oid] = int(self.read_eeprom(oid, label="dump_eeprom"), 16)
         return d
 
-    def reset_waste_ink_levels(self) -> None:
+    def reset_waste_ink_levels(self) -> bool:
         """
         Set waste ink levels to 0.
         """
         if "raw_waste_reset" in self.printer.parm:
             for oid, value in self.printer.parm["raw_waste_reset"].items():
-                self.write_eeprom(oid, value, label="raw_waste_reset")
-            return
+                if not self.write_eeprom(oid, value, label="raw_waste_reset"):
+                    return False
+            return True
+        if "main_waste" not in self.printer.parm:
+            return None
         for oid in self.printer.parm["main_waste"]["oids"]:
-            self.write_eeprom(oid, 0, label="main_waste")
+            if not self.write_eeprom(oid, 0, label="main_waste"):
+                return False
+        if "borderless_waste" not in self.printer.parm:
+            return True
         for oid in self.printer.parm["borderless_waste"]["oids"]:
-            self.write_eeprom(oid, 0, label="borderless_waste")
+            if not self.write_eeprom(oid, 0, label="borderless_waste"):
+                return False
+        return True
 
     def write_first_ti_received_time(
-            self, year: int, month: int, day: int) -> None:
+            self, year: int, month: int, day: int) -> bool:
         """Update first TI received time"""
-        msb = self.printer.parm["stats"]["First TI received time"][0]
-        lsb = self.printer.parm["stats"]["First TI received time"][1]
+        try:
+            msb = self.printer.parm["stats"]["First TI received time"][0]
+            lsb = self.printer.parm["stats"]["First TI received time"][1]
+        except KeyError:
+            return False
         n = (year - 2000) * 16 * 32 + 32 * month + day
         if self.debug:
             print("FTRT:", hex(n // 256), hex(n % 256), "=", n // 256, n % 256)
-        self.write_eeprom(msb, n // 256, label="First TI received time")
-        self.write_eeprom(lsb, n % 256, label="First TI received time")
+        if not self.write_eeprom(msb, n // 256, label="First TI received time"):
+            return False
+        if not self.write_eeprom(lsb, n % 256, label="First TI received time"):
+            return False
+        return True
+
+    def detect_write_key(self, debug=False):
+        for model, chars in self.printer.PRINTER_CONFIG.items():
+            if 'write_key' in chars:
+                print(model, chars['write_key'])
 
     def brute_force_read_key(
-        self, minimum: int = 0x00, maximum: int = 0xFF
+        self, minimum: int = 0x00, maximum: int = 0xFF, debug=False
     ):
         """Brute force read_key for printer."""
         for x, y in itertools.permutations(range(minimum, maximum), r=2):
             self.printer.parm['read_key'] = [x, y]
-            print(f"Trying {self.printer.parm['read_key']}...")
+            if debug:
+                print(f"Trying {self.printer.parm['read_key']}...")
             try:
                 self.read_eeprom(0x00, label="brute_force_read_key")
-                print(f"read_key found: {self.printer.parm['read_key']}")
                 return self.printer.parm['read_key']
             except IndexError:
                 continue
             except KeyboardInterrupt:
                 return None
         return None
+
+    def write_sequence_to_string(self, write_sequence):
+        int_sequence = [int(b) for b in write_sequence[0].split(".")]
+        return "".join([chr(b-1) for b in int_sequence])
 
 
 if __name__ == "__main__":
@@ -802,8 +894,8 @@ if __name__ == "__main__":
         action='store_true',
         help='Reset all waste ink levels to 0')
     parser.add_argument(
-        "--brute-force-read-key",
-        dest='brute_force',
+        "--detect-key",
+        dest='detect_key',
         action='store_true',
         help="Detect the read_key via brute force")
     parser.add_argument(
@@ -832,6 +924,33 @@ if __name__ == "__main__":
         help='Change the first TI received time (arguments: year, month, day)',
         nargs=3,
     )
+    parser.add_argument(
+        '-R',
+        '--read-eeprom',
+        dest='read_eeprom',
+        action='store',
+        type=str,
+        nargs=1,
+        help='Read the values of a list of printer EEPROM addreses.'
+        ' Format is: address [, ...]')
+    parser.add_argument(
+        '-W',
+        '--write-eeprom',
+        dest='write_eeprom',
+        action='store',
+        type=str,
+        nargs=1,
+        help='Write related values to a list of printer EEPROM addresses.'
+        ' Format is: address: value [, ...]')
+    parser.add_argument(
+        '-S',
+        '--write-sequence-to-string',
+        dest='ws_to_string',
+        action='store',
+        type=str,
+        nargs=1,
+        help='Convert write sequence of numbers to string.'
+    )
     args = parser.parse_args()
 
     printer = EpsonPrinter(
@@ -844,16 +963,32 @@ if __name__ == "__main__":
         quit(1)
     print_opt = False
     try:
+        if args.ws_to_string:
+            print_opt = True
+            print(printer.session.write_sequence_to_string(args.ws_to_string))
         if args.reset_waste_ink:
             print_opt = True
-            printer.session.reset_waste_ink_levels()
-        if args.brute_force:
+            if printer.session.reset_waste_ink_levels():
+                print("Reset waste ink levels done.")
+            else:
+                print("Failed to reset waste ink levels. Check configuration.")
+        if args.detect_key:
             print_opt = True
-            printer.session.brute_force_read_key()
+            read_key = printer.session.brute_force_read_key(debug=True)
+            if read_key:
+                print(f"read_key found: {read_key}")
+            else:
+                print(f"Cannot found read_key")
         if args.ftrt:
             print_opt = True
-            printer.session.write_first_ti_received_time(
-                int(args.ftrt[0]), int(args.ftrt[1]), int(args.ftrt[2]))
+            if printer.session.write_first_ti_received_time(
+                    int(args.ftrt[0]), int(args.ftrt[1]), int(args.ftrt[2])):
+                print("Write first TI received time done.")
+            else:
+                print(
+                    "Failed to write first TI received time."
+                    " Check configuration."
+                )
         if args.dump_eeprom:
             print_opt = True
             for addr, val in printer.session.dump_eeprom(
@@ -913,6 +1048,36 @@ if __name__ == "__main__":
                             initial_indent='', subsequent_indent='  '
                         )
                     )
+        if args.read_eeprom:
+            print_opt = True
+            read_list = re.split(',\s*', args.read_eeprom[0])
+            for value in read_list:
+                try:
+                    val = printer.session.read_eeprom(
+                        ast.literal_eval(value), label='read_eeprom')
+                    if val is None:
+                        print("EEPROM read error.")
+                    else:
+                        print(f"0x{val}={int(val, 16)}")
+                except (ValueError, SyntaxError):
+                    print("invalid argument for read_eeprom")
+                    quit(1)
+        if args.write_eeprom:
+            print_opt = True
+            read_list = re.split(',\s*|;\s*|\|\s*', args.write_eeprom[0])
+            for key_val in read_list:
+                key, val = re.split(':|=', key_val)
+                try:
+                    val_int = ast.literal_eval(val)
+                    if not printer.session.write_eeprom(
+                            ast.literal_eval(key),
+                            str(val_int), label='write_eeprom'
+                        ):
+                        print("invalid write operation")
+                        quit(1)
+                except (ValueError, SyntaxError):
+                    print("invalid argument for write_eeprom")
+                    quit(1)                    
         if args.info or not print_opt:
             ret = printer.stats()
             if ret:

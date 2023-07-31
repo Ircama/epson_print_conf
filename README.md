@@ -12,33 +12,33 @@ cd epson_print_conf
 ## Usage
 
 ```
-usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY]
-                           [--reset_waste_ink] [--brute-force-read-key] [-d]
-                           [-e DUMP_EEPROM DUMP_EEPROM DUMP_EEPROM] [--dry-run]
-                           [--write-first-ti-received-time FTRT FTRT FTRT]
+usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY] [--reset_waste_ink] [--detect-key] [-d]
+                           [-e DUMP_EEPROM DUMP_EEPROM] [--dry-run] [--write-first-ti-received-time FTRT FTRT FTRT]
+                           [-R READ_EEPROM] [-W WRITE_EEPROM] [-S WS_TO_STRING]
 
 optional arguments:
   -h, --help            show this help message and exit
   -m MODEL, --model MODEL
-                        Printer model. Example: -m XP-205 (use ? to print all
-                        supported models)
+                        Printer model. Example: -m XP-205 (use ? to print all supported models)
   -a HOSTNAME, --address HOSTNAME
                         Printer host name or IP address. (Example: -m 192.168.1.87)
-  -i, --info            Print all available information and statistics (default
-                        option)
+  -i, --info            Print all available information and statistics (default option)
   -q QUERY, --query QUERY
-                        Print specific information. (Use ? to list all available
-                        queries)
+                        Print specific information. (Use ? to list all available queries)
   --reset_waste_ink     Reset all waste ink levels to 0
-  --brute-force-read-key
-                        Detect the read_key via brute force
+  --detect-key          Detect the read_key via brute force
   -d, --debug           Print debug information
-  -e DUMP_EEPROM DUMP_EEPROM DUMP_EEPROM, --eeprom-dump DUMP_EEPROM DUMP_EEPROM DUMP_EEPROM
-                        Dump EEPROM (arguments: extension, start, stop)
+  -e DUMP_EEPROM DUMP_EEPROM, --eeprom-dump DUMP_EEPROM DUMP_EEPROM
+                        Dump EEPROM (arguments: start, stop)
   --dry-run             Dry-run change operations
   --write-first-ti-received-time FTRT FTRT FTRT
-                        Change the first TI received time (arguments: year, month,
-                        day)
+                        Change the first TI received time (arguments: year, month, day)
+  -R READ_EEPROM, --read-eeprom READ_EEPROM
+                        Read the values of a list of printer EEPROM addreses. Format is: address [, ...]
+  -W WRITE_EEPROM, --write-eeprom WRITE_EEPROM
+                        Write related values to a list of printer EEPROM addresses. Format is: address: value [, ...]
+  -S WS_TO_STRING, --write-sequence-to-string WS_TO_STRING
+                        Convert write sequence of numbers to string.
 
 Epson Printer Configuration accessed via SNMP (TCP/IP)
 ```
@@ -46,26 +46,32 @@ Epson Printer Configuration accessed via SNMP (TCP/IP)
 Examples:
 
 ```
-# Print informations
+# Print informations (-i is not needed):
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -i
 
-# Reset all waste ink levels to 0
+# Reset all waste ink levels to 0:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --reset_waste_ink
 
-# Change the first TI received time to 31 December 2016
+# Change the first TI received time to 31 December 2016:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --write-first-ti-received-time 2016 12 31
 
-# Detect the read_key via brute force
-python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --brute-force-read-key
+# Detect the read_key via brute force:
+python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --detect-key
 
-# Only print status information
+# Only print status information:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -q printer_status
 
-# Only print SNMP 'MAC Address' name
+# Only print SNMP 'MAC Address' name:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -q 'MAC Address'
 
-# Only print SNMP 'Lang 5' name
+# Only print SNMP 'Lang 5' name:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -q 'Lang 5'
+
+# Write value 1 to the EEPROM address 173 and value 0xDE to the EEPROM address 172:
+python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -W 173:1,172:0xde
+
+# Read EEPROM address 173 and EEPROM address 172:
+python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 ```
 
 ## API Interface
@@ -103,7 +109,7 @@ ret = printer.session.get_stats()
 print("get_stats:", ret)
 
 printer.session.reset_waste_ink_levels()
-printer.session.brute_force_read_key()
+printer.session.detect_key()
 printer.session.write_first_ti_received_time(2000, 1, 2)
 ```
 
@@ -132,7 +138,7 @@ ValueError
                               ('Yellow', '1L', 10),
                               ('Yellow', '1S', 1)},
  'last_printer_fatal_errors': ['08', 'F1', 'F1', 'F1', 'F1', '10'],
- 'printer_head_id': '...',
+ 'printer_head_id': '00AB73648E - 6464640E',
  'printer_status': {'cancel_code': 'No request',
                     'ink_level': [(1, 89, 'Black'),
                                   (5, 77, 'Yellow'),
@@ -147,7 +153,7 @@ ValueError
                     'replace_cartridge': '00000001',
                     'status': (4, 'Idle'),
                     'unknown': [('0x24', b'\x0f\x0f')]},
- 'serial_number': '...',
+ 'serial_number': 'QJFK135617',
  'snmp_info': {'Descr': 'EPSON Built-in 11b/g/n Print Server',
                'EEPS2 firmware version': 'EEPS2 Hard Ver.1.00 Firm Ver.0.50',
                'Emulation 1': 'unknown',
@@ -160,21 +166,24 @@ ValueError
                'Lang 3': 'BDC',
                'Lang 4': 'D4',
                'Lang 5': 'ESCPR1',
-               'MAC Address': '...',
+               'MAC Address': 'A4-EE-57-DE-FD-03',
                'Model': 'EPSON XP-205 207 Series',
                'Model short': 'XP-205 207 Series',
-               'Name': '...',
+               'Name': 'EPSONDEFD03',
+               'Print counter': '0',
                'Print input': 'Auto sheet feeder',
-               'UpTime': '00:32:38'},
- 'stats': {'First TI received time': '...',
+               'UpTime': '00:00:30'},
+ 'stats': {'First TI received time': '25 Dec 2012',
            'Ink replacement cleaning counter': 78,
+           'Maintenance required level of 1st waste ink counter': 94,
+           'Maintenance required level of 2nd waste ink counter': 94,
            'Manual cleaning counter': 129,
            'Timer cleaning counter': 4,
            'Total print page counter': 11504,
            'Total print pass counter': 510136,
            'Total scan counter': 4967},
  'waste_ink_levels': [90.45, 4.63]}
-```
+ ```
 
 ## Resources
 
@@ -204,7 +213,7 @@ snmpget -v1 -d -c public 192.168.1.87 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.
 
 ### Development resources
 
-epson-printer-snmp: https://github.com/Zedeldi/epson-printer-snmp
+epson-printer-snmp: https://github.com/Zedeldi/epson-printer-snmp (and https://github.com/Zedeldi/epson-printer-snmp/issues/1)
 
 ReInkPy: https://codeberg.org/atufi/reinkpy/
 
