@@ -102,6 +102,18 @@ class EpsonPrinter:
             "read_key": [65, 9],
             # to be completed
         },
+        "L3250": {
+            "read_key": [74, 54],
+            "write_key": b'Maribaya',
+            "serial_number": range(68, 78),
+            "main_waste": {"oids": [48, 49], "divider": 63.45},
+            "second_waste": {"oids": [50, 51], "divider": 34.13},
+            "third_waste": {"oids": [252, 253], "divider": 13},
+            "raw_waste_reset": {
+                48: 0, 49: 0, 50: 0, 51: 0, 252: 0, 253: 0
+            }
+            # to be completed
+        },
         "L3160": {
             "read_key": [151, 7],
             "write_key": b'Maribaya',
@@ -138,8 +150,12 @@ class EpsonPrinter:
                 "Maintenance required level of 2nd waste ink counter": [47],
             },
             "raw_waste_reset": {
-                24: 0, 25: 0, 30: 0, 28: 0, 29: 0,
-                46: 94, 26: 0, 27: 0, 34: 0, 47: 94, 49: 0
+                24: 0, 25: 0, 30: 0,  # Data of 1st counter
+                28: 0, 29: 0,  # another store of 1st counter
+                46: 94,  # Maintenance required level of 1st counter
+                26: 0, 27: 0, 34: 0,  # Data of 2nd counter
+                47: 94,  # Maintenance required level of 2st counter
+                49: 0  # ?
             }
             # to be completed
         },
@@ -216,7 +232,7 @@ class EpsonPrinter:
         },
         "ET-2500": {
             "read_key": [68, 1],
-            "write_key": b'Gerbera*',  # (Iris graminea with typo?)
+            "write_key": b'Gerbera*',
             "stats": {
                 "Maintenance required level of waste ink counter": [46],
             },
@@ -245,6 +261,12 @@ class EpsonPrinter:
         "Emulation 4": "1.3.6.1.2.1.43.15.1.1.5.1.4",
         "Emulation 5": "1.3.6.1.2.1.43.15.1.1.5.1.5",
         "Print counter": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+        "IP Address": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.3.1",
+        "URL_path": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.4.1",
+        "URL": "1.3.6.1.4.1.1248.1.1.3.1.4.46.1.2.1",
+        "WiFi": "1.3.6.1.4.1.1248.1.1.3.1.29.2.1.9.0",
+        "hex_data": "1.3.6.1.4.1.1248.1.1.3.1.1.5.0",
+        "data": "1.3.6.1.4.1.11.2.3.9.1.1.7.0",
     }
 
     SNMP_OID_ENTERPRISE = "1.3.6.1.4.1"
@@ -636,6 +658,9 @@ class EpsonSession(easysnmp.Session):
             except Exception:
                 if self.debug:
                     print(f"No value for SNMP OID '{name}'.")
+        if "hex_data" in sys_info:
+            sys_info["hex_data"] = bytes(
+                [ord(i) for i in sys_info["hex_data"]]).hex(" ").upper()
         if "UpTime" in sys_info:
             sys_info["UpTime"] = time.strftime(
                 '%H:%M:%S', time.gmtime(int(sys_info["UpTime"])/100))
@@ -748,24 +773,16 @@ class EpsonSession(easysnmp.Session):
         """Return waste ink levels as a percentage."""
         if "main_waste" not in self.printer.parm:
             return None
-        results = []
-
-        level = self.read_eeprom_many(
-            self.printer.parm["main_waste"]["oids"], label="main_waste")
-        level_b10 = int("".join(reversed(level)), 16)
-        results.append(
-            round(level_b10 / self.printer.parm["main_waste"]["divider"], 2)
-        )
-
-        if "borderless_waste" in self.printer.parm:
+        results = {}
+        for waste_type in ["main_waste", "borderless_waste", "first_waste",
+                "second_waste", "third_waste"]:
+            if waste_type not in self.printer.parm:
+                continue
             level = self.read_eeprom_many(
-                self.printer.parm["borderless_waste"]["oids"],
-                label="borderless_waste"
-            )
+                self.printer.parm[waste_type]["oids"], label=waste_type)
             level_b10 = int("".join(reversed(level)), 16)
-            results.append(round(level_b10 / self.printer.parm[
-                "borderless_waste"]["divider"], 2))
-
+            results[waste_type] = round(
+                level_b10 / self.printer.parm[waste_type]["divider"], 2)
         return results
 
     def get_last_printer_fatal_errors(self) -> str:
@@ -824,31 +841,33 @@ class EpsonSession(easysnmp.Session):
             return False
         return True
 
-    def detect_write_key(self, debug=False):
+    def list_known_keys(self, debug=False):
         for model, chars in self.printer.PRINTER_CONFIG.items():
             if 'write_key' in chars:
-                print(model, chars['write_key'])
+                print(f"{repr(model).rjust(25)}: {repr(chars['read_key']).rjust(10)} - {repr(chars['write_key'])[1:]}")
+            else:
+                print(f"{repr(model).rjust(25)}: {repr(chars['read_key']).rjust(10)} (unknown write key)")
 
     def brute_force_read_key(
         self, minimum: int = 0x00, maximum: int = 0xFF, debug=False
     ):
         """Brute force read_key for printer."""
-        for x, y in itertools.permutations(range(minimum, maximum), r=2):
+        for x, y in itertools.permutations(range(minimum, maximum + 1), r=2):
             self.printer.parm['read_key'] = [x, y]
             if debug:
                 print(f"Trying {self.printer.parm['read_key']}...")
-            try:
-                self.read_eeprom(0x00, label="brute_force_read_key")
-                return self.printer.parm['read_key']
-            except IndexError:
+            val = self.read_eeprom(0x00, label="brute_force_read_key")
+            if val is None:
                 continue
-            except KeyboardInterrupt:
-                return None
+            return self.printer.parm['read_key']
         return None
 
     def write_sequence_to_string(self, write_sequence):
-        int_sequence = [int(b) for b in write_sequence[0].split(".")]
-        return "".join([chr(b-1) for b in int_sequence])
+        try:
+            int_sequence = [int(b) for b in write_sequence[0].split(".")]
+            return "".join([chr(b-1) for b in int_sequence])
+        except Exception:
+            return None
 
 
 if __name__ == "__main__":
@@ -977,6 +996,8 @@ if __name__ == "__main__":
             read_key = printer.session.brute_force_read_key(debug=True)
             if read_key:
                 print(f"read_key found: {read_key}")
+                print("List of known keys:")
+                printer.session.list_known_keys(debug=True)
             else:
                 print(f"Cannot found read_key")
         if args.ftrt:

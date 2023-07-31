@@ -161,6 +161,7 @@ ValueError
                'Emulation 3': 'BDC',
                'Emulation 4': 'other',
                'Emulation 5': 'other',
+               'IP Address': '192.168.1.87',
                'Lang 1': 'unknown',
                'Lang 2': 'ESCPL2',
                'Lang 3': 'BDC',
@@ -169,10 +170,17 @@ ValueError
                'MAC Address': '...',
                'Model': 'EPSON XP-205 207 Series',
                'Model short': 'XP-205 207 Series',
-               'Name': '...',
+               'Name': '....',
                'Print counter': '0',
                'Print input': 'Auto sheet feeder',
-               'UpTime': '00:00:30'},
+               'URL': 'http://192.168.1.87:631/Epson_IPP_Printer',
+               'URL_path': 'Epson_IPP_Printer',
+               'UpTime': '00:57:48',
+               'WiFi': '....',
+               'data': 'MFG:EPSON;CMD:ESCPL2,BDC,D4,D4PX,ESCPR1;MDL:XP-205 207 '
+                       'Series;CLS:PRINTER;DES:EPSON XP-205 207 '
+                       'Series;CID:EpsonRGB;FID:FXN,DPN,WFA,ETN,AFN,DAN;RID:40;',
+               'hex_data': 'A4 EE 57 DE FD 03'},
  'stats': {'First TI received time': '...',
            'Ink replacement cleaning counter': 78,
            'Maintenance required level of 1st waste ink counter': 94,
@@ -182,7 +190,7 @@ ValueError
            'Total print page counter': 11504,
            'Total print pass counter': 510136,
            'Total scan counter': 4967},
- 'waste_ink_levels': [90.45, 4.63]}
+ 'waste_ink_levels': {'borderless_waste': 4.63, 'main_waste': 90.45}}
  ```
 
 ## Resources
