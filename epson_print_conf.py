@@ -12,7 +12,7 @@ import datetime
 import time
 import textwrap
 import ast
-import easysnmpeasysnmpeasys  # pip3 install easysnmp
+import easysnmp  # pip3 install easysnmp
 
 
 class EpsonPrinter:
