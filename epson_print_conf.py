@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-Epson Printer Configuration accessed via SNMP (TCP/IP)
+Epson Printer Configuration via SNMP (TCP/IP)
 """
 
 import itertools
 import re
 from typing import Any
 import datetime
-import easysnmp  # pip3 install easysnmp
 import time
 import textwrap
 import ast
+import easysnmpeasysnmpeasys  # pip3 install easysnmp
 
 
 class EpsonPrinter:
@@ -187,9 +187,9 @@ class EpsonPrinter:
             # to be completed
         },
         "XP-610": {
+            "alias": ["XP-611", "XP-615", "XP-510"],
             "read_key": [121, 4],
             "write_key": b'Gossypiu',
-            "alias": ["XP-611", "XP-615", "XP-510"],
             "main_waste": {"oids": [16, 17], "divider": 84.5},  # divider to be changed
             "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # divider to be changed
             # to be completed
@@ -208,9 +208,9 @@ class EpsonPrinter:
             # to be completed
         },
         "XP-830": {
+            "alias": ["XP-530", "XP-630", "XP-635"],
             "read_key": [40, 9],
             "write_key": b'Irisgarm',  # (Iris graminea with typo?)
-            "alias": ["XP-530", "XP-630", "XP-635"],
             "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
             "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
             "idProduct": 0x110b,
@@ -266,7 +266,7 @@ class EpsonPrinter:
         "URL": "1.3.6.1.4.1.1248.1.1.3.1.4.46.1.2.1",
         "WiFi": "1.3.6.1.4.1.1248.1.1.3.1.29.2.1.9.0",
         "hex_data": "1.3.6.1.4.1.1248.1.1.3.1.1.5.0",
-        "data": "1.3.6.1.4.1.11.2.3.9.1.1.7.0",
+        "device_id": "1.3.6.1.4.1.11.2.3.9.1.1.7.0",
     }
 
     SNMP_OID_ENTERPRISE = "1.3.6.1.4.1"
@@ -310,7 +310,7 @@ class EpsonPrinter:
 
     @property
     def valid_printers(self):
-        """Return list of valid printers."""
+        """Return list of defined printers."""
         return {
             printer_name
             for printer_name in self.PRINTER_CONFIG.keys()
@@ -319,12 +319,12 @@ class EpsonPrinter:
 
     @property
     def list_methods(self):
-        """Return list of available information methods about the printer."""
+        """Return list of available information methods about a printer."""
         return(filter(lambda x: x.startswith("get_") and x not in dir(
             easysnmp.Session), dir(self.session)))
 
     def stats(self):
-        """Return all available information about the printer."""
+        """Return all available information about a printer."""
         stat_set = {}
         for method in self.list_methods:
             ret = self.session.__getattribute__(method)()
@@ -336,6 +336,7 @@ class EpsonPrinter:
         return stat_set
 
     def caesar(self, key):
+        """Convert the string write key to a sequence of numbers"""
         return ".".join(str(b + 1) for b in key)
 
 
@@ -363,10 +364,16 @@ class EpsonSession(easysnmp.Session):
             oid: int,
             msb: int = 0,
             label: str = "unknown method") -> str:
-        """Return address for reading from EEPROM for specified OID."""
+        """
+        Return the OID string to read the value of the EEPROM address 'oid'.
+        oid can be a number between 0x0000 and 0xffff.
+        Return None in case of error.
+        """
         if oid > 255:
             msb = oid // 256
             oid = oid % 256
+        if msb > 255:
+            return None
         if 'read_key' not in self.printer.parm:
             return None
         return (
@@ -385,10 +392,16 @@ class EpsonSession(easysnmp.Session):
             value: Any,
             msb: int = 0,
             label: str = "unknown method") -> str:
-        """Return address for writing to EEPROM for specified OID."""
+        """
+        Return the OID string to write a value to the EEPROM address 'oid'.
+        oid can be a number between 0x0000 and 0xffff.
+        Return None in case of error.
+        """
         if oid > 255:
             msb = oid // 256
             oid = oid % 256
+        if msb > 255:
+            return None
         if ('write_key' not in self.printer.parm
                 or 'read_key' not in self.printer.parm):
             return None
@@ -409,7 +422,7 @@ class EpsonSession(easysnmp.Session):
             return write_op
 
     def read_value(self, oids: str):
-        """Return value of OIDs."""
+        """Generic SNMP query, returning value of OIDs."""
         try:
             value = self.get(oids).value
         except easysnmp.exceptions.EasySNMPTimeoutError as e:
@@ -422,7 +435,7 @@ class EpsonSession(easysnmp.Session):
             self,
             oid: int,
             label: str = "unknown method") -> str:
-        """Read EEPROM data."""
+        """Read a single byte from the Epson EEPROM address 'oid'."""
         if self.debug:
             print(
                 f"EEPROM_DUMP {label}:\n"
@@ -453,7 +466,9 @@ class EpsonSession(easysnmp.Session):
             self,
             oids: list,
             label: str = "unknown method"):
-        """Read EEPROM data with multiple values."""
+        """
+        Read a list of bytes from the list of Epson EEPROM addresses 'oids'.
+        """
         return [self.read_eeprom(oid, label=label) for oid in oids]
 
     def write_eeprom(
@@ -461,7 +476,7 @@ class EpsonSession(easysnmp.Session):
             oid: int,
             value: int,
             label: str = "unknown method") -> None:
-        """Write value to OID with specified type to EEPROM."""
+        """Write a single byte 'value' to the Epson EEPROM address 'oid'."""
         if "write_key" not in self.printer.parm:
             if self.debug:
                 print(f"Missing 'write_key' parameter in configuration.")

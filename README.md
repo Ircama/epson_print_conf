@@ -177,9 +177,9 @@ ValueError
                'URL_path': 'Epson_IPP_Printer',
                'UpTime': '00:57:48',
                'WiFi': '....',
-               'data': 'MFG:EPSON;CMD:ESCPL2,BDC,D4,D4PX,ESCPR1;MDL:XP-205 207 '
-                       'Series;CLS:PRINTER;DES:EPSON XP-205 207 '
-                       'Series;CID:EpsonRGB;FID:FXN,DPN,WFA,ETN,AFN,DAN;RID:40;',
+               'device_id': 'MFG:EPSON;CMD:ESCPL2,BDC,D4,D4PX,ESCPR1;MDL:XP-205 207 '
+                            'Series;CLS:PRINTER;DES:EPSON XP-205 207 '
+                            'Series;CID:EpsonRGB;FID:FXN,DPN,WFA,ETN,AFN,DAN;RID:40;',
                'hex_data': 'A4 EE 57 DE FD 03'},
  'stats': {'First TI received time': '...',
            'Ink replacement cleaning counter': 78,
