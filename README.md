@@ -134,6 +134,7 @@ ValueError
 ```
 
 ## Output example
+Example of advanced printer status with an XP-205 printer:
 
 ```
 {'cartridges': ['18XL', '18XL', '18XL', '18XL'],
@@ -232,7 +233,7 @@ snmpget -v1 -d -c public 192.168.1.87 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.
 snmpget -v1 -d -c public 192.168.1.87 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.16.0.25.7.66.189.33.172.0.153.88.98.108.98.117.112.99.106
 ```
 
-### Development resources
+### References
 
 epson-printer-snmp: https://github.com/Zedeldi/epson-printer-snmp (and https://github.com/Zedeldi/epson-printer-snmp/issues/1)
 
