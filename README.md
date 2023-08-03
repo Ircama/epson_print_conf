@@ -3,12 +3,12 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 
 ## Features
 - Access the Epson printer via SNMP (TCP/IP)
-- Print advanced printer status, with the possibility to restrict the query to specific information
-- Other inspection feattures:
+- Print the advanced status of the printer, with the possibility to restrict the query to specific information
+- Other inspection features:
 	- Read and write EEPROM addresses
 	- Dump a set of EEPROM addresses
 	- Reset ink waste
-	- Other admin stuff and debug options
+	- Other admin stuffs and debug options
 - Command line tool (no GUI)
 - Python API interface
 
