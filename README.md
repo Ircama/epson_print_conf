@@ -18,16 +18,24 @@ The software also provides a configurable printer dictionary, which can be easil
 
 ```
 git clone https://github.com/Ircama/epson_print_conf
-pip3 install easysnmp
+pip3 install pyasn1==0.4.8
+pip3 install git+https://github.com/etingof/pysnmp.git
 cd epson_print_conf
 ```
+
+Notes (at the time of writing):
+
+- [before pysnmp, install pyasn1 with version 0.4.8 and not 0.5](https://github.com/etingof/pysnmp/issues/440#issuecomment-1544341598)
+- [pull pysnmp from the GitHub master branch, not from PyPI](https://stackoverflow.com/questions/54868134/snmp-reading-from-an-oid-with-three-libraries-gives-different-execution-times#comment96532761_54869361)
+
+Tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
 ## Usage
 
 ```
 usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY] [--reset_waste_ink] [--detect-key] [-d]
                            [-e DUMP_EEPROM DUMP_EEPROM] [--dry-run] [--write-first-ti-received-time FTRT FTRT FTRT]
-                           [-R READ_EEPROM] [-W WRITE_EEPROM] [-S WS_TO_STRING]
+                           [-R READ_EEPROM] [-W WRITE_EEPROM] [-S WS_TO_STRING] [-t TIMEOUT] [-r RETRIES]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -52,6 +60,10 @@ optional arguments:
                         Write related values to a list of printer EEPROM addresses. Format is: address: value [, ...]
   -S WS_TO_STRING, --write-sequence-to-string WS_TO_STRING
                         Convert write sequence of numbers to string.
+  -t TIMEOUT, --timeout TIMEOUT
+                        SNMP GET timeout (floating point argument)
+  -r RETRIES, --retries RETRIES
+                        SNMP GET retries (floating point argument)
 
 Epson Printer Configuration accessed via SNMP (TCP/IP)
 ```
@@ -100,37 +112,30 @@ if not printer.parm:
 stats = printer.stats()
 print("stats:", stats)
 
-ret = printer.session.get_snmp_info()
+ret = printer.get_snmp_info()
 print("get_snmp_info:", ret)
-ret = printer.session.get_serial_number()
+ret = printer.get_serial_number()
 print("get_serial_number:", ret)
-ret = printer.session.get_firmware_version()
+ret = printer.get_firmware_version()
 print("get_firmware_version:", ret)
-ret = printer.session.get_printer_head_id()
+ret = printer.get_printer_head_id()
 print("get_printer_head_id:", ret)
-ret = printer.session.get_cartridges()
+ret = printer.get_cartridges()
 print("get_cartridges:", ret)
-ret = printer.session.get_printer_status()
+ret = printer.get_printer_status()
 print("get_printer_status:", ret)
-ret = printer.session.get_ink_replacement_counters()
+ret = printer.get_ink_replacement_counters()
 print("get_ink_replacement_counters:", ret)
-ret = printer.session.get_waste_ink_levels()
+ret = printer.get_waste_ink_levels()
 print("get_waste_ink_levels:", ret)
-ret = printer.session.get_last_printer_fatal_errors()
+ret = printer.get_last_printer_fatal_errors()
 print("get_last_printer_fatal_errors:", ret)
-ret = printer.session.get_stats()
+ret = printer.get_stats()
 print("get_stats:", ret)
 
-printer.session.reset_waste_ink_levels()
-printer.session.detect_key()
-printer.session.write_first_ti_received_time(2000, 1, 2)
-```
-
-### Exceptions
-
-```
-TimeoutError
-ValueError
+printer.reset_waste_ink_levels()
+printer.brute_force_read_key()
+printer.write_first_ti_received_time(2000, 1, 2)
 ```
 
 ## Output example
@@ -191,8 +196,8 @@ Example of advanced printer status with an XP-205 printer:
                'URL_path': 'Epson_IPP_Printer',
                'UpTime': '00:57:48',
                'WiFi': '....',
-               'device_id': 'MFG:EPSON;CMD:ESCPL2,BDC,D4,D4PX,ESCPR1;MDL:XP-205 207 '
-                            'Series;CLS:PRINTER;DES:EPSON XP-205 207 '
+               'device_id': 'MFG:EPSON;CMD:ESCPL2,BDC,D4,D4PX,ESCPR1;MDL:XP-205 '
+                            '207 Series;CLS:PRINTER;DES:EPSON XP-205 207 '
                             'Series;CID:EpsonRGB;FID:FXN,DPN,WFA,ETN,AFN,DAN;RID:40;',
                'hex_data': 'A4 EE 57 DE FD 03'},
  'stats': {'First TI received time': '...',
@@ -209,7 +214,7 @@ Example of advanced printer status with an XP-205 printer:
 
 ## Resources
 
-### snmpget
+### snmpget (Linux)
 
 Installation:
 
