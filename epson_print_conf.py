@@ -578,37 +578,7 @@ class EpsonPrinter:
                     "length:", length, "item:", item.hex(' ')
                 )
 
-            if ftype == 0x0f:  # ink
-                colourlen = item[0]
-                offset = 1
-                inks = []
-                while offset < length:
-                    colour = item[offset]
-                    level = item[offset+2]
-                    offset += colourlen
-
-                    if colour in colour_ids:
-                        name = colour_ids[colour]
-                    else:
-                        name = "0x%X" % colour
-
-                    inks.append((colour, level, name))
-
-                data_set["ink_level"] = inks
-
-            elif ftype == 0x0d:  # maintenance tanks
-                (tank1, tank2) = item[0:2]
-                data_set["tanks"] = (tank1, tank2)
-
-            elif ftype == 0x19:  # current job name
-                data_set["jobname"] = item
-                if item == b'\x00\x00\x00\x00\x00unknown':
-                    data_set["jobname"] = "Not defined"
-
-            elif ftype == 0x1f:  # serial
-                data_set["serial"] = str(item)
-
-            elif ftype == 0x01:  # status
+            if ftype == 0x01:  # status
                 printer_status = item[0]
                 status_text = "unknown"
                 if printer_status in status_ids:
@@ -635,6 +605,27 @@ class EpsonPrinter:
                 if item == b'\x01\xff':
                     data_set["paper_path"] = "Cut sheet (Rear)"
 
+            elif ftype == 0x0d:  # maintenance tanks
+                data_set["tanks"] = str([i for i in item])
+
+            elif ftype == 0x0f:  # ink
+                colourlen = item[0]
+                offset = 1
+                inks = []
+                while offset < length:
+                    colour = item[offset]
+                    level = item[offset+2]
+                    offset += colourlen
+
+                    if colour in colour_ids:
+                        name = colour_ids[colour]
+                    else:
+                        name = "0x%X" % colour
+
+                    inks.append((colour, level, name))
+
+                data_set["ink_level"] = inks
+
             elif ftype == 0x0e:  # Replace cartridge information
                 data_set["replace_cartridge"] = "{:08b}".format(item[0])
 
@@ -654,26 +645,34 @@ class EpsonPrinter:
                 if item == b'\x81':
                     data_set["cancel_code"] = "Request"
 
+            elif ftype == 0x19:  # current job name
+                data_set["jobname"] = item
+                if item == b'\x00\x00\x00\x00\x00unknown':
+                    data_set["jobname"] = "Not defined"
+
+            elif ftype == 0x1f:  # serial
+                data_set["serial"] = str(item)
+
             elif ftype == 0x37:  # Maintenance box information
                 i = 1
                 for j in range(item[0]):
                     if item[i] == 0:
                         data_set[f"maintenance_box_{j}"] = (
-                            f"not full ({item[i + 1]})"
+                            f"not full ({item[i]})"
                         )
                     elif item[i] == 1:
                         data_set[f"maintenance_box_{j}"] = (
-                            f"near full ({item[i + 1]})"
+                            f"near full ({item[i]})"
                         )
                     elif item[i] == 2:
                         data_set[f"maintenance_box_{j}"] = (
-                            f"full ({item[i + 1]})"
+                            f"full ({item[i]})"
                         )
                     else:
                         data_set[f"maintenance_box_{j}"] = (
-                            f"unknown ({item[i + 1]})"
+                            f"unknown ({item[i]})"
                         )
-                    i += 2
+                    i += (len(item) - 1) // 2
 
             else:  # unknown stuff
                 if "unknown" not in data_set:
@@ -732,6 +731,8 @@ class EpsonPrinter:
                     return None
                 total = (total << 8) + int(val, 16)
             stats_result[stat_name] = total
+        if "First TI received time" not in stats_result:
+            return None
         ftrt = stats_result["First TI received time"]
         year = 2000 + ftrt // (16 * 32)
         month = (ftrt - (year - 2000) * (16 * 32)) // 32
