@@ -140,12 +140,13 @@ printer.brute_force_read_key()
 printer.write_first_ti_received_time(2000, 1, 2)
 ```
 
-### Exception
+### Exceptions
 
 ```
 TimeoutError
-(pysnmp exceptions)
 ```
+
+(And *pysnmp* exceptions.)
 
 ## Output example
 Example of advanced printer status with an XP-205 printer:
