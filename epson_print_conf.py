@@ -87,6 +87,7 @@ class EpsonPrinter:
         "WF-7525": {
             "read_key": [101, 0],
             "write_key": b'Sasanqua',
+            "alias": "WF-7515",
             "main_waste": {"oids": [20, 21], "divider": 196.5},
             "borderless_waste": {"oids": [22, 23], "divider": 52.05},
             "serial_number": range(192, 202),
@@ -178,6 +179,7 @@ class EpsonPrinter:
         "XP-435": {
             "read_key": [133, 5],
             "write_key": b'Polyxena',
+            "alias": ["XP-235"],
             # to be completed
         },
         "XP-540": {
@@ -246,6 +248,26 @@ class EpsonPrinter:
                 "Total print page counter": [133, 132, 131, 130],
             },
             # draft
+        },
+        "Artisan-800": {
+            "read_key": [0x53, 0x09],
+            # to be completed
+        },
+        "L360": {
+            "read_key": [0x82, 0x02],
+            # to be completed
+        },
+        "R220": {
+            "read_key": [0x10, 0x3B],
+            # to be completed
+        },
+        "Artisan 1430": {
+            "read_key": [0x08, 0x32],
+            # to be completed
+        },
+        "Artisan 1430": {
+            "read_key": [0x08, 0x32],
+            # to be completed
         },
     }
 
@@ -619,8 +641,11 @@ class EpsonPrinter:
                 if item == b'\x01\xff':
                     data_set["paper_path"] = "Cut sheet (Rear)"
 
+            elif ftype == 0x0c:  # Cleaning time information
+                data_set["cleaning_time"] = int.from_bytes(
+                    item , "little", signed=True)
+
             elif ftype == 0x0d:  # maintenance tanks
-                print("ALBE", item)
                 data_set["tanks"] = str([i for i in item])
 
             elif ftype == 0x0e:  # Replace cartridge information
@@ -678,6 +703,20 @@ class EpsonPrinter:
                 except Exception:
                     data_set["serial"] = str(item)
 
+            elif ftype == 0x36:  # Paper count information
+                if length != 20:
+                    data_set["paper_count"] = "error"
+                    continue
+                data_set["paper_count_normal"] = int.from_bytes(
+                    item[0:4] , "little", signed=True)
+                data_set["paper_count_page"] = int.from_bytes(
+                    item[4:8] , "little", signed=True)
+                data_set["paper_count_color"] = int.from_bytes(
+                    item[8:12] , "little", signed=True)
+                data_set["paper_count_monochrome"] = int.from_bytes(
+                    item[12:16] , "little", signed=True)
+                data_set["paper_count_blank"] = int.from_bytes(
+                    item[16:20] , "little", signed=True)
 
             elif ftype == 0x37:  # Maintenance box information
                 num_bytes = item[0]
