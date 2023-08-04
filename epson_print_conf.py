@@ -652,7 +652,8 @@ class EpsonPrinter:
 
             elif ftype == 0x10:  # Loading path information
                 data_set["loading_path"] = item.hex().upper()
-                if data_set["loading_path"] == "01094E":
+                if data_set["loading_path"] in [
+                        "01094E", "01084E0E4E4E014E4E", "010C4E0E4E4E084E4E"]:
                     data_set["loading_path"] = "fixed"
 
             elif ftype == 0x13:  # Cancel code
@@ -672,7 +673,11 @@ class EpsonPrinter:
                     data_set["jobname"] = "Not defined"
 
             elif ftype == 0x1f:  # serial
-                data_set["serial"] = str(item)
+                try:
+                    data_set["serial"] = item.decode()
+                except Exception:
+                    data_set["serial"] = str(item)
+
 
             elif ftype == 0x37:  # Maintenance box information
                 num_bytes = item[0]
