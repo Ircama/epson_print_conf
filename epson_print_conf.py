@@ -550,38 +550,74 @@ class EpsonPrinter:
 
     def status_parser(self, data):
         """Parse an ST2 status response and decode as much as possible."""
-        colour_ids = {
-                0x01: 'Black',
-                0x03: 'Cyan',
-                0x04: 'Magenta',
-                0x05: 'Yellow',
-                0x06: 'Light Cyan',
-                0x07: 'Light Magenta',
-                0x0a: 'Light Black',
-                0x0b: 'Matte Black',
-                0x0f: 'Light Light Black',
-                0x10: 'Orange',
-                0x11: 'Green',
+        colour_ids = {  # Ink cartridge name
+            0x01: 'Black',
+            0x03: 'Cyan',
+            0x04: 'Magenta',
+            0x05: 'Yellow',
+            0x06: 'Light Cyan',
+            0x07: 'Light Magenta',
+            0x0a: 'Light Black',
+            0x0b: 'Matte Black',
+            0x0f: 'Light Light Black',
+            0x10: 'Orange',
+            0x11: 'Green',
         }
 
-        ink_color_ids = {
-                0x00: 'Black',
-                0x01: 'Cyan',
-                0x02: 'Magenta',
-                0x03: 'Yellow',
-                0x04: 'Light Cyan',
-                0x05: 'Light Magenta',
+        ink_color_ids = {  # Ink color
+            0x00: 'Black',
+            0x01: 'Cyan',
+            0x02: 'Magenta',
+            0x03: 'Yellow',
+            0x04: 'Light Cyan',
+            0x05: 'Light Magenta',
         }
 
         status_ids = {
-            0: 'Error',
-            1: 'Self Printing',
-            2: 'Busy',
-            3: 'Waiting',
-            4: 'Idle',
-            5: 'Paused',
-            7: 'Cleaning',
-            15: 'Nozzle Check',
+            0x00: 'Error',
+            0x01: 'Self Printing',
+            0x02: 'Busy',
+            0x03: 'Waiting',
+            0x04: 'Idle',
+            0x05: 'Paused',
+            0x07: 'Cleaning',
+            0x08: 'Factory shipment',
+            0x0a: 'Shutdown',
+            0x0f: 'Nozzle Check',
+        }
+        
+        errcode_ids = {
+            0x00: "Fatal error",
+            0x01: "Other I/F is selected",
+            0x02: "Cover Open",
+            0x04: "Paper jam",
+            0x05: "Ink out",
+            0x06: "Paper out",
+            0x0c: "Paper size or paper type or paper path error",
+            0x10: "Ink overflow error",
+            0x11: "Wait return from the tear-off position",
+            0x12: "Double Feed",
+            0x1c: "Cutter error (Fatal Error)",
+            0x1d: "Cutter jam error (recoverable)",
+            0x2a: "Card loading Error",
+            0x47: "Printing disable error",
+            0x4a: "Maintenance Box near End error",
+        }
+        
+        warning_ids = {
+            0x10: "Ink low (Black or Yellow)",
+            0x11: "Ink low (Magenta)",
+            0x12: "Ink low (Yellow or Cyan)",
+            0x13: "Ink low (Cyan or Matte Black)",
+            0x14: "Ink low (Photo Black)",
+            0x15: "Ink low (Red)",
+            0x16: "Ink low (Blue)",
+            0x17: "Ink low (Gloss optimizer)",
+            0x44: "Black print mode",
+            0x51: "Cleaning Disabled (Cyan)",
+            0x52: "Cleaning Disabled (Magenta)",
+            0x53: "Cleaning Disabled (Yellow)",
+            0x54: "Cleaning Disabled (Black)",
         }
 
         if len(data) < 16:
@@ -595,7 +631,7 @@ class EpsonPrinter:
             data = bytes(2) + data[start:]
         len_p = int.from_bytes(data[11:13], byteorder='little')
         if len(data) - 13 != len_p:
-            return "message error"
+            return "message error (invalid length)"
         buf = data[13:]
         data_set = {}
         while len(buf):
@@ -628,18 +664,38 @@ class EpsonPrinter:
                 data_set["status"] = (printer_status, status_text)
 
             elif ftype == 0x02:  # errcode
-                data_set["errcode"] = item
+                printer_status = item[0]
+                if printer_status in errcode_ids:
+                    data_set["errcode"] = errcode_ids[printer_status]
+                else:
+                    data_set["errcode"] = 'unknown: %d' % printer_status
 
             elif ftype == 0x03:  # Self print code
                 data_set["self_print_code"] = item
+                if item[0] == 0:
+                    data_set["self_print_code"] = "Nozzle test printing"
 
             elif ftype == 0x04:  # warning
-                data_set["warning_code"] = item
+                data_set["warning_code"] = []
+                for i in item:
+                    if i in warning_ids:
+                        data_set["warning_code"].append(warning_ids[i])
+                    else:
+                        data_set["warning_code"].append('unknown: %d' % i)
 
             elif ftype == 0x06:  # Paper path
                 data_set["paper_path"] = item
                 if item == b'\x01\xff':
                     data_set["paper_path"] = "Cut sheet (Rear)"
+                if item == b'\x03\x01':
+                    data_set["paper_path"] = "Roll paper"
+                if item == b'\x03\x02':
+                    data_set["paper_path"] = "Photo Album"
+                if item == b'\x02\x01':
+                    data_set["paper_path"] = "CD-R, cardboard"
+
+            elif ftype == 0x07:  # Paper mismatch error
+                data_set["paper_error"] = item
 
             elif ftype == 0x0c:  # Cleaning time information
                 data_set["cleaning_time"] = int.from_bytes(
@@ -692,6 +748,14 @@ class EpsonPrinter:
                 if item == b'\x81':
                     data_set["cancel_code"] = "Request"
 
+            elif ftype == 0x14:  # Cutter information
+                try:
+                    data_set["cutter"] = item.decode()
+                except Exception:
+                    data_set["cutter"] = str(item)
+                if item == b'\x01':
+                    data_set["cutter"] = "Set cutter"
+    
             elif ftype == 0x19:  # current job name
                 data_set["jobname"] = item
                 if item == b'\x00\x00\x00\x00\x00unknown':
@@ -702,6 +766,17 @@ class EpsonPrinter:
                     data_set["serial"] = item.decode()
                 except Exception:
                     data_set["serial"] = str(item)
+
+            elif ftype == 0x35:  # Paper jam error information
+                data_set["paper_jam"] = item
+                if item == b'\x00':
+                    data_set["paper_jam"] = "No jams"
+                if item == b'\x01':
+                    data_set["paper_jam"] = "Paper jammed at ejecting"
+                if item == b'\x02':
+                    data_set["paper_jam"] = "Paper jam in rear ASF or no feed"
+                if item == b'\x80':
+                    data_set["paper_jam"] = "No papers at rear ASF"
 
             elif ftype == 0x36:  # Paper count information
                 if length != 20:
@@ -745,6 +820,17 @@ class EpsonPrinter:
                         data_set[f"maintenance_box_reset_count_{j}"] = item[
                             i + 1]
                     j += 1
+
+            elif ftype == 0x3d:  # printer I/F status
+                data_set["interface_status"] = item
+                if item == b'\x00':
+                    data_set["interface_status"] = (
+                        "Available to accept data and reply"
+                    )
+                if item == b'\x01':
+                    data_set["interface_status"] = (
+                        "Not available to accept data"
+                    )
 
             elif ftype == 0x40:  # Serial No. information
                 try:
