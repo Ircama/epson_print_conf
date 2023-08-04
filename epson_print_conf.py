@@ -542,6 +542,15 @@ class EpsonPrinter:
                 0x11: 'Green',
         }
 
+        ink_color_ids = {
+                0x00: 'Black',
+                0x01: 'Cyan',
+                0x02: 'Magenta',
+                0x03: 'Yellow',
+                0x04: 'Light Cyan',
+                0x05: 'Light Magenta',
+        }
+
         status_ids = {
             0: 'Error',
             1: 'Self Printing',
@@ -556,7 +565,12 @@ class EpsonPrinter:
         if len(data) < 16:
             return "invalid packet"
         if data[:11] != b'\x00@BDC ST2\r\n':
-            return "printer status error"
+            if self.debug:
+                print("Unaligned BDC ST2 header. Trying to fix...")
+            start = data.find(b'BDC ST2\r\n')
+            if start < 0:
+                return "printer status error (must start with BDC ST2...)"
+            data = bytes(2) + data[start:]
         len_p = int.from_bytes(data[11:13], byteorder='little')
         if len(data) - 13 != len_p:
             return "message error"
@@ -606,7 +620,11 @@ class EpsonPrinter:
                     data_set["paper_path"] = "Cut sheet (Rear)"
 
             elif ftype == 0x0d:  # maintenance tanks
+                print("ALBE", item)
                 data_set["tanks"] = str([i for i in item])
+
+            elif ftype == 0x0e:  # Replace cartridge information
+                data_set["replace_cartridge"] = "{:08b}".format(item[0])
 
             elif ftype == 0x0f:  # ink
                 colourlen = item[0]
@@ -614,7 +632,8 @@ class EpsonPrinter:
                 inks = []
                 while offset < length:
                     colour = item[offset]
-                    level = item[offset+2]
+                    ink_color = item[offset + 1]
+                    level = item[offset + 2]
                     offset += colourlen
 
                     if colour in colour_ids:
@@ -622,12 +641,14 @@ class EpsonPrinter:
                     else:
                         name = "0x%X" % colour
 
-                    inks.append((colour, level, name))
+                    if ink_color in ink_color_ids:
+                        ink_name = ink_color_ids[ink_color]
+                    else:
+                        ink_name = "0x%X" % ink_color
+
+                    inks.append((colour, ink_color, name, ink_name, level))
 
                 data_set["ink_level"] = inks
-
-            elif ftype == 0x0e:  # Replace cartridge information
-                data_set["replace_cartridge"] = "{:08b}".format(item[0])
 
             elif ftype == 0x10:  # Loading path information
                 data_set["loading_path"] = item.hex().upper()
@@ -654,8 +675,12 @@ class EpsonPrinter:
                 data_set["serial"] = str(item)
 
             elif ftype == 0x37:  # Maintenance box information
-                i = 1
-                for j in range(item[0]):
+                num_bytes = item[0]
+                if num_bytes < 1 or num_bytes > 2:
+                    data_set["maintenance_box"] = "unknown"
+                    continue
+                j = 1
+                for i in range(1, length, num_bytes):
                     if item[i] == 0:
                         data_set[f"maintenance_box_{j}"] = (
                             f"not full ({item[i]})"
@@ -672,7 +697,16 @@ class EpsonPrinter:
                         data_set[f"maintenance_box_{j}"] = (
                             f"unknown ({item[i]})"
                         )
-                    i += (len(item) - 1) // 2
+                    if num_bytes > 1:
+                        data_set[f"maintenance_box_reset_count_{j}"] = item[
+                            i + 1]
+                    j += 1
+
+            elif ftype == 0x40:  # Serial No. information
+                try:
+                    data_set["serial_number_info"] = item.decode()
+                except Exception:
+                    data_set["serial_number_info"] = str(item)
 
             else:  # unknown stuff
                 if "unknown" not in data_set:
@@ -732,7 +766,7 @@ class EpsonPrinter:
                 total = (total << 8) + int(val, 16)
             stats_result[stat_name] = total
         if "First TI received time" not in stats_result:
-            return None
+            return stats_result
         ftrt = stats_result["First TI received time"]
         year = 2000 + ftrt // (16 * 32)
         month = (ftrt - (year - 2000) * (16 * 32)) // 32
