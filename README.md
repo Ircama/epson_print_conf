@@ -28,7 +28,9 @@ Notes (at the time of writing):
 - [before pysnmp, install pyasn1 with version 0.4.8 and not 0.5](https://github.com/etingof/pysnmp/issues/440#issuecomment-1544341598)
 - [pull pysnmp from the GitHub master branch, not from PyPI](https://stackoverflow.com/questions/54868134/snmp-reading-from-an-oid-with-three-libraries-gives-different-execution-times#comment96532761_54869361)
 
-Tested with Ubuntu / Windows Subsystem for Linux, Windows.
+This program exploits [pysnmp](https://github.com/etingof/pysnmp), with related [documentation](https://pysnmp.readthedocs.io/).
+
+It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
 ## Usage
 
@@ -65,7 +67,7 @@ optional arguments:
   -r RETRIES, --retries RETRIES
                         SNMP GET retries (floating point argument)
 
-Epson Printer Configuration accessed via SNMP (TCP/IP)
+Epson Printer Configuration via SNMP (TCP/IP)
 ```
 
 Examples:
@@ -136,6 +138,13 @@ print("get_stats:", ret)
 printer.reset_waste_ink_levels()
 printer.brute_force_read_key()
 printer.write_first_ti_received_time(2000, 1, 2)
+```
+
+### Exception
+
+```
+TimeoutError
+(pysnmp exceptions)
 ```
 
 ## Output example
