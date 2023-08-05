@@ -1053,18 +1053,22 @@ class EpsonPrinter:
         response = []
         for i in range(1, 9):
             mib = f"{self.eeprom_link}.105.105.2.0.1." + str(i)
-            cartridge = self.snmp_mib(mib)
-            if cartridge.find(b'ii:NA;') > 0 or cartridge.find(
-                    b'BDC PS\r\n') < 0:
-                break
             if self.debug:
                 print(
                     f"Cartridge {i}:\n"
                     f"  MIB: {mib}"
                 )
+            cartridge = self.snmp_mib(mib)
             if self.debug:
                 print(f"  RESPONSE: {repr(cartridge)}")
+            if not cartridge:
+                continue
+            if cartridge.find(b'ii:NA;') > 0 or cartridge.find(
+                    b'BDC PS\r\n') < 0:
+                break
             response.append(cartridge[10:-2].decode().split(';'))
+        if not response:
+            return None
         cartridges = [
             {i[0]: i[1] for i in map(lambda x: x.split(':'), j)}
                 for j in response
