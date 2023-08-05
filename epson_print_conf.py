@@ -107,13 +107,17 @@ class EpsonPrinter:
         "L3250": {
             "read_key": [74, 54],
             "write_key": b'Maribaya',
-            "serial_number": range(68, 78),
+            "serial_number": range(1604, 1614),
             "main_waste": {"oids": [48, 49], "divider": 63.45},
-            "second_waste": {"oids": [50, 51], "divider": 34.13},
+            "second_waste": {"oids": [50, 51], "divider": 34.16},
             "third_waste": {"oids": [252, 253], "divider": 13},
             "raw_waste_reset": {
                 48: 0, 49: 0, 50: 0, 51: 0, 252: 0, 253: 0
-            }
+            },
+            "last_printer_fatal_errors": [
+                289, 288, 291, 290, 293, 292, 295, 294, 297, 296, 1831, 1832,
+                1833, 1834, 1835, 2037, 2036, 2039, 2038, 2041, 2040, 2043,
+                2042, 2045, 2044],
             # to be completed
         },
         "L3160": {
@@ -290,7 +294,9 @@ class EpsonPrinter:
         "Emulation 3": "1.3.6.1.2.1.43.15.1.1.5.1.3",
         "Emulation 4": "1.3.6.1.2.1.43.15.1.1.5.1.4",
         "Emulation 5": "1.3.6.1.2.1.43.15.1.1.5.1.5",
-        "Print counter": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+        "Total printed pages": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+        "Total copies": "1.3.6.1.2.1.43.11.1.1.9.1.1",
+        "Serial number": "1.3.6.1.2.1.43.5.1.1.17.1",
         "IP Address": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.3.1",
         "URL_path": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.4.1",
         "URL": "1.3.6.1.4.1.1248.1.1.3.1.4.46.1.2.1",
@@ -755,11 +761,29 @@ class EpsonPrinter:
                     data_set["cutter"] = str(item)
                 if item == b'\x01':
                     data_set["cutter"] = "Set cutter"
-    
+
+            elif ftype == 0x18:  # Stacker(tray) open status
+                data_set["tray_open"] = item
+                if item == b'\x02':
+                    data_set["tray_open"] = "Closed"
+                if item == b'\x03':
+                    data_set["tray_open"] = "Open"
+
             elif ftype == 0x19:  # current job name
                 data_set["jobname"] = item
                 if item == b'\x00\x00\x00\x00\x00unknown':
                     data_set["jobname"] = "Not defined"
+
+            elif ftype == 0x1c:  # Temperature information
+                data_set["temperature"] = item
+                if item == b'\x01':
+                    data_set["temperature"] = (
+                        "The printer temperature is higher than 40C"
+                    )
+                if item == b'\x00':
+                    data_set["temperature"] = (
+                        "The printer temperature is lower than 40C"
+                    )
 
             elif ftype == 0x1f:  # serial
                 try:
