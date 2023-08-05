@@ -1005,6 +1005,13 @@ class EpsonPrinter:
                     subsequent_indent="    ",
                 )
             )
+            print(
+                textwrap.fill(
+                    result.hex(' '),
+                    initial_indent="    ",
+                    subsequent_indent="    ",
+                )
+            )
         return self.status_parser(result)
 
     def get_waste_ink_levels(self):
