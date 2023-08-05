@@ -1043,10 +1043,10 @@ class EpsonPrinter:
         )
 
     def ink_color(self, number):
-        if number - 1811 in self.ink_color_ids:
-            return self.ink_color_ids[number - 1811]
-        else:
-            return number
+        for i in [1811, 711]:
+            if number - i in self.ink_color_ids:
+                return [number, self.ink_color_ids[number - i]]
+        return [number, "unknown color"]
 
     def get_cartridge_information(self) -> str:
         """Return list of cartridge properties."""
