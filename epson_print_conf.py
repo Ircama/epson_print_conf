@@ -277,6 +277,7 @@ class EpsonPrinter:
 
     snmp_info = {
         "Model": "1.3.6.1.2.1.25.3.2.1.3.1",
+        "Epson Model": "1.3.6.1.4.1.1248.1.2.2.1.1.1.2.1",
         "Model short": "1.3.6.1.4.1.1248.1.1.3.1.3.8.0",
         "EEPS2 firmware version": "1.3.6.1.2.1.2.2.1.2.1",
         "Descr": "1.3.6.1.2.1.1.1.0",
@@ -315,6 +316,15 @@ class EpsonPrinter:
     printer_model: str
     hostname: str
     parm: dict
+
+    ink_color_ids = {  # Ink color
+        0x00: 'Black',
+        0x01: 'Cyan',
+        0x02: 'Magenta',
+        0x03: 'Yellow',
+        0x04: 'Light Cyan',
+        0x05: 'Light Magenta',
+    }
 
     def __init__(
             self,
@@ -570,15 +580,6 @@ class EpsonPrinter:
             0x11: 'Green',
         }
 
-        ink_color_ids = {  # Ink color
-            0x00: 'Black',
-            0x01: 'Cyan',
-            0x02: 'Magenta',
-            0x03: 'Yellow',
-            0x04: 'Light Cyan',
-            0x05: 'Light Magenta',
-        }
-
         status_ids = {
             0x00: 'Error',
             0x01: 'Self Printing',
@@ -728,8 +729,8 @@ class EpsonPrinter:
                     else:
                         name = "0x%X" % colour
 
-                    if ink_color in ink_color_ids:
-                        ink_name = ink_color_ids[ink_color]
+                    if ink_color in self.ink_color_ids:
+                        ink_name = self.ink_color_ids[ink_color]
                     else:
                         ink_name = "0x%X" % ink_color
 
@@ -1040,6 +1041,46 @@ class EpsonPrinter:
             self.parm["last_printer_fatal_errors"],
             label="last_printer_fatal_errors"
         )
+
+    def ink_color(self, number):
+        if number - 1811 in self.ink_color_ids:
+            return self.ink_color_ids[number - 1811]
+        else:
+            return number
+
+    def get_cartridge_information(self) -> str:
+        """Return list of cartridge properties."""
+        response = []
+        for i in range(1, 9):
+            mib = f"{self.eeprom_link}.105.105.2.0.1." + str(i)
+            cartridge = self.snmp_mib(mib)
+            if cartridge.find(b'ii:NA;') > 0 or cartridge.find(
+                    b'BDC PS\r\n') < 0:
+                break
+            if self.debug:
+                print(
+                    f"Cartridge {i}:\n"
+                    f"  MIB: {mib}"
+                )
+            if self.debug:
+                print(f"  RESPONSE: {repr(cartridge)}")
+            response.append(cartridge[10:-2].decode().split(';'))
+        cartridges = [
+            {i[0]: i[1] for i in map(lambda x: x.split(':'), j)}
+                for j in response
+        ]
+        return [
+            {
+                "ink_color": self.ink_color(int(i['IC1'], 16)),
+                "ink_quantity": int(i['IQT'], 16),
+                #"viq": int(i['VIQ'], 16),
+                #"uiq": int(i['UIQ'], 16),
+                "production_year": int(i['PDY'], 16) + (
+                    1900 if int(i['PDY'], 16) > 80 else 2000),
+                "production_month": int(i['PDM'], 16),
+                "id": i['SID']
+            } for i in cartridges
+        ]
 
     def dump_eeprom(self, start: int = 0, end: int = 0xFF):
         """
