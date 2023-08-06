@@ -1251,12 +1251,37 @@ class EpsonPrinter:
             return None
 
     def read_config_file(self, file):
+        class NextLine:
+            def __init__(self, file):
+                self.next_line = None
+                self.recursion = 0
+                self.file = file
+
+            def readline(self):
+                next_line = self.next_line
+                if self.next_line != None and self.recursion < 2:
+                    self.next_line = None
+                    return next_line
+                if next_line != None:
+                    logginf.error("Recursion error: '%s'", next_line)
+                self.next_line = None
+                self.recursion = 0
+                return next(self.file)
+
+            def pushline(self, line):
+                if self.next_line != None:
+                    logginf.error(
+                        "Line already pushed: '%s', '%s'",
+                        self.next_line, line
+                    )
+                self.next_line = line
+                self.recursion += 1
+        
         mib_dict = {}
-        next_line = None
+        next_line = NextLine(file)
         try:
             while True:
-                line = next_line if next_line != None else next(file)
-                next_line = None
+                line = next_line.readline()
                 oid = None
                 value = None
                 process = None
@@ -1290,83 +1315,67 @@ class EpsonPrinter:
                     response_next = False
                 if process:
                     # address
-                    address_line = (
-                        next_line if next_line != None else next(file)
-                    )
-                    next_line = None
+                    address_line = next_line.readline()
                     if not address_line.startswith("  ADDRESS: "):
                         logging.error(
                             "Missing ADDRESS: '%s'", address_line.rstrip())
-                        next_line = address_line
+                        next_line.pushline(address_line)
                         continue
                     address_val = address_line[11:].rstrip()
                     if not address_val:
                         logging.error(
                             "Invalid ADDRESS: '%s'", address_line.rstrip())
-                        next_line = address_line
+                        next_line.pushline(address_line)
                         continue
                     # oid
                     if oid:
-                        oid_line = (
-                            next_line if next_line != None else next(file)
-                        )
-                        next_line = None
+                        oid_line = next_line.readline()
                         if not oid_line.startswith("  OID: "):
                             logging.error(
                                 "Missing OID: '%s'", oid_line.rstrip())
-                            next_line = oid_line
+                            next_line.pushline(oid_line)
                             continue
                     # value
                     if value:
-                        value_line = (
-                            next_line if next_line != None else next(file)
-                        )
-                        next_line = None
+                        value_line = next_line.readline()
                         if not value_line.startswith("  VALUE: "):
                             logging.error(
                                 "Missing VALUE: '%s'", value_line.rstrip())
-                            next_line = value_line
+                            next_line.pushline(value_line)
                             continue
                     # response
-                    response_line = (
-                        next_line if next_line != None else next(file)
-                    )
-                    next_line = None
+                    response_line = next_line.readline()
                     if response_line.startswith("  RESPONSE: "):
                         response_val = response_line[12:].rstrip()
                     if not response_val:
                         logging.error(
                             "Invalid RESPONSE '%s'", response_line.rstrip())
-                        next_line = response_line
+                        next_line.pushline(response_line)
                         continue
                     if response_next:
                         dump_hex_str = ""
                         while True:
-                            dump_hex = (
-                                next_line if next_line != None
-                                else next(file)
-                            )
-                            next_line = None
+                            dump_hex = next_line.readline()
                             if not dump_hex.startswith("    "):
-                                next_line = dump_hex
+                                next_line.pushline(dump_hex)
                                 break
                             try:
                                 val = bytes.fromhex(dump_hex)
                             except ValueError:
-                                next_line = dump_hex
+                                next_line.pushline(dump_hex)
                                 continue
                             dump_hex_str += dump_hex
                         if not dump_hex_str:
                             logging.error(
                                 "Invalid DUMP: '%s'", dump_hex.rstrip())
-                            next_line = dump_hex
+                            next_line.pushline(dump_hex)
                             continue
                         try:
                             val = bytes.fromhex(dump_hex_str)
                         except ValueError:
                             logging.error(
                                 "Invalid DUMP %s", dump_hex_str.rstrip())
-                            next_line = dump_hex
+                            next_line.pushline(dump_hex)
                             continue
                         if val:
                             mib_dict[address_val] = val
@@ -1380,7 +1389,7 @@ class EpsonPrinter:
                                 response_line.rstrip(),
                                 e
                             )
-                            next_line = response_line
+                            next_line.pushline(response_line)
                             continue
                         if response_val_bytes:
                             mib_dict[address_val] = response_val_bytes
@@ -1389,7 +1398,7 @@ class EpsonPrinter:
                                 "Null value for response %s",
                                 response_line.rstrip()
                             )
-                            next_line = response_line
+                            next_line.pushline(response_line)
         except StopIteration:
             pass
         return mib_dict
@@ -1558,6 +1567,7 @@ if __name__ == "__main__":
             if not printer.mib_dict:
                 print("Error while reading configuration file")
                 quit(1)
+            args.config_file[0].close()
     if not printer.parm:
         print(textwrap.fill("Unknown printer. Valid printers: " + ", ".join(
             printer.valid_printers),
