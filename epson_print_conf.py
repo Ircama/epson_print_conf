@@ -1517,7 +1517,8 @@ if __name__ == "__main__":
         dest='config_file',
         type=argparse.FileType('r'),
         help="read a configuration file including the full log dump of a "
-             "previous operation instead of accessing the printer via SNMP",
+             "previous operation with '-d' flag (instead of accessing the "
+             "printer via SNMP)",
         default=0,
         nargs=1,
         metavar='CONFIG_FILE')
