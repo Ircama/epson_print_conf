@@ -35,9 +35,10 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 ## Usage
 
 ```
-usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY] [--reset_waste_ink] [--detect-key] [-d]
-                           [-e DUMP_EEPROM DUMP_EEPROM] [--dry-run] [--write-first-ti-received-time FTRT FTRT FTRT]
-                           [-R READ_EEPROM] [-W WRITE_EEPROM] [-S WS_TO_STRING] [-t TIMEOUT] [-r RETRIES]
+usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY] [--reset_waste_ink]
+                           [--detect-key] [-d] [-e DUMP_EEPROM DUMP_EEPROM] [--dry-run]
+                           [--write-first-ti-received-time FTRT FTRT FTRT] [-R READ_EEPROM]
+                           [-W WRITE_EEPROM] [-S WS_TO_STRING] [-t TIMEOUT] [-r RETRIES]
                            [-c CONFIG_FILE]
 
 optional arguments:
@@ -58,9 +59,11 @@ optional arguments:
   --write-first-ti-received-time FTRT FTRT FTRT
                         Change the first TI received time (arguments: year, month, day)
   -R READ_EEPROM, --read-eeprom READ_EEPROM
-                        Read the values of a list of printer EEPROM addreses. Format is: address [, ...]
+                        Read the values of a list of printer EEPROM addreses. Format is: address [,
+                        ...]
   -W WRITE_EEPROM, --write-eeprom WRITE_EEPROM
-                        Write related values to a list of printer EEPROM addresses. Format is: address: value [, ...]
+                        Write related values to a list of printer EEPROM addresses. Format is:
+                        address: value [, ...]
   -S WS_TO_STRING, --write-sequence-to-string WS_TO_STRING
                         Convert write sequence of numbers to string.
   -t TIMEOUT, --timeout TIMEOUT
@@ -68,8 +71,8 @@ optional arguments:
   -r RETRIES, --retries RETRIES
                         SNMP GET retries (floating point argument)
   -c CONFIG_FILE, --config CONFIG_FILE
-                        read a configuration file including the full log dump of a previous operation with '-d' flag
-                        (instead of accessing the printer via SNMP)
+                        read a configuration file including the full log dump of a previous operation
+                        with '-d' flag (instead of accessing the printer via SNMP)
 
 Epson Printer Configuration via SNMP (TCP/IP)
 ```
