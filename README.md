@@ -105,7 +105,8 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 
 ```python
 import epson_print_conf
-printer = epson_print_conf.EpsonPrinter("XP-205", "192.168.1.87")
+printer = epson_print_conf.EpsonPrinter(
+    printer_model="XP-205", hostname="192.168.1.87")
 
 if not printer.parm:
     print("Unknown printer")
