@@ -1488,5 +1488,7 @@ if __name__ == "__main__":
                 print("No information returned. Check printer definition.")
     except TimeoutError as e:
         print(f"Timeout error: {str(e)}")
+    except ValueError as e:
+        raise(f"Generic error: {str(e)}")
     except KeyboardInterrupt:
         quit(2)
