@@ -1401,6 +1401,7 @@ class EpsonPrinter:
                             next_line.pushline(response_line)
         except StopIteration:
             pass
+        self.mib_dict = mib_dict
         return mib_dict
 
 
@@ -1563,11 +1564,10 @@ if __name__ == "__main__":
         retries=args.retries,
         dry_run=args.dry_run)
     if args.config_file:
-            printer.mib_dict = printer.read_config_file(args.config_file[0])
-            if not printer.mib_dict:
-                print("Error while reading configuration file")
-                quit(1)
-            args.config_file[0].close()
+        if not printer.read_config_file(args.config_file[0]):
+            print("Error while reading configuration file")
+            quit(1)
+        args.config_file[0].close()
     if not printer.parm:
         print(textwrap.fill("Unknown printer. Valid printers: " + ", ".join(
             printer.valid_printers),
