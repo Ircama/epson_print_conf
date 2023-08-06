@@ -145,6 +145,7 @@ printer.write_first_ti_received_time(2000, 1, 2)
 
 ```
 TimeoutError
+ValueError
 ```
 
 (And *pysnmp* exceptions.)
