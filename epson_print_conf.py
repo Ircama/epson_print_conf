@@ -1464,8 +1464,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '--write-first-ti-received-time',
         dest='ftrt',
+        metavar=('YEAR', 'MONTH', 'DAY'),
         type=int,
-        help='Change the first TI received time (arguments: year, month, day)',
+        help='Change the first TI received time',
         nargs=3,
     )
     parser.add_argument(

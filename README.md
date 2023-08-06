@@ -37,7 +37,7 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 ```
 usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY] [--reset_waste_ink]
                            [--detect-key] [-d] [-e DUMP_EEPROM DUMP_EEPROM] [--dry-run]
-                           [--write-first-ti-received-time FTRT FTRT FTRT] [-R READ_EEPROM]
+                           [--write-first-ti-received-time YEAR MONTH DAY] [-R READ_EEPROM]
                            [-W WRITE_EEPROM] [-S WS_TO_STRING] [-t TIMEOUT] [-r RETRIES]
                            [-c CONFIG_FILE]
 
@@ -56,8 +56,8 @@ optional arguments:
   -e DUMP_EEPROM DUMP_EEPROM, --eeprom-dump DUMP_EEPROM DUMP_EEPROM
                         Dump EEPROM (arguments: start, stop)
   --dry-run             Dry-run change operations
-  --write-first-ti-received-time FTRT FTRT FTRT
-                        Change the first TI received time (arguments: year, month, day)
+  --write-first-ti-received-time YEAR MONTH DAY
+                        Change the first TI received time
   -R READ_EEPROM, --read-eeprom READ_EEPROM
                         Read the values of a list of printer EEPROM addreses. Format is: address [,
                         ...]
