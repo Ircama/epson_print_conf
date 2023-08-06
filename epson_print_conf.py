@@ -7,7 +7,7 @@ Epson Printer Configuration via SNMP (TCP/IP)
 
 import itertools
 import re
-from typing import Any
+from typing import Any, List
 import datetime
 import time
 import textwrap
@@ -1127,9 +1127,22 @@ class EpsonPrinter:
             if not cartridge:
                 continue
             if cartridge.find(b'ii:NA;') > 0 or cartridge.find(
-                    b'BDC PS\r\n') < 0:
+                    b'@BDC PS\r\n') < 0:
                 break
-            response.append(cartridge[10:-2].decode().split(';'))
+            response.append(cartridge)
+        if not response:
+            return None
+        return self.cartridge_ps(response)
+            
+    def cartridge_ps(self, cartridges: List[bytes]) -> str:
+        response = [
+            cartridge[cartridge.find(b'@BDC PS\r\n') + 9
+                :
+                -2 if cartridge[-1] == 12 else -1]
+                .decode()
+                .split(';')
+            for cartridge in cartridges
+        ]
         if not response:
             return None
         try:
@@ -1279,6 +1292,7 @@ class EpsonPrinter:
         
         mib_dict = {}
         next_line = NextLine(file)
+        process = False
         try:
             while True:
                 line = next_line.readline()
@@ -1401,6 +1415,8 @@ class EpsonPrinter:
                             next_line.pushline(response_line)
         except StopIteration:
             pass
+        if process:
+            logging.error("EOF while processing record set")
         self.mib_dict = mib_dict
         return mib_dict
 
