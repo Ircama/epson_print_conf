@@ -1150,9 +1150,9 @@ class EpsonPrinter:
             response.append(cartridge)
         if not response:
             return None
-        return self.cartridge_ps(response)
-            
-    def cartridge_ps(self, cartridges: List[bytes]) -> str:
+        return self.cartridge_parser(response)
+
+    def cartridge_parser(self, cartridges: List[bytes]) -> str:
         response = [
             cartridge[cartridge.find(b'@BDC PS\r\n') + 9
                 :
@@ -1169,23 +1169,32 @@ class EpsonPrinter:
                     for j in response
             ]
         except Exception as e:
-            logging.info("  CARTRIDGE MAP ERROR: %s", e)
+            logging.error("Cartridge map error: %s", e)
             return None
+        for i in cartridges:
+            logging.debug("Ink cartridge information:")
+            for j in i:
+                try:
+                    int_value = str(int(i[j], 16))
+                except Exception:
+                    int_value = ""
+                logging.debug(
+                    "  %s = %s %s",
+                    j.rjust(4), i[j].rjust(4), int_value.rjust(4)
+                )
         try:
             return [
                 {
                     "ink_color": self.ink_color(int(i['IC1'], 16)),
                     "ink_quantity": int(i['IQT'], 16),
-                    #"viq": int(i['VIQ'], 16),
-                    #"uiq": int(i['UIQ'], 16),
                     "production_year": int(i['PDY'], 16) + (
                         1900 if int(i['PDY'], 16) > 80 else 2000),
                     "production_month": int(i['PDM'], 16),
-                    "id": i['SID']
+                    "id": i['SID'],
                 } for i in cartridges
             ]
         except Exception as e:
-            logging.info("  CARTRIDGE VALUE ERROR: %s", e)
+            logging.error("Cartridge value error: %s", e)
             return None
 
     def dump_eeprom(self, start: int = 0, end: int = 0xFF):
