@@ -151,11 +151,22 @@ class EpsonPrinter:
             # to be completed
         },
         "XP-315": {
+            "alias": ["XP-312", "XP-313"],
             "read_key": [129, 8],
             "write_key": b'Wakatobi',
-            "main_waste": {"oids": [24, 25, 30], "divider": 196.5},
-            "borderless_waste": {"oids": [26, 27, 34], "divider": 52.05},
+            "main_waste": {"oids": [24, 25, 30], "divider": 69},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 32.53},
+            "serial_number": range(192, 202),
+            "printer_head_id_h": range(122, 126),
+            "printer_head_id_f": [129],
             "stats": {
+                "Manual cleaning counter": [147],
+                "Timer cleaning counter": [149],
+                "Ink replacement cleaning counter": [148],
+                "Total print pass counter": [171, 170, 169, 168],
+                "Total print page counter": [167, 166, 165, 164],
+                "Total scan counter": [0x01d7, 0x01d6, 0x01d5, 0x01d4],
+                "First TI received time": [173, 172],
                 "Maintenance required level of 1st waste ink counter": [46],
                 "Maintenance required level of 2nd waste ink counter": [47],
             },
@@ -166,8 +177,15 @@ class EpsonPrinter:
                 26: 0, 27: 0, 34: 0,  # Data of 2nd counter
                 47: 94,  # Maintenance required level of 2st counter
                 49: 0  # ?
-            }
-            # to be completed
+            },
+            "ink_replacement_counters": {
+                "Black": {"1B": 242, "1S": 208, "1L": 209},
+                "Yellow": {"1B": 248, "1S": 246, "1L": 247},
+                "Magenta": {"1B": 251, "1S": 249, "1L": 250},
+                "Cyan": {"1B": 245, "1S": 243, "1L": 244},
+            },
+            "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
+            # to be tested
         },
         "XP-422": {
             "read_key": [85, 5],
