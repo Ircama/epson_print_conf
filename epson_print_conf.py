@@ -1240,7 +1240,10 @@ class EpsonPrinter:
         """
         d = {}
         for oid in range(start, end + 1):
-            d[oid] = int(self.read_eeprom(oid, label="dump_eeprom"), 16)
+            d[oid] = int(
+                self.read_eeprom(oid, label="dump_eeprom") or "-0x1",
+                16
+            )
         return d
 
     def reset_waste_ink_levels(self) -> bool:
@@ -1520,6 +1523,7 @@ if __name__ == "__main__":
         action='store',
         type=str,
         nargs=1,
+        metavar='QUERY_NAME',
         help='Print specific information.'
         ' (Use ? to list all available queries)')
     parser.add_argument(
@@ -1528,37 +1532,24 @@ if __name__ == "__main__":
         action='store_true',
         help='Reset all waste ink levels to 0')
     parser.add_argument(
-        "--detect-key",
-        dest='detect_key',
-        action='store_true',
-        help="Detect the read_key via brute force")
-    parser.add_argument(
         '-d',
         '--debug',
         dest='debug',
         action='store_true',
         help='Print debug information')
     parser.add_argument(
-        '-e',
-        '--eeprom-dump',
-        dest='dump_eeprom',
-        action='store',
+        '--write-first-ti-received-time',
+        dest='ftrt',
         type=int,
-        nargs=2,
-        help='Dump EEPROM (arguments: start, stop)')
+        help='Change the first TI received time',
+        nargs=3,
+        metavar=('YEAR', 'MONTH', 'DAY'),
+    )
     parser.add_argument(
         '--dry-run',
         dest='dry_run',
         action='store_true',
         help='Dry-run change operations')
-    parser.add_argument(
-        '--write-first-ti-received-time',
-        dest='ftrt',
-        metavar=('YEAR', 'MONTH', 'DAY'),
-        type=int,
-        help='Change the first TI received time',
-        nargs=3,
-    )
     parser.add_argument(
         '-R',
         '--read-eeprom',
@@ -1566,6 +1557,7 @@ if __name__ == "__main__":
         action='store',
         type=str,
         nargs=1,
+        metavar='ADDRESS_SET',
         help='Read the values of a list of printer EEPROM addreses.'
         ' Format is: address [, ...]')
     parser.add_argument(
@@ -1575,8 +1567,23 @@ if __name__ == "__main__":
         action='store',
         type=str,
         nargs=1,
+        metavar='ADDRESS_VALUE_SET',
         help='Write related values to a list of printer EEPROM addresses.'
         ' Format is: address: value [, ...]')
+    parser.add_argument(
+        '-e',
+        '--eeprom-dump',
+        dest='dump_eeprom',
+        action='store',
+        type=str,
+        nargs=2,
+        metavar=('FIRST_ADDRESS', 'LAST_ADDRESS'),
+        help='Dump EEPROM')
+    parser.add_argument(
+        "--detect-key",
+        dest='detect_key',
+        action='store_true',
+        help="Detect the read_key via brute force")
     parser.add_argument(
         '-S',
         '--write-sequence-to-string',
@@ -1584,6 +1591,7 @@ if __name__ == "__main__":
         action='store',
         type=str,
         nargs=1,
+        metavar='SEQUENCE_STRING',
         help='Convert write sequence of numbers to string.'
     )
     parser.add_argument(
@@ -1687,8 +1695,8 @@ if __name__ == "__main__":
         if args.dump_eeprom:
             print_opt = True
             for addr, val in printer.dump_eeprom(
-                        args.dump_eeprom[0] % 256,
-                        int(args.dump_eeprom[1] % 256)
+                        int(ast.literal_eval(args.dump_eeprom[0])),
+                        int(ast.literal_eval(args.dump_eeprom[1]))
                     ).items():
                 print(
                     f"EEPROM_ADDR {hex(addr).rjust(4)} = "
