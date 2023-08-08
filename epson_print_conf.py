@@ -27,38 +27,11 @@ class EpsonPrinter:
         "XP-205": {
             "alias": ["XP-200", "XP-207"],
             "read_key": [25, 7],
-            "write_key": b'Wakatobi',
-            "main_waste": {"oids": [24, 25, 30], "divider": 73.5},
-            "borderless_waste": {"oids": [26, 27, 34], "divider": 34.34},
-            "serial_number": range(192, 202),
             "printer_head_id_h": range(122, 127),
             "printer_head_id_f": [136, 137, 138, 129],
-            "stats": {
-                "Manual cleaning counter": [147],
-                "Timer cleaning counter": [149],
-                "Ink replacement cleaning counter": [148],
-                "Total print pass counter": [171, 170, 169, 168],
-                "Total print page counter": [167, 166, 165, 164],
-                "Total scan counter": [0x01d7, 0x01d6, 0x01d5, 0x01d4],
-                "First TI received time": [173, 172],
-                "Maintenance required level of 1st waste ink counter": [46],
-                "Maintenance required level of 2nd waste ink counter": [47],
-            },
-            "raw_waste_reset": {
-                24: 0, 25: 0, 30: 0,  # Data of 1st counter
-                28: 0, 29: 0,  # another store of 1st counter
-                46: 94,  # Maintenance required level of 1st counter
-                26: 0, 27: 0, 34: 0,  # Data of 2nd counter
-                47: 94,  # Maintenance required level of 2st counter
-                49: 0  # ?
-            },
-            "ink_replacement_counters": {
-                "Black": {"1B": 242, "1S": 208, "1L": 209},
-                "Yellow": {"1B": 248, "1S": 246, "1L": 247},
-                "Magenta": {"1B": 251, "1S": 249, "1L": 250},
-                "Cyan": {"1B": 245, "1S": 243, "1L": 244},
-            },
-            "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
+            "main_waste": {"oids": [24, 25, 30], "divider": 73.5},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 34.34},
+            "same-as": "XP-315"
         },
         "Stylus Photo PX730WD": {
             "alias": ["Epson Artisan 730"],
@@ -91,7 +64,7 @@ class EpsonPrinter:
         "WF-7525": {
             "read_key": [101, 0],
             "write_key": b'Sasanqua',
-            "alias": "WF-7515",
+            "alias": ["WF-7515"],
             "main_waste": {"oids": [20, 21], "divider": 196.5},
             "borderless_waste": {"oids": [22, 23], "divider": 52.05},
             "serial_number": range(192, 202),
@@ -102,11 +75,11 @@ class EpsonPrinter:
             "raw_waste_reset": {
                 20: 0, 21: 0, 22: 0, 23: 0, 24: 0, 25: 0, 59: 0, 60: 94, 61: 94
             }
-            # to be completed
+            # uncompleted
         },
         "L355": {
             "read_key": [65, 9],
-            # to be completed
+            # uncompleted
         },
         "L3250": {
             "read_key": [74, 54],
@@ -122,20 +95,13 @@ class EpsonPrinter:
                 289, 288, 291, 290, 293, 292, 295, 294, 297, 296, 1831, 1832,
                 1833, 1834, 1835, 2037, 2036, 2039, 2038, 2041, 2040, 2043,
                 2042, 2045, 2044],
-            # to be completed
+            # uncompleted
         },
         "L3160": {
             "read_key": [151, 7],
             "write_key": b'Maribaya',
-            "stats": {
-                "Maintenance required level of 1st waste ink counter": [54],
-                "Maintenance required level of 2nd waste ink counter": [55],
-            },
-            "raw_waste_reset": {
-                48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
-                54: 94, 50: 0, 51: 0, 55: 94, 28: 0
-            }
-            # to be completed
+            "same-as": "L4160"
+            # uncompleted
         },
         "L4160": {
             "read_key": [73, 8],
@@ -148,17 +114,17 @@ class EpsonPrinter:
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
                 54: 94, 50: 0, 51: 0, 55: 94, 28: 0
             }
-            # to be completed
+            # uncompleted
         },
         "XP-315": {
             "alias": ["XP-312", "XP-313"],
             "read_key": [129, 8],
-            "write_key": b'Wakatobi',
-            "main_waste": {"oids": [24, 25, 30], "divider": 69},
-            "borderless_waste": {"oids": [26, 27, 34], "divider": 32.53},
-            "serial_number": range(192, 202),
             "printer_head_id_h": range(122, 126),
             "printer_head_id_f": [129],
+            "main_waste": {"oids": [24, 25, 30], "divider": 69},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 32.53},
+            "write_key": b'Wakatobi',
+            "serial_number": range(192, 202),
             "stats": {
                 "Manual cleaning counter": [147],
                 "Timer cleaning counter": [149],
@@ -185,12 +151,12 @@ class EpsonPrinter:
                 "Cyan": {"1B": 245, "1S": 243, "1L": 244},
             },
             "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
-            # to be tested
+            # untested
         },
         "XP-422": {
             "read_key": [85, 5],
             "write_key": b'Muscari.',
-            # to be completed
+            # uncompleted
             "main_waste": {"oids": [24, 25, 30], "divider": 196.5},
             "borderless_waste": {"oids": [26, 27, 34], "divider": 52.05},
             "stats": {
@@ -206,58 +172,58 @@ class EpsonPrinter:
             "read_key": [133, 5],
             "write_key": b'Polyxena',
             "alias": ["XP-235"],
-            # to be completed
+            # uncompleted
         },
         "XP-540": {
             "read_key": [20, 4],
             "write_key": b'Firmiana',
-            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
-            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
-            # to be completed
+            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # Incorrect
+            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # Incorrect
+            # uncompleted
         },
         "XP-610": {
             "alias": ["XP-611", "XP-615", "XP-510"],
             "read_key": [121, 4],
             "write_key": b'Gossypiu',
-            "main_waste": {"oids": [16, 17], "divider": 84.5},  # divider to be changed
-            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # divider to be changed
-            # to be completed
+            "main_waste": {"oids": [16, 17], "divider": 84.5},  # incorrect divider
+            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # incorrect divider
+            # uncompleted
         },
         "XP-620": {
             "read_key": [57, 5],
             "write_key": b'Althaea.',
-            # to be completed
+            # uncompleted
         },
         "XP-700": {
             "read_key": [40, 0],
-            # to be completed
+            # uncompleted
         },
         "XP-760": {
             "read_key": [87, 5],
-            # to be completed
+            # uncompleted
         },
         "XP-830": {
             "alias": ["XP-530", "XP-630", "XP-635"],
             "read_key": [40, 9],
             "write_key": b'Irisgarm',  # (Iris graminea with typo?)
-            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
-            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
+            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # Incorrect
+            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # Incorrect
             "idProduct": 0x110b,
-            # to be completed
+            # uncompleted
         },
         "XP-850": {
             "read_key": [40, 0],
             "write_key": b'Hibiscus',
-            "main_waste": {"oids": [16, 17], "divider": 84.5},  # divider to be changed
-            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # divider to be changed
-            # to be completed
+            "main_waste": {"oids": [16, 17], "divider": 84.5},  # incorrect divider
+            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # incorrect divider
+            # uncompleted
         },
         "XP-7100": {
             "read_key": [40, 5],
             "write_key": b'Leucojum',
-            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # To be changed
-            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # To be changed
-            # to be completed
+            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # Incorrect
+            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # Incorrect
+            # uncompleted
         },
         "ET-2500": {
             "read_key": [68, 1],
@@ -266,7 +232,7 @@ class EpsonPrinter:
                 "Maintenance required level of waste ink counter": [46],
             },
             "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94}
-            # to be completed
+            # uncompleted
         },
         "XP-3150": {
             "read_key": [80, 9],
@@ -277,23 +243,23 @@ class EpsonPrinter:
         },
         "Artisan-800": {
             "read_key": [0x53, 0x09],
-            # to be completed
+            # uncompleted
         },
         "L360": {
             "read_key": [0x82, 0x02],
-            # to be completed
+            # uncompleted
         },
         "R220": {
             "read_key": [0x10, 0x3B],
-            # to be completed
+            # uncompleted
         },
         "Artisan 1430": {
             "read_key": [0x08, 0x32],
-            # to be completed
+            # uncompleted
         },
         "Artisan 1430": {
             "read_key": [0x08, 0x32],
-            # to be completed
+            # uncompleted
         },
     }
 
@@ -357,17 +323,41 @@ class EpsonPrinter:
             retries: (None, float) = None,
             dry_run: bool = False) -> None:
         """Initialise printer model."""
+        # process "alias" definintion
         for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
             if "alias" in printer_data:
                 aliases = printer_data["alias"]
                 del printer_data["alias"]
+                if not isinstance(aliases, list):
+                    logging.error(
+                        "Alias '%s' of printer '%s' in configuration "
+                        "must be a list.",
+                        aliases, printer_name
+                    )
+                    continue
                 for alias_name in aliases:
                     if alias_name in self.PRINTER_CONFIG:
-                        self.PRINTER_CONFIG[alias_name] = {
-                            **printer_data, **self.PRINTER_CONFIG[alias_name]
-                        }
+                        logging.error(
+                            "Alias '%s' of printer '%s' is already defined "
+                            "in configuration.",
+                            alias_name, printer_name
+                        )
                     else:
                         self.PRINTER_CONFIG[alias_name] = printer_data
+        # process "same-as" definintion
+        for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
+            if "same-as" in printer_data:
+                if printer_data["same-as"] in self.PRINTER_CONFIG:
+                    self.PRINTER_CONFIG[printer_name] = {
+                        **self.PRINTER_CONFIG[printer_data["same-as"]],
+                        **printer_data
+                    }
+                else:
+                    logging.error(
+                        "Undefined 'same-as' printer '%s' "
+                        "in '%s' configuration.",
+                        printer_data["same-as"], printer_name
+                    )
         self.printer_model = printer_model
         self.hostname = hostname
         self.timeout = timeout
@@ -543,6 +533,9 @@ class EpsonPrinter:
         )
         return False
 
+    def invalid_response(self, response):
+        return len(response) < 2 or response[0] != 0 or response[-1] != 12
+
     def read_eeprom(
             self,
             oid: int,
@@ -557,6 +550,12 @@ class EpsonPrinter:
         response = self.snmp_mib(
             self.eeprom_oid_read_address(oid, label=label), label=label)
         if not response:
+            return None
+        if self.invalid_response(response):
+            logging.error(
+                f"Invalid response: '%s' for oid %s (%s)",
+                repr(response), oid, label
+            )
             return None
         logging.debug(f"  RESPONSE: {repr(response)}")
         try:
@@ -576,11 +575,15 @@ class EpsonPrinter:
     def read_eeprom_many(
             self,
             oids: list,
-            label: str = "unknown method"):
+            label: str = "unknown method") -> list:
         """
         Read a list of bytes from the list of Epson EEPROM addresses 'oids'.
         """
-        return [self.read_eeprom(oid, label=label) for oid in oids]
+        response = [self.read_eeprom(oid, label=label) for oid in oids]
+        for i in response:
+            if i is None:
+                return [None]
+        return response
 
     def write_eeprom(
             self,
@@ -609,8 +612,15 @@ class EpsonPrinter:
         if response:
             logging.debug(f"  RESPONSE: {repr(response)}")
         if not self.dry_run and response and not ":OK;" in repr(response):
-            logging.info("Write error")
+            logging.info(
+                "Write error. Oid=%s, value=%s, label=%s", oid, value, label)
             return False  # ":NA;" is an error
+        if self.invalid_response(response):
+            logging.error(
+                "Invalid write response. Oid=%s, value=%s, label=%s",
+                oid, value, label
+            )
+            return False
         return True
 
     def status_parser(self, data):
@@ -954,14 +964,14 @@ class EpsonPrinter:
         return sys_info
 
     def get_serial_number(self) -> str:
-        """Return serial number of printer."""
+        """Return the serial number of the printer (or "?" if error)."""
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
             return None
         if "serial_number" not in self.parm:
             return None
         return "".join(
-            chr(int(value or "0", 16))
+            chr(int(value or "0x3f", 16))  # "0x3f" --> "?"
             for value in self.read_eeprom_many(
                 self.parm["serial_number"], label="serial_number")
         )
@@ -995,7 +1005,7 @@ class EpsonPrinter:
             year, month, day).strftime('%d %b %Y')
         return stats_result
 
-    def get_printer_head_id(self) -> str:  # to be revised
+    def get_printer_head_id(self) -> str:  # only partially correct
         """Return printer head id."""
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
@@ -1008,10 +1018,7 @@ class EpsonPrinter:
             self.parm["printer_head_id_h"], label="printer_head_id_h")
         b = self.read_eeprom_many(
             self.parm["printer_head_id_f"], label="printer_head_id_f")
-        if (
-            a == [None, None, None, None, None]
-            or b == [None, None, None, None, None]
-        ):
+        if a == [None] or b == [None]:
             return None
         return(f'{"".join(a)} - {"".join(b)}')
 
@@ -1026,6 +1033,11 @@ class EpsonPrinter:
         firmware_string = self.snmp_mib(oid, label=label)
         if not firmware_string:
             return None
+        if self.invalid_response(firmware_string):
+            logging.error(
+                f"Invalid response for %s: '%s'",
+                label, repr(firmware_string)
+            )
         logging.debug(f"  RESPONSE: {repr(firmware_string)}")
         firmware = re.sub(
             r".*vi:00:(.{6}).*", r'\g<1>', firmware_string.decode())
@@ -1044,6 +1056,11 @@ class EpsonPrinter:
             f"  ADDRESS: {oid}"
         )
         cartridges_string = self.snmp_mib(oid, label=label)
+        if self.invalid_response(cartridges_string):
+            logging.error(
+                f"Invalid response for %s: '%s'",
+                label, repr(cartridges_string)
+            )
         if not cartridges_string:
             return None
         logging.debug(f"  RESPONSE: {repr(cartridges_string)}")
@@ -1106,15 +1123,18 @@ class EpsonPrinter:
                 continue
             level = self.read_eeprom_many(
                 self.parm[waste_type]["oids"], label=waste_type)
-            if level == [None, None, None]:
+            if level == [None]:
                 return None
             level_b10 = int("".join(reversed(level)), 16)
             results[waste_type] = round(
                 level_b10 / self.parm[waste_type]["divider"], 2)
         return results
 
-    def get_last_printer_fatal_errors(self) -> str:
-        """Return list of last printer fatal errors in hex format."""
+    def get_last_printer_fatal_errors(self) -> list:
+        """
+        Return the list of last printer fatal errors in hex format
+        (or [None] if error).
+        """
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
             return None
@@ -1126,6 +1146,10 @@ class EpsonPrinter:
         )
 
     def ink_color(self, number):
+        """
+        Return the name of the ink color related to a cartridge type
+        (or "unknown color" if error).
+        """
         for i in [1811, 711]:
             if number - i in self.ink_color_ids:
                 return [number, self.ink_color_ids[number - i]]
@@ -1144,6 +1168,12 @@ class EpsonPrinter:
             logging.debug(f"  RESPONSE: {repr(cartridge)}")
             if not cartridge:
                 continue
+            if self.invalid_response(cartridge):
+                logging.error(
+                    f"Invalid cartridge response: '%s'",
+                    repr(cartridge)
+                )
+                return None
             if cartridge.find(b'ii:NA;') > 0 or cartridge.find(
                     b'@BDC PS\r\n') < 0:
                 break
@@ -1171,17 +1201,22 @@ class EpsonPrinter:
         except Exception as e:
             logging.error("Cartridge map error: %s", e)
             return None
-        for i in cartridges:
-            logging.debug("Ink cartridge information:")
-            for j in i:
-                try:
-                    int_value = str(int(i[j], 16))
-                except Exception:
-                    int_value = ""
-                logging.debug(
-                    "  %s = %s %s",
-                    j.rjust(4), i[j].rjust(4), int_value.rjust(4)
-                )
+        if logging.getLogger().level <= logging.DEBUG:
+            for i in cartridges:
+                logging.debug("Raw cartridge information:")
+                for j in i:
+                    value = ""
+                    if len(i[j]) < 6:
+                        try:
+                            value = str(int(i[j], 16))
+                        except Exception:
+                            pass
+                    if i[j] == "NAVL":
+                        value = "(Not available)"
+                    logging.debug(
+                        "  %s = %s %s",
+                        j.rjust(4), i[j].rjust(4), value.rjust(4)
+                    )
         try:
             return [
                 {
