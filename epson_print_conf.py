@@ -301,7 +301,7 @@ class EpsonPrinter:
     eeprom_link: str = f'{SNMP_OID_ENTERPRISE}.{SNMP_EPSON}.{OID_PRV_CTRL}.1'
 
     session: object
-    printer_model: str
+    model: str
     hostname: str
     parm: dict
     mib_dict: dict = {}
@@ -317,11 +317,13 @@ class EpsonPrinter:
 
     def __init__(
             self,
-            printer_model: str = None,
+            model: str = None,
             hostname: str = None,
+            port: int = 161,
             timeout: (None, float) = None,
             retries: (None, float) = None,
-            dry_run: bool = False) -> None:
+            dry_run: bool = False
+        ) -> None:
         """Initialise printer model."""
         # process "alias" definintion
         for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
@@ -360,13 +362,14 @@ class EpsonPrinter:
                         "in '%s' configuration.",
                         sameas, printer_name
                     )
-        self.printer_model = printer_model
+        self.model = model
         self.hostname = hostname
+        self.port = port
         self.timeout = timeout
         self.retries = retries
         self.dry_run = dry_run
-        if self.printer_model in self.valid_printers:
-            self.parm = self.PRINTER_CONFIG[self.printer_model]
+        if self.model in self.valid_printers:
+            self.parm = self.PRINTER_CONFIG[self.model]
         else:
             self.parm = None
 
@@ -470,7 +473,7 @@ class EpsonPrinter:
         else:
             return write_op
 
-    def snmp_mib(self, mib, label="unknown"):
+    def snmp_mib(self, mib: str, label: str = "unknown") -> (str, Any):
         """Generic SNMP query, returning value of a MIB."""
         if self.mib_dict:
             if mib not in self.mib_dict:
@@ -485,7 +488,7 @@ class EpsonPrinter:
         if not self.hostname:
             return None, False
         utt = UdpTransportTarget(
-                (self.hostname, 161),
+                (self.hostname, self.port),
             )
         if self.timeout is not None:
             utt.timeout = self.timeout
@@ -1558,6 +1561,14 @@ if __name__ == "__main__":
         help='Printer host name or IP address. (Example: -m 192.168.1.87)',
         required=True)
     parser.add_argument(
+        '-p',
+        '--port',
+        dest='port',
+        type=int,
+        default=161,
+        action="store",
+        help='Printer port (default is 161)')
+    parser.add_argument(
         '-i',
         '--info',
         dest='info',
@@ -1701,8 +1712,9 @@ if __name__ == "__main__":
         logging.getLogger().setLevel(logging.DEBUG)
 
     printer = EpsonPrinter(
-        args.model,
-        args.hostname,
+        model=args.model,
+        hostname=args.hostname,
+        port=args.port,
         timeout=args.timeout,
         retries=args.retries,
         dry_run=args.dry_run)

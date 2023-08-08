@@ -18,6 +18,7 @@ The software also provides a configurable printer dictionary, which can be easil
 
 ```
 git clone https://github.com/Ircama/epson_print_conf
+pip3 install pyyaml
 pip3 install pyasn1==0.4.8
 pip3 install git+https://github.com/etingof/pysnmp.git
 cd epson_print_conf
@@ -35,11 +36,12 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 ## Usage
 
 ```
-usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-i] [-q QUERY] [--reset_waste_ink]
-                           [--detect-key] [-d] [-e DUMP_EEPROM DUMP_EEPROM] [--dry-run]
-                           [--write-first-ti-received-time YEAR MONTH DAY] [-R READ_EEPROM]
-                           [-W WRITE_EEPROM] [-S WS_TO_STRING] [-t TIMEOUT] [-r RETRIES]
-                           [-c CONFIG_FILE]
+usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME]
+                           [--reset_waste_ink] [-d]
+                           [--write-first-ti-received-time YEAR MONTH DAY] [--dry-run]
+                           [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS]
+                           [--detect-key] [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES]
+                           [-c CONFIG_FILE] [--simdata SIMDATA_FILE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -47,32 +49,35 @@ optional arguments:
                         Printer model. Example: -m XP-205 (use ? to print all supported models)
   -a HOSTNAME, --address HOSTNAME
                         Printer host name or IP address. (Example: -m 192.168.1.87)
+  -p PORT, --port PORT  Printer port (default is 161)
   -i, --info            Print all available information and statistics (default option)
-  -q QUERY, --query QUERY
+  -q QUERY_NAME, --query QUERY_NAME
                         Print specific information. (Use ? to list all available queries)
   --reset_waste_ink     Reset all waste ink levels to 0
-  --detect-key          Detect the read_key via brute force
   -d, --debug           Print debug information
-  -e DUMP_EEPROM DUMP_EEPROM, --eeprom-dump DUMP_EEPROM DUMP_EEPROM
-                        Dump EEPROM (arguments: start, stop)
-  --dry-run             Dry-run change operations
   --write-first-ti-received-time YEAR MONTH DAY
                         Change the first TI received time
-  -R READ_EEPROM, --read-eeprom READ_EEPROM
-                        Read the values of a list of printer EEPROM addreses. Format is: address [,
-                        ...]
-  -W WRITE_EEPROM, --write-eeprom WRITE_EEPROM
+  --dry-run             Dry-run change operations
+  -R ADDRESS_SET, --read-eeprom ADDRESS_SET
+                        Read the values of a list of printer EEPROM addreses. Format is: address
+                        [, ...]
+  -W ADDRESS_VALUE_SET, --write-eeprom ADDRESS_VALUE_SET
                         Write related values to a list of printer EEPROM addresses. Format is:
                         address: value [, ...]
-  -S WS_TO_STRING, --write-sequence-to-string WS_TO_STRING
+  -e FIRST_ADDRESS LAST_ADDRESS, --eeprom-dump FIRST_ADDRESS LAST_ADDRESS
+                        Dump EEPROM
+  --detect-key          Detect the read_key via brute force
+  -S SEQUENCE_STRING, --write-sequence-to-string SEQUENCE_STRING
                         Convert write sequence of numbers to string.
   -t TIMEOUT, --timeout TIMEOUT
                         SNMP GET timeout (floating point argument)
   -r RETRIES, --retries RETRIES
                         SNMP GET retries (floating point argument)
   -c CONFIG_FILE, --config CONFIG_FILE
-                        read a configuration file including the full log dump of a previous operation
-                        with '-d' flag (instead of accessing the printer via SNMP)
+                        read a configuration file including the full log dump of a previous
+                        operation with '-d' flag (instead of accessing the printer via SNMP)
+  --simdata SIMDATA_FILE
+                        write SNMP dictionary map to simdata file
 
 Epson Printer Configuration via SNMP (TCP/IP)
 ```
@@ -110,6 +115,30 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 
 ## API Interface
 
+### Specification
+
+```python
+EpsonPrinter(model, hostname, port, timeout, retries, dry_run)
+```
+
+- `model`: printer model
+- `hostname`: IP address or network name of the printer
+- `port`: SNMP port number (default is 161)
+- `timeout`: printer connection timeout in seconds (float)
+- `retries`: connection retries if error or timeout occurred
+- `dry_run`: boolean (True if write dry-run mode is enabled)
+
+### Exceptions
+
+```
+TimeoutError
+ValueError
+```
+
+(And *pysnmp* exceptions.)
+
+### Sample
+
 ```python
 import epson_print_conf
 import logging
@@ -117,7 +146,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")  # if logging is needed
 
 printer = epson_print_conf.EpsonPrinter(
-    printer_model="XP-205", hostname="192.168.1.87")
+    model="XP-205", hostname="192.168.1.87")
 
 if not printer.parm:
     print("Unknown printer")
@@ -151,15 +180,6 @@ printer.reset_waste_ink_levels()
 printer.brute_force_read_key()
 printer.write_first_ti_received_time(2000, 1, 2)
 ```
-
-### Exceptions
-
-```
-TimeoutError
-ValueError
-```
-
-(And *pysnmp* exceptions.)
 
 ## Output example
 Example of advanced printer status with an XP-205 printer:
