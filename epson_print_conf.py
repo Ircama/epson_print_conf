@@ -347,16 +347,18 @@ class EpsonPrinter:
         # process "same-as" definintion
         for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
             if "same-as" in printer_data:
-                if printer_data["same-as"] in self.PRINTER_CONFIG:
+                sameas = printer_data["same-as"]
+                del printer_data["same-as"]
+                if sameas in self.PRINTER_CONFIG:
                     self.PRINTER_CONFIG[printer_name] = {
-                        **self.PRINTER_CONFIG[printer_data["same-as"]],
+                        **self.PRINTER_CONFIG[sameas],
                         **printer_data
                     }
                 else:
                     logging.error(
                         "Undefined 'same-as' printer '%s' "
                         "in '%s' configuration.",
-                        printer_data["same-as"], printer_name
+                        sameas, printer_name
                     )
         self.printer_model = printer_model
         self.hostname = hostname
