@@ -85,7 +85,7 @@ Epson Printer Configuration via SNMP (TCP/IP)
 Examples:
 
 ```
-# Print informations (-i is not needed):
+# Print the status information (-i is not needed):
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -i
 
 # Reset all waste ink levels to 0:
