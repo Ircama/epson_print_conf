@@ -18,6 +18,7 @@ import yaml
 from pathlib import Path
 from pysnmp.hlapi.v1arch import *
 from pyasn1.type.univ import OctetString as OctetStringType
+from itertools import chain
 
 
 class EpsonPrinter:
@@ -236,10 +237,26 @@ class EpsonPrinter:
         },
         "XP-3150": {
             "read_key": [80, 9],
+            "serial_number": range(0x644, 0x64e),
+            "printer_head_id_h": [171, 189, 190, 175],
+            "printer_head_id_f": [191, 188],
             "stats": {
-                "Total print page counter": [133, 132, 131, 130],
+                "MAC Address": range(0x780, 0x786),
+                "First TI received time": [9, 8],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [0x2fb, 0x2fa, 0x2f9, 0x2f8],
+                "Total scan counter": [0x0733, 0x0732, 0x0731, 0x0730],
+                "Paper count color": [0x314, 0x313, 0x312, 0x311],
+                "Paper count monochrome": [0x318, 0x317, 0x316, 0x315],
+                "Ink replacement counter - BL": [0x22a],
+                "Ink replacement counter - CY": [0x22b],
+                "Ink replacement counter - MG": [0x22c],
+                "Ink replacement counter - YE": [0x22d],
+                "Maintenance_box_replacement_counter": [0x22e],
             },
-            # draft
+            "last_printer_fatal_errors": chain(
+                range(0x120, 0x12a), range(0x727, 0x72c), range(0x7f4, 0x7fe)
+            ),
         },
         "Artisan-800": {
             "read_key": [0x53, 0x09],
@@ -263,7 +280,13 @@ class EpsonPrinter:
         },
     }
 
-    snmp_info = {
+    CARTRIDGE_TYPE = {  # map cartridge number with color
+        1811: 'Black', 1812: 'Cyan', 1813: 'Magenta', 1814: 'Yellow',  # T18xx / 18XL
+        711: 'Black', 712: 'Cyan', 713: 'Magenta', 714: 'Yellow',  # T7xx
+        10332: 'Black', 10360: 'Cyan', 10361: 'Magenta', 10362: 'Yellow',  # 603XL
+    }
+
+    SNMP_INFO = {
         "Model": "1.3.6.1.2.1.25.3.2.1.3.1",
         "Epson Model": "1.3.6.1.4.1.1248.1.2.2.1.1.1.2.1",
         "Model short": "1.3.6.1.4.1.1248.1.1.3.1.3.8.0",
@@ -305,15 +328,6 @@ class EpsonPrinter:
     hostname: str
     parm: dict
     mib_dict: dict = {}
-
-    ink_color_ids = {  # Ink color
-        0x00: 'Black',
-        0x01: 'Cyan',
-        0x02: 'Magenta',
-        0x03: 'Yellow',
-        0x04: 'Light Cyan',
-        0x05: 'Light Magenta',
-    }
 
     def __init__(
             self,
@@ -570,7 +584,8 @@ class EpsonPrinter:
             return None
         logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(response))
         try:
-            response = re.findall(r"EE:[0-9A-F]{6}", response.decode())[0][3:]
+            response = re.findall(
+                r"EE:[0-9a-fA-F]{6}", response.decode())[0][3:]
         except (TypeError, IndexError):
             logging.info(f"Invalid read key.")
             return None
@@ -648,6 +663,15 @@ class EpsonPrinter:
             0x0f: 'Light Light Black',
             0x10: 'Orange',
             0x11: 'Green',
+        }
+
+        ink_color_ids = {  # Ink color
+            0x00: 'Black',
+            0x01: 'Cyan',
+            0x02: 'Magenta',
+            0x03: 'Yellow',
+            0x04: 'Light Cyan',
+            0x05: 'Light Magenta',
         }
 
         status_ids = {
@@ -802,8 +826,8 @@ class EpsonPrinter:
                     else:
                         name = "0x%X" % colour
 
-                    if ink_color in self.ink_color_ids:
-                        ink_name = self.ink_color_ids[ink_color]
+                    if ink_color in ink_color_ids:
+                        ink_name = ink_color_ids[ink_color]
                     else:
                         ink_name = "0x%X" % ink_color
 
@@ -938,6 +962,17 @@ class EpsonPrinter:
                 except Exception:
                     data_set["serial_number_info"] = str(item)
 
+            elif ftype == 0x45 and length == 4:  # Ink replacement counter (TBV)
+                data_set["ink_replacement_counter"] = {
+                    "BL": item[0],
+                    "CY": item[1],
+                    "MG": item[2],
+                    "YE": item[3],
+                }
+
+            elif ftype == 0x46 and length == 1:  # Maintenance_box_replacement_counter (TBV)
+                data_set["maintenance_box_replacement_counter"] = item[0]
+
             else:  # unknown stuff
                 if "unknown" not in data_set:
                     data_set["unknown"] = []
@@ -947,10 +982,10 @@ class EpsonPrinter:
     def get_snmp_info(self, mib_name: str = None) -> str:
         """Return general SNMP information of printer."""
         sys_info = {}
-        if mib_name and mib_name in self.snmp_info.keys():
-            snmp_info = {mib_name: self.snmp_info[mib_name]}
+        if mib_name and mib_name in self.SNMP_INFO.keys():
+            snmp_info = {mib_name: self.SNMP_INFO[mib_name]}
         else:
-            snmp_info = self.snmp_info
+            snmp_info = self.SNMP_INFO
         for name, oid in snmp_info.items():
             logging.debug(
                 f"SNMP_DUMP {name}:\n"
@@ -1003,9 +1038,14 @@ class EpsonPrinter:
             total = 0
             for val in self.read_eeprom_many(oids, label=stat_name):
                 if val is None:
-                    return None
-                total = (total << 8) + int(val, 16)
+                    total = None
+                    break
+                else:
+                    total = (total << 8) + int(val, 16)
             stats_result[stat_name] = total
+            if stat_name == "MAC Address" and total != None:
+                stats_result[stat_name] = total.to_bytes(
+                    length=6, byteorder='big').hex("-").upper()
         if "First TI received time" not in stats_result:
             return stats_result
         ftrt = stats_result["First TI received time"]
@@ -1161,13 +1201,15 @@ class EpsonPrinter:
 
     def ink_color(self, number):
         """
-        Return the name of the ink color related to a cartridge type
-        (or "unknown color" if error).
+        Return a list including the cartridge input number and the related
+        name of the ink color (or "unknown color" if not included
+        in self.CARTRIDGE_TYPE).
         """
-        for i in [1811, 711]:
-            if number - i in self.ink_color_ids:
-                return [number, self.ink_color_ids[number - i]]
-        return [number, "unknown color"]
+        return [
+            number,
+            self.CARTRIDGE_TYPE[
+                number] if number in self.CARTRIDGE_TYPE else "unknown color",
+        ]
 
     def get_cartridge_information(self) -> str:
         """Return list of cartridge properties."""
@@ -1198,6 +1240,7 @@ class EpsonPrinter:
         return self.cartridge_parser(response)
 
     def cartridge_parser(self, cartridges: List[bytes]) -> str:
+        """Parse the cartridge properties and decode as much as possible."""
         response = [
             cartridge[cartridge.find(b'@BDC PS\r\n') + 9
                 :
@@ -1306,6 +1349,7 @@ class EpsonPrinter:
         return True
 
     def list_known_keys(self):
+        """ List all known read and write keys for all defined printers. """
         known_keys = []
         for model, chars in self.PRINTER_CONFIG.items():
             if 'write_key' in chars:
@@ -1337,6 +1381,7 @@ class EpsonPrinter:
         return None
 
     def write_sequence_to_string(self, write_sequence):
+        """ Convert write key sequence to string """
         try:
             int_sequence = [int(b) for b in write_sequence[0].split(".")]
             return "".join([chr(b-1) for b in int_sequence])
@@ -1344,6 +1389,12 @@ class EpsonPrinter:
             return None
 
     def read_config_file(self, file):
+        """
+        Read a configuration file including the full log dump of a
+        previous operation with '-d' flag and create the internal mib_dict
+        dictionary, which is used in place of the SNMP query, simulating them
+        instead of accessing the printer via SNMP.
+        """
         class NextLine:
             def __init__(self, file):
                 self.next_line = None
@@ -1511,6 +1562,11 @@ class EpsonPrinter:
         return mib_dict
 
     def write_simdata(self, file):
+        """
+        Convert the internal mib_dict dictionary into a configuration file
+        (named simdata configuration file) compatible with
+        https://github.com/etingof/snmpsim/
+        """
         tagnum = {
             "OctetString": "4x",
             "TimeTicks": "2",  # 64
@@ -1784,7 +1840,7 @@ if __name__ == "__main__":
                     pprint(ret)
                 else:
                     print("No information returned. Check printer definition.")
-            elif args.query[0] in printer.snmp_info.keys():
+            elif args.query[0] in printer.SNMP_INFO.keys():
                 ret = printer.get_snmp_info(args.query[0])
                 if ret:
                     pprint(ret)
@@ -1823,7 +1879,7 @@ if __name__ == "__main__":
                         ) +
                         textwrap.fill(
                             "Available SNMP elements: " +
-                            ", ".join(printer.snmp_info.keys()),
+                            ", ".join(printer.SNMP_INFO.keys()),
                             initial_indent='', subsequent_indent='  '
                         )
                     )
