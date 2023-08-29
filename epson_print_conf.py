@@ -310,10 +310,10 @@ class EpsonPrinter:
         #"Total copies": "1.3.6.1.2.1.43.11.1.1.9.1.1",
         #"Serial number": "1.3.6.1.2.1.43.5.1.1.17.1",
         "IP Address": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.3.1",
-        "URL_path": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.4.1",
-        "URL": "1.3.6.1.4.1.1248.1.1.3.1.4.46.1.2.1",
+        "IPP_URL_path": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.4.1",
+        "IPP_URL": "1.3.6.1.4.1.1248.1.1.3.1.4.46.1.2.1",
         "WiFi": "1.3.6.1.4.1.1248.1.1.3.1.29.2.1.9.0",
-        "hex_data": "1.3.6.1.4.1.1248.1.1.3.1.1.5.0",
+        "MAC Addr": "1.3.6.1.4.1.1248.1.1.3.1.1.5.0",
         "device_id": "1.3.6.1.4.1.11.2.3.9.1.1.7.0",
     }
 
@@ -998,7 +998,7 @@ class EpsonPrinter:
             elif name == "UpTime" and result is not False:
                 sys_info[name] = time.strftime(
                     '%H:%M:%S', time.gmtime(int(result)/100))
-            elif name == "MAC Address" and result is not False:
+            elif name.startswith("MAC ") and result is not False:
                 sys_info[name] = result.hex("-").upper()
             elif isinstance(result, bytes):
                 sys_info[name] = result.decode()
