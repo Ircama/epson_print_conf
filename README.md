@@ -113,6 +113,8 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -W 173:1,172:0xde
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 ```
 
+Note: resetting the ink waste counter is just removing a warning; not replacing the tank will make the ink spill.
+
 ## API Interface
 
 ### Specification

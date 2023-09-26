@@ -213,10 +213,12 @@ class EpsonPrinter:
             # uncompleted
         },
         "XP-850": {
+            "alias": ["XP-820"],
             "read_key": [40, 0],
             "write_key": b'Hibiscus',
             "main_waste": {"oids": [16, 17], "divider": 84.5},  # incorrect divider
             "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # incorrect divider
+            "raw_waste_reset": {16: 0, 17: 0, 18: 0, 19: 0, 20: 0, 21: 0}  # to be checked
             # uncompleted
         },
         "XP-7100": {
