@@ -280,6 +280,21 @@ class EpsonPrinter:
             "read_key": [0x08, 0x32],
             # uncompleted
         },
+        "ET-2550": {
+            "read_key": [0x44, 0x01],
+            "write_key": b'Gazania*',
+            "main_waste": {"oids": [24, 25], "divider": 62.07},
+            "serial_number": range(192, 202),
+            "stats": {
+                "Maintenance required level of waste ink counter": [46]
+            },
+            "raw_waste_reset": {
+                24: 0, 25: 0, 30: 0,  # Data of the waste ink counter
+                28: 0, 29: 0,  # another store of the waste ink counter
+                46: 94,  # Maintenance required level of the waste ink counter
+            }
+            # uncompleted
+        },
     }
 
     CARTRIDGE_TYPE = {  # map cartridge number with color
@@ -417,6 +432,16 @@ class EpsonPrinter:
     def caesar(self, key):
         """Convert the string write key to a sequence of numbers"""
         return ".".join(str(b + 1) for b in key)
+
+    def reverse_caesar(self, eight_bytes):
+        """
+        Convert a bytes type sequence key (8 bytes length) to string.
+        Example:
+        import epson_print_conf
+        printer = epson_print_conf.EpsonPrinter()
+        printer.reverse_caesar(bytes.fromhex("48 62 7B 62 6F 6A 62 2B"))
+        """
+        return "".join([chr(b - 1) for b in eight_bytes])
 
     def eeprom_oid_read_address(
             self,
@@ -561,6 +586,8 @@ class EpsonPrinter:
         return None, False
 
     def invalid_response(self, response):
+        if response is False:
+            return True
         return len(response) < 2 or response[0] != 0 or response[-1] != 12
 
     def read_eeprom(
@@ -652,7 +679,16 @@ class EpsonPrinter:
         return True
 
     def status_parser(self, data):
-        """Parse an ST2 status response and decode as much as possible."""
+        """
+        Parse an ST2 status response and decode as much as possible.
+        Example:
+        import epson_print_conf
+        import pprint
+        printer = epson_print_conf.EpsonPrinter()
+        pprint.pprint(printer.status_parser(bytes.fromhex(
+            "40 42 44 43 20 53 54 32 0D 0A....."
+        )))
+        """
         colour_ids = {  # Ink cartridge name
             0x01: 'Black',
             0x03: 'Cyan',
