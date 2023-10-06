@@ -280,10 +280,10 @@ class EpsonPrinter:
             "read_key": [0x08, 0x32],
             # uncompleted
         },
-        "ET-2550": {
+        "ET-2550": {  # Epson EcoTank ET-2550
             "read_key": [0x44, 0x01],
             "write_key": b'Gazania*',
-            "main_waste": {"oids": [24, 25], "divider": 62.07},
+            "main_waste": {"oids": [24, 25], "divider": 62.06},
             "serial_number": range(192, 202),
             "stats": {
                 "Maintenance required level of waste ink counter": [46]
