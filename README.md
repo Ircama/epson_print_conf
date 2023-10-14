@@ -115,6 +115,83 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 
 Note: resetting the ink waste counter is just removing a warning; not replacing the tank will make the ink spill.
 
+## Utilities and notes
+
+```
+import epson_print_conf
+import pprint
+printer = epson_print_conf.EpsonPrinter()
+
+# Decode write_key:
+printer.reverse_caesar(bytes.fromhex("48 62 7B 62 6F 6A 62 2B"))  # last 8 bytes
+
+# Decode status:
+pprint.pprint(printer.status_parser(bytes.fromhex("40 42 44 43 20 53 54 32 0D 0A ....")))
+
+# Decode the level of ink waste
+byte_sequence = "A4 2A"
+divider = 62.06  # divider = ink_level / waste_percent
+ink_level = int("".join(reversed(byte_sequence.split())), 16)
+waste_percent = round(ink_level / divider, 2)
+
+# Print the read key sequence in byte and hex formats:
+printer = epson_print_conf.EpsonPrinter(model="ET-2700")
+'.'.join(str(x) for x in printer.parm['read_key'])
+" ".join('{0:02x}'.format(x) for x in printer.parm['read_key'])
+
+# Print the write key sequence in byte and hex formats:
+printer = epson_print_conf.EpsonPrinter(model="ET-2700")
+printer.caesar(printer.parm['write_key'])
+printer.caesar(printer.parm['write_key'], hex=True).upper()
+
+# Print hex sequence of reading the value of EEPROM address 30 00:
+" ".join('{0:02x}'.format(int(x)) for x in printer.eeprom_oid_read_address(oid=0x30).split(".")[15:]).upper()
+
+# Print hex sequence of storing value 00 to EEPROM address 30 00:
+" ".join('{0:02x}'.format(int(x)) for x in printer.eeprom_oid_write_address(oid=0x30, value=0x0).split(".")[15:]).upper()
+
+# Print EEPROM write hex sequence of the raw ink waste reset:
+for key, value in printer.parm["raw_waste_reset"].items():
+    " ".join('{0:02x}'.format(int(x)) for x in printer.eeprom_oid_write_address(oid=key, value=value).split(".")[15:]).upper()
+```
+
+### Byte sequences
+
+Header:
+
+```
+1.3.6.1.4.1. [SNMP_OID_ENTERPRISE]
+1248. [SNMP_EPSON]
+1.2.2.44.1.1.2. [OID_PRV_CTRL]
+1.
+```
+
+Full header sequence: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.`
+
+Read EEPROM (EPSON-CTRL), after the header:
+
+```
+124.124.7.0. [7C 7C 07 00]
+<READ KEY (two bytes)>
+65.190.160. [41 BE A0]
+<LSB EEPROM ADDRESS (one byte)>.<MSB EEPROM ADDRESS (one byte)>
+```
+
+Example: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.73.8.65.190.160.48.0`
+
+Write EEPROM, after the header:
+
+```
+7C 7C 10 00 [124.124.16.0.]
+<READ KEY (two bytes)>
+42 BD 21 [66.189.33.]
+<LSB EEPROM ADDRESS (one byte)>.<MSB EEPROM ADDRESS (one byte)>
+<VALUE (one byte)>
+<WRITE KEY (eight bytes)>
+```
+
+Example: `7C 7C 10 00 49 08 42 BD 21 30 00 1A 42 73 62 6F 75 6A 67 70`
+
 ## API Interface
 
 ### Specification

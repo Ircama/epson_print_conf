@@ -239,7 +239,7 @@ class EpsonPrinter:
         },
         "XP-3150": {
             "read_key": [80, 9],
-            "serial_number": range(0x644, 0x64e),
+            "serial_number": range(1604, 1614),
             "printer_head_id_h": [171, 189, 190, 175],
             "printer_head_id_f": [191, 188],
             "stats": {
@@ -292,6 +292,26 @@ class EpsonPrinter:
                 24: 0, 25: 0, 30: 0,  # Data of the waste ink counter
                 28: 0, 29: 0,  # another store of the waste ink counter
                 46: 94,  # Maintenance required level of the waste ink counter
+            }
+            # uncompleted
+        },
+        "ET-2700": {  # Epson EcoTank ET-2700 Series
+            "read_key": [73, 8],
+            "write_key": b'Arantifo',
+            "serial_number": range(1604, 1614),
+            "main_waste": {"oids": [48, 49], "divider": 109.125},
+            "second_waste": {"oids": [50, 51], "divider": 16.31},
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+            },
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0,  # Data of 1st counter
+                52: 0, 53: 0,  # another store of 1st counter
+                54: 94,  # Maintenance required level of 1st counter
+                50: 0, 51: 0,  # Data of 2nd counter
+                55: 94,  # Maintenance required level of 2st counter
+                28: 0  # ?
             }
             # uncompleted
         },
@@ -429,9 +449,12 @@ class EpsonPrinter:
                 logging.info(f"No value for method '{method}'.")
         return stat_set
 
-    def caesar(self, key):
+    def caesar(self, key, hex=False):
         """Convert the string write key to a sequence of numbers"""
+        if hex:
+            return " ".join('{0:02x}'.format(b + 1) for b in key)
         return ".".join(str(b + 1) for b in key)
+
 
     def reverse_caesar(self, eight_bytes):
         """
@@ -466,8 +489,8 @@ class EpsonPrinter:
             return None
         return (
             f"{self.eeprom_link}"
-            ".124.124"  # || (0x7C 0x7C)
-            ".7.0"  # read
+            ".124.124"  # || (7C 7C)
+            ".7.0"  # read (07 00)
             f".{self.parm['read_key'][0]}"
             f".{self.parm['read_key'][1]}"
             ".65.190.160"
@@ -500,11 +523,11 @@ class EpsonPrinter:
             return None
         write_op = (
             f"{self.eeprom_link}"
-            ".124.124"  # || (0x7C 0x7C)
-            ".16.0"  # write
+            ".124.124"  # || 7C 7C
+            ".16.0"  # write (10 00)
             f".{self.parm['read_key'][0]}"
             f".{self.parm['read_key'][1]}"
-            ".66.189.33"
+            ".66.189.33"  # 42 BD 21
             f".{oid}.{msb}.{value}"
             f".{self.caesar(self.parm['write_key'])}"
         )
@@ -1113,7 +1136,7 @@ class EpsonPrinter:
 
     def get_firmware_version(self) -> str:
         """Return firmware version."""
-        oid = f"{self.eeprom_link}.118.105.1.0.0"
+        oid = f"{self.eeprom_link}.118.105.1.0.0"  # 76 69 01 00 00
         label = "get_firmware_version"
         logging.debug(
             f"SNMP_DUMP {label}:\n"
@@ -1138,7 +1161,7 @@ class EpsonPrinter:
 
     def get_cartridges(self) -> str:
         """Return list of cartridge types."""
-        oid = f"{self.eeprom_link}.105.97.1.0.0"
+        oid = f"{self.eeprom_link}.105.97.1.0.0"  # 69 61 01 00 00
         label = "get_cartridges"
         logging.debug(
             f"SNMP_DUMP {label}:\n"
@@ -1185,7 +1208,7 @@ class EpsonPrinter:
 
     def get_printer_status(self):
         """Return printer status and ink levels."""
-        address = f"{self.eeprom_link}.115.116.1.0.1"
+        address = f"{self.eeprom_link}.115.116.1.0.1"  # 73 74 01 00 01
         logging.debug(f"PRINTER_STATUS:\n  ADDRESS: {address}")
         tag, result = self.snmp_mib(address, label="get_printer_status")
         if not result:
@@ -1253,7 +1276,7 @@ class EpsonPrinter:
         """Return list of cartridge properties."""
         response = []
         for i in range(1, 9):
-            mib = f"{self.eeprom_link}.105.105.2.0.1." + str(i)
+            mib = f"{self.eeprom_link}.105.105.2.0.1." + str(i)  # 69 69 02 00 01
             logging.debug(
                 f"Cartridge {i}:\n"
                 f"  ADDRESS: {mib}"
