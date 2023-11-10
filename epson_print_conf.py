@@ -352,6 +352,7 @@ class EpsonPrinter:
         "WiFi": "1.3.6.1.4.1.1248.1.1.3.1.29.2.1.9.0",
         "MAC Addr": "1.3.6.1.4.1.1248.1.1.3.1.1.5.0",
         "device_id": "1.3.6.1.4.1.11.2.3.9.1.1.7.0",
+        "Power Off Timer": "1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.111.116.2.0.1.1"
     }
 
     SNMP_OID_ENTERPRISE = "1.3.6.1.4.1"
@@ -1054,7 +1055,21 @@ class EpsonPrinter:
             )
             tag, result = self.snmp_mib(oid, label="get_snmp_info " + name)
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(result))
-            if name == "hex_data" and result is not False:
+
+            if name == "Power Off Timer" and result and result.find(
+                    b'@BDC PS\r\not:01') > 0:
+                try:
+                    power_off_h = int.from_bytes(bytes.fromhex(
+                        result[
+                            result.find(b'@BDC PS\r\not:01') + 14
+                            :
+                            result.find(b';')
+                        ].decode()
+                    ), byteorder="little") / 60
+                    sys_info[name] = f"{power_off_h} hours"
+                except Exception:
+                    sys_info[name] = "(unknown)"
+            elif name == "hex_data" and result is not False:
                 sys_info[name] = result.hex(" ").upper()
             elif name == "UpTime" and result is not False:
                 sys_info[name] = time.strftime(
