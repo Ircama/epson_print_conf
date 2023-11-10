@@ -8,6 +8,7 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 	- Read and write EEPROM addresses
 	- Dump a set of EEPROM addresses
 	- Reset ink waste
+    - Change power off timer
 	- Other admin stuffs and debug options
 - Command line tool (no GUI)
 - Python API interface
@@ -38,10 +39,11 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 ```
 usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME]
                            [--reset_waste_ink] [-d]
-                           [--write-first-ti-received-time YEAR MONTH DAY] [--dry-run]
-                           [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS]
-                           [--detect-key] [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES]
-                           [-c CONFIG_FILE] [--simdata SIMDATA_FILE]
+                           [--write-first-ti-received-time YEAR MONTH DAY]
+                           [--write-poweroff-timer MINUTES] [--dry-run] [-R ADDRESS_SET]
+                           [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS] [--detect-key]
+                           [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES] [-c CONFIG_FILE]
+                           [--simdata SIMDATA_FILE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -57,6 +59,8 @@ optional arguments:
   -d, --debug           Print debug information
   --write-first-ti-received-time YEAR MONTH DAY
                         Change the first TI received time
+  --write-poweroff-timer MINUTES
+                        Write poweroff tiler
   --dry-run             Dry-run change operations
   -R ADDRESS_SET, --read-eeprom ADDRESS_SET
                         Read the values of a list of printer EEPROM addreses. Format is: address
@@ -84,7 +88,7 @@ Epson Printer Configuration via SNMP (TCP/IP)
 
 Examples:
 
-```
+```bash
 # Print the status information (-i is not needed):
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -i
 
@@ -93,6 +97,9 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --reset_waste_ink
 
 # Change the first TI received time to 31 December 2016:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --write-first-ti-received-time 2016 12 31
+
+# Change the power off timer to 15 minutes:
+python3 epson_print_conf.py -a 192.168.1.87 -m XP-205 --write-poweroff-timer 15
 
 # Detect the read_key via brute force:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 --detect-key
@@ -353,7 +360,8 @@ Example of advanced printer status with an XP-205 printer:
            'Timer cleaning counter': 4,
            'Total print page counter': 11569,
            'Total print pass counter': 514602,
-           'Total scan counter': 4973},
+           'Total scan counter': 4973,
+           'poweroff_timer': 30},
  'waste_ink_levels': {'borderless_waste': 4.72, 'main_waste': 90.8}}
  ```
 

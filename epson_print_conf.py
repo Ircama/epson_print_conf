@@ -136,6 +136,7 @@ class EpsonPrinter:
                 "First TI received time": [173, 172],
                 "Maintenance required level of 1st waste ink counter": [46],
                 "Maintenance required level of 2nd waste ink counter": [47],
+                "poweroff_timer": [359, 358],
             },
             "raw_waste_reset": {
                 24: 0, 25: 0, 30: 0,  # Data of 1st counter
@@ -1424,6 +1425,30 @@ class EpsonPrinter:
             return False
         return True
 
+    def write_poweroff_timer(self, mins: int) -> bool:
+        """Update power-off timer"""
+        if not self.parm:
+            logging.error("EpsonPrinter - invalid API usage")
+            return None
+        try:
+            msb = self.parm["stats"]["poweroff_timer"][0]
+            lsb = self.parm["stats"]["poweroff_timer"][1]
+        except KeyError:
+            logging.info("write_poweroff_timer: missing parameter")
+            return False
+        logging.debug(
+            "poweroff: %s %s = %s %s",
+            hex(mins // 256), hex(mins % 256), mins // 256, mins % 256)
+        if not self.write_eeprom(
+            msb, mins // 256, label="Write power off timer"
+        ):
+            return False
+        if not self.write_eeprom(
+            lsb, mins % 256, label="Write power off timer"
+        ):
+            return False
+        return True
+
     def list_known_keys(self):
         """ List all known read and write keys for all defined printers. """
         known_keys = []
@@ -1736,6 +1761,14 @@ if __name__ == "__main__":
         metavar=('YEAR', 'MONTH', 'DAY'),
     )
     parser.add_argument(
+        '--write-poweroff-timer',
+        dest='poweroff',
+        type=int,
+        help='Write poweroff tiler',
+        nargs=1,
+        metavar=('MINUTES'),
+    )
+    parser.add_argument(
         '--dry-run',
         dest='dry_run',
         action='store_true',
@@ -1894,6 +1927,19 @@ if __name__ == "__main__":
             else:
                 print(
                     "Failed to write first TI received time."
+                    " Check configuration."
+                )
+        if args.poweroff:
+            print_opt = True
+            if printer.write_poweroff_timer(args.poweroff[0]):
+                print(
+                    "Write power off timer done ("
+                    + str(args.poweroff[0])
+                    + " minutes)."
+                )
+            else:
+                print(
+                    "Failed to write power off timer."
                     " Check configuration."
                 )
         if args.dump_eeprom:
