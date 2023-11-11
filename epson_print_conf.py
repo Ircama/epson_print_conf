@@ -818,7 +818,7 @@ class EpsonPrinter:
                 "Processing status - ftype %s, length: %s, item: %s",
                 hex(ftype), length, item.hex(' ')
             )
-            if ftype == 0x01:  # status
+            if ftype == 0x01:  # Status code
                 printer_status = item[0]
                 status_text = "unknown"
                 if printer_status in status_ids:
@@ -831,7 +831,7 @@ class EpsonPrinter:
                     data_set["ready"] = False
                 data_set["status"] = (printer_status, status_text)
 
-            elif ftype == 0x02:  # errcode
+            elif ftype == 0x02:  # Error code
                 printer_status = item[0]
                 if printer_status in errcode_ids:
                     data_set["errcode"] = errcode_ids[printer_status]
@@ -843,7 +843,7 @@ class EpsonPrinter:
                 if item[0] == 0:
                     data_set["self_print_code"] = "Nozzle test printing"
 
-            elif ftype == 0x04:  # warning
+            elif ftype == 0x04:  # Warning code
                 data_set["warning_code"] = []
                 for i in item:
                     if i in warning_ids:
@@ -875,7 +875,7 @@ class EpsonPrinter:
             elif ftype == 0x0e:  # Replace cartridge information
                 data_set["replace_cartridge"] = "{:08b}".format(item[0])
 
-            elif ftype == 0x0f:  # ink
+            elif ftype == 0x0f:  # Ink information
                 colourlen = item[0]
                 offset = 1
                 inks = []
@@ -931,7 +931,7 @@ class EpsonPrinter:
                 if item == b'\x03':
                     data_set["tray_open"] = "Open"
 
-            elif ftype == 0x19:  # current job name
+            elif ftype == 0x19:  # Current job name information
                 data_set["jobname"] = item
                 if item == b'\x00\x00\x00\x00\x00unknown':
                     data_set["jobname"] = "Not defined"
@@ -1009,7 +1009,7 @@ class EpsonPrinter:
                             i + 1]
                     j += 1
 
-            elif ftype == 0x3d:  # printer I/F status
+            elif ftype == 0x3d:  # Printer I/F status
                 data_set["interface_status"] = item
                 if item == b'\x00':
                     data_set["interface_status"] = (
@@ -1356,13 +1356,21 @@ class EpsonPrinter:
         try:
             return [
                 {
-                    "ink_color": self.ink_color(int(i['IC1'], 16)),
-                    "ink_quantity": int(i['IQT'], 16),
-                    "production_year": int(i['PDY'], 16) + (
-                        1900 if int(i['PDY'], 16) > 80 else 2000),
-                    "production_month": int(i['PDM'], 16),
-                    "id": i['SID'],
-                } for i in cartridges
+                    k: v for k, v in 
+                        {
+                            # items which must exist
+                            "ink_color": self.ink_color(int(i['IC1'], 16)),
+                            "ink_quantity": int(i['IQT'], 16),
+                            "production_year": int(i['PDY'], 16) + (
+                                1900 if int(i['PDY'], 16) > 80 else 2000),
+                            "production_month": int(i['PDM'], 16),
+                            # items which can be excluded
+                            "id": i.get('SID'),
+                            "manufacturer": i.get('LOG'),
+                        }.items()
+                    if v  # exclude items without value
+                }
+                for i in cartridges
             ]
         except Exception as e:
             logging.error("Cartridge value error: %s", e)
