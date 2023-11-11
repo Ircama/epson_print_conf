@@ -37,12 +37,10 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 ## Usage
 
 ```
-usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME]
-                           [--reset_waste_ink] [-d]
-                           [--write-first-ti-received-time YEAR MONTH DAY]
-                           [--write-poweroff-timer MINUTES] [--dry-run] [-R ADDRESS_SET]
-                           [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS] [--detect-key]
-                           [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES] [-c CONFIG_FILE]
+usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME] [--reset_waste_ink] [-d]
+                           [--write-first-ti-received-time YEAR MONTH DAY] [--write-poweroff-timer MINUTES]
+                           [--dry-run] [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS]
+                           [--detect-key] [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES] [-c CONFIG_FILE]
                            [--simdata SIMDATA_FILE]
 
 optional arguments:
@@ -60,14 +58,13 @@ optional arguments:
   --write-first-ti-received-time YEAR MONTH DAY
                         Change the first TI received time
   --write-poweroff-timer MINUTES
-                        Write poweroff tiler
+                        Update the poweroff timer. Use 0xffff or 65535 to disable it.
   --dry-run             Dry-run change operations
   -R ADDRESS_SET, --read-eeprom ADDRESS_SET
-                        Read the values of a list of printer EEPROM addreses. Format is: address
-                        [, ...]
+                        Read the values of a list of printer EEPROM addreses. Format is: address [, ...]
   -W ADDRESS_VALUE_SET, --write-eeprom ADDRESS_VALUE_SET
-                        Write related values to a list of printer EEPROM addresses. Format is:
-                        address: value [, ...]
+                        Write related values to a list of printer EEPROM addresses. Format is: address: value
+                        [, ...]
   -e FIRST_ADDRESS LAST_ADDRESS, --eeprom-dump FIRST_ADDRESS LAST_ADDRESS
                         Dump EEPROM
   --detect-key          Detect the read_key via brute force
@@ -78,8 +75,8 @@ optional arguments:
   -r RETRIES, --retries RETRIES
                         SNMP GET retries (floating point argument)
   -c CONFIG_FILE, --config CONFIG_FILE
-                        read a configuration file including the full log dump of a previous
-                        operation with '-d' flag (instead of accessing the printer via SNMP)
+                        read a configuration file including the full log dump of a previous operation with
+                        '-d' flag (instead of accessing the printer via SNMP)
   --simdata SIMDATA_FILE
                         write SNMP dictionary map to simdata file
 

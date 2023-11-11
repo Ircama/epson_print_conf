@@ -1699,6 +1699,9 @@ if __name__ == "__main__":
     import argparse
     from pprint import pprint
 
+    def auto_int(x):
+        return int(x, 0)
+
     parser = argparse.ArgumentParser(
         epilog='Epson Printer Configuration via SNMP (TCP/IP)')
 
@@ -1721,7 +1724,7 @@ if __name__ == "__main__":
         '-p',
         '--port',
         dest='port',
-        type=int,
+        type=auto_int,
         default=161,
         action="store",
         help='Printer port (default is 161)')
@@ -1763,8 +1766,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--write-poweroff-timer',
         dest='poweroff',
-        type=int,
-        help='Write poweroff tiler',
+        type=auto_int,
+        help='Update the poweroff timer. Use 0xffff or 65535 to disable it.',
         nargs=1,
         metavar=('MINUTES'),
     )
