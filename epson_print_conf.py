@@ -1365,7 +1365,7 @@ class EpsonPrinter:
                                 1900 if int(i['PDY'], 16) > 80 else 2000),
                             "production_month": int(i['PDM'], 16),
                             # items which can be excluded
-                            "id": i.get('SID'),
+                            "data": i.get('SID'),
                             "manufacturer": i.get('LOG'),
                         }.items()
                     if v  # exclude items without value
