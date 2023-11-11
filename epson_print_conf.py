@@ -136,7 +136,7 @@ class EpsonPrinter:
                 "First TI received time": [173, 172],
                 "Maintenance required level of 1st waste ink counter": [46],
                 "Maintenance required level of 2nd waste ink counter": [47],
-                "poweroff_timer": [359, 358],
+                "Power off timer": [359, 358],
             },
             "raw_waste_reset": {
                 24: 0, 25: 0, 30: 0,  # Data of 1st counter
@@ -324,43 +324,44 @@ class EpsonPrinter:
         10332: 'Black', 10360: 'Cyan', 10361: 'Magenta', 10362: 'Yellow',  # 603XL
     }
 
-    SNMP_INFO = {
-        "Model": "1.3.6.1.2.1.25.3.2.1.3.1",
-        "Epson Model": "1.3.6.1.4.1.1248.1.2.2.1.1.1.2.1",
-        "Model short": "1.3.6.1.4.1.1248.1.1.3.1.3.8.0",
-        "EEPS2 firmware version": "1.3.6.1.2.1.2.2.1.2.1",
-        "Descr": "1.3.6.1.2.1.1.1.0",
-        "UpTime": "1.3.6.1.2.1.1.3.0",
-        "Name": "1.3.6.1.2.1.1.5.0",
-        "MAC Address": "1.3.6.1.2.1.2.2.1.6.1",
-        "Print input": "1.3.6.1.2.1.43.8.2.1.13.1.1",
-        "Lang 1": "1.3.6.1.2.1.43.15.1.1.3.1.1",
-        "Lang 2": "1.3.6.1.2.1.43.15.1.1.3.1.2",
-        "Lang 3": "1.3.6.1.2.1.43.15.1.1.3.1.3",
-        "Lang 4": "1.3.6.1.2.1.43.15.1.1.3.1.4",
-        "Lang 5": "1.3.6.1.2.1.43.15.1.1.3.1.5",
-        "Emulation 1": "1.3.6.1.2.1.43.15.1.1.5.1.1",
-        "Emulation 2": "1.3.6.1.2.1.43.15.1.1.5.1.2",
-        "Emulation 3": "1.3.6.1.2.1.43.15.1.1.5.1.3",
-        "Emulation 4": "1.3.6.1.2.1.43.15.1.1.5.1.4",
-        "Emulation 5": "1.3.6.1.2.1.43.15.1.1.5.1.5",
-        "Total printed pages": "1.3.6.1.2.1.43.10.2.1.4.1.1",
-        #"Total copies": "1.3.6.1.2.1.43.11.1.1.9.1.1",
-        #"Serial number": "1.3.6.1.2.1.43.5.1.1.17.1",
-        "IP Address": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.3.1",
-        "IPP_URL_path": "1.3.6.1.4.1.1248.1.1.3.1.4.19.1.4.1",
-        "IPP_URL": "1.3.6.1.4.1.1248.1.1.3.1.4.46.1.2.1",
-        "WiFi": "1.3.6.1.4.1.1248.1.1.3.1.29.2.1.9.0",
-        "MAC Addr": "1.3.6.1.4.1.1248.1.1.3.1.1.5.0",
-        "device_id": "1.3.6.1.4.1.11.2.3.9.1.1.7.0",
-        "Power Off Timer": "1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.111.116.2.0.1.1"
-    }
-
-    SNMP_OID_ENTERPRISE = "1.3.6.1.4.1"
-    SNMP_EPSON = "1248"
+    MIB_MGMT = "1.3.6.1.2"
+    PRINT_MIB = MIB_MGMT + ".1.43"
+    MIB_OID_ENTERPRISE = "1.3.6.1.4.1"
+    MIB_EPSON = MIB_OID_ENTERPRISE + ".1248"
     OID_PRV_CTRL = "1.2.2.44.1.1.2"
+    EEPROM_LINK = f'{MIB_EPSON}.{OID_PRV_CTRL}.1'
 
-    eeprom_link: str = f'{SNMP_OID_ENTERPRISE}.{SNMP_EPSON}.{OID_PRV_CTRL}.1'
+    MIB_INFO = {
+        "Model": f"{MIB_MGMT}.1.25.3.2.1.3.1",
+        "Epson Model": f"{MIB_EPSON}.1.2.2.1.1.1.2.1",
+        "Model short": f"{MIB_EPSON}.1.1.3.1.3.8.0",
+        "EEPS2 firmware version": f"{MIB_MGMT}.1.2.2.1.2.1",
+        "Descr": f"{MIB_MGMT}.1.1.1.0",
+        "UpTime": f"{MIB_MGMT}.1.1.3.0",
+        "Name": f"{MIB_MGMT}.1.1.5.0",
+        "MAC Address": f"{MIB_MGMT}.1.2.2.1.6.1",
+        "Print input": f"{PRINT_MIB}.8.2.1.13.1.1",
+        "Lang 1": f"{PRINT_MIB}.15.1.1.3.1.1",
+        "Lang 2": f"{PRINT_MIB}.15.1.1.3.1.2",
+        "Lang 3": f"{PRINT_MIB}.15.1.1.3.1.3",
+        "Lang 4": f"{PRINT_MIB}.15.1.1.3.1.4",
+        "Lang 5": f"{PRINT_MIB}.15.1.1.3.1.5",
+        "Emulation 1": f"{PRINT_MIB}.15.1.1.5.1.1",
+        "Emulation 2": f"{PRINT_MIB}.15.1.1.5.1.2",
+        "Emulation 3": f"{PRINT_MIB}.15.1.1.5.1.3",
+        "Emulation 4": f"{PRINT_MIB}.15.1.1.5.1.4",
+        "Emulation 5": f"{PRINT_MIB}.15.1.1.5.1.5",
+        "Total printed pages": f"{PRINT_MIB}.10.2.1.4.1.1",
+        #"Total copies": f"{PRINT_MIB}.11.1.1.9.1.1",
+        #"Serial number": f"{PRINT_MIB}.5.1.1.17.1",
+        "IP Address": f"{MIB_EPSON}.1.1.3.1.4.19.1.3.1",
+        "IPP_URL_path": f"{MIB_EPSON}.1.1.3.1.4.19.1.4.1",
+        "IPP_URL": f"{MIB_EPSON}.1.1.3.1.4.46.1.2.1",
+        "WiFi": f"{MIB_EPSON}.1.1.3.1.29.2.1.9.0",
+        "MAC Addr": f"{MIB_EPSON}.1.1.3.1.1.5.0",
+        "device_id": f"{MIB_OID_ENTERPRISE}.11.2.3.9.1.1.7.0",
+        "Power Off Timer": f"{EEPROM_LINK}.111.116.2.0.1.1"
+    }
 
     session: object
     model: str
@@ -490,7 +491,7 @@ class EpsonPrinter:
         if 'read_key' not in self.parm:
             return None
         return (
-            f"{self.eeprom_link}"
+            f"{self.EEPROM_LINK}"
             ".124.124"  # || (7C 7C)
             ".7.0"  # read (07 00)
             f".{self.parm['read_key'][0]}"
@@ -524,7 +525,7 @@ class EpsonPrinter:
                 or 'read_key' not in self.parm):
             return None
         write_op = (
-            f"{self.eeprom_link}"
+            f"{self.EEPROM_LINK}"
             ".124.124"  # || 7C 7C
             ".16.0"  # write (10 00)
             f".{self.parm['read_key'][0]}"
@@ -1045,10 +1046,10 @@ class EpsonPrinter:
     def get_snmp_info(self, mib_name: str = None) -> str:
         """Return general SNMP information of printer."""
         sys_info = {}
-        if mib_name and mib_name in self.SNMP_INFO.keys():
-            snmp_info = {mib_name: self.SNMP_INFO[mib_name]}
+        if mib_name and mib_name in self.MIB_INFO.keys():
+            snmp_info = {mib_name: self.MIB_INFO[mib_name]}
         else:
-            snmp_info = self.SNMP_INFO
+            snmp_info = self.MIB_INFO
         for name, oid in snmp_info.items():
             logging.debug(
                 f"SNMP_DUMP {name}:\n"
@@ -1152,7 +1153,7 @@ class EpsonPrinter:
 
     def get_firmware_version(self) -> str:
         """Return firmware version."""
-        oid = f"{self.eeprom_link}.118.105.1.0.0"  # 76 69 01 00 00
+        oid = f"{self.EEPROM_LINK}.118.105.1.0.0"  # 76 69 01 00 00
         label = "get_firmware_version"
         logging.debug(
             f"SNMP_DUMP {label}:\n"
@@ -1177,7 +1178,7 @@ class EpsonPrinter:
 
     def get_cartridges(self) -> str:
         """Return list of cartridge types."""
-        oid = f"{self.eeprom_link}.105.97.1.0.0"  # 69 61 01 00 00
+        oid = f"{self.EEPROM_LINK}.105.97.1.0.0"  # 69 61 01 00 00
         label = "get_cartridges"
         logging.debug(
             f"SNMP_DUMP {label}:\n"
@@ -1224,7 +1225,7 @@ class EpsonPrinter:
 
     def get_printer_status(self):
         """Return printer status and ink levels."""
-        address = f"{self.eeprom_link}.115.116.1.0.1"  # 73 74 01 00 01
+        address = f"{self.EEPROM_LINK}.115.116.1.0.1"  # 73 74 01 00 01
         logging.debug(f"PRINTER_STATUS:\n  ADDRESS: {address}")
         tag, result = self.snmp_mib(address, label="get_printer_status")
         if not result:
@@ -1292,7 +1293,7 @@ class EpsonPrinter:
         """Return list of cartridge properties."""
         response = []
         for i in range(1, 9):
-            mib = f"{self.eeprom_link}.105.105.2.0.1." + str(i)  # 69 69 02 00 01
+            mib = f"{self.EEPROM_LINK}.105.105.2.0.1." + str(i)  # 69 69 02 00 01
             logging.debug(
                 f"Cartridge {i}:\n"
                 f"  ADDRESS: {mib}"
@@ -1965,7 +1966,7 @@ if __name__ == "__main__":
                     pprint(ret)
                 else:
                     print("No information returned. Check printer definition.")
-            elif args.query[0] in printer.SNMP_INFO.keys():
+            elif args.query[0] in printer.MIB_INFO.keys():
                 ret = printer.get_snmp_info(args.query[0])
                 if ret:
                     pprint(ret)
@@ -2004,7 +2005,7 @@ if __name__ == "__main__":
                         ) +
                         textwrap.fill(
                             "Available SNMP elements: " +
-                            ", ".join(printer.SNMP_INFO.keys()),
+                            ", ".join(printer.MIB_INFO.keys()),
                             initial_indent='', subsequent_indent='  '
                         )
                     )

@@ -39,9 +39,9 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 ```
 usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME] [--reset_waste_ink] [-d]
                            [--write-first-ti-received-time YEAR MONTH DAY] [--write-poweroff-timer MINUTES]
-                           [--dry-run] [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS]
-                           [--detect-key] [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES] [-c CONFIG_FILE]
-                           [--simdata SIMDATA_FILE]
+                           [--dry-run] [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET]
+                           [-e FIRST_ADDRESS LAST_ADDRESS] [--detect-key] [-S SEQUENCE_STRING] [-t TIMEOUT]
+                           [-r RETRIES] [-c CONFIG_FILE] [--simdata SIMDATA_FILE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -358,7 +358,7 @@ Example of advanced printer status with an XP-205 printer:
            'Total print page counter': 11569,
            'Total print pass counter': 514602,
            'Total scan counter': 4973,
-           'poweroff_timer': 30},
+           'Power off timer': 30},
  'waste_ink_levels': {'borderless_waste': 4.72, 'main_waste': 90.8}}
  ```
 
