@@ -98,6 +98,13 @@ class EpsonPrinter:
                 2042, 2045, 2044],
             # uncompleted
         },
+        "ET-2720": {
+            "alias": ["ET-2721", "ET-2723", "ET-2725"],
+            "read_key": [151, 7],
+            "write_key": b'Maribaya',  # hypothesis
+            "same-as": "ET-2700"  # hypothesis
+            # uncompleted
+        },
         "L3160": {
             "read_key": [151, 7],
             "write_key": b'Maribaya',
