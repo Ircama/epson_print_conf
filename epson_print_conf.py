@@ -87,7 +87,7 @@ class EpsonPrinter:
             "write_key": b'Maribaya',
             "serial_number": range(1604, 1614),
             "main_waste": {"oids": [48, 49], "divider": 63.45},
-            "second_waste": {"oids": [50, 51], "divider": 34.16},
+            "second_waste": {"oids": [50, 51], "divider": 34.15},
             "third_waste": {"oids": [252, 253], "divider": 13},
             "raw_waste_reset": {
                 48: 0, 49: 0, 50: 0, 51: 0, 252: 0, 253: 0
@@ -101,8 +101,10 @@ class EpsonPrinter:
         "ET-2720": {
             "alias": ["ET-2721", "ET-2723", "ET-2725"],
             "read_key": [151, 7],
-            "write_key": b'Maribaya',  # hypothesis
-            "same-as": "ET-2700"  # hypothesis
+            "write_key": b'Maribaya',
+            "main_waste": {"oids": [48, 49], "divider": 63.45},
+            "second_waste": {"oids": [50, 51], "divider": 34.15},
+            "same-as": "ET-2700"
             # uncompleted
         },
         "L3160": {

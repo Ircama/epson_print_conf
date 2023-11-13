@@ -196,6 +196,15 @@ Write EEPROM, after the header:
 
 Example: `7C 7C 10 00 49 08 42 BD 21 30 00 1A 42 73 62 6F 75 6A 67 70`
 
+Example of Read EEPROM (@BDC PS):
+
+```
+<01> @BDC PS <0d0a> EE:0032AC;
+EE: = EEPROM Read
+0032 = Memory address
+AC = Value
+```
+
 ## API Interface
 
 ### Specification
@@ -404,14 +413,11 @@ epson-l3160-ink-waste-resetter: https://github.com/k3dt/epson-l3160-ink-waste-re
 
 emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
 
-### GUI resources
+### Other programs
 
-*epson_print_conf* is a Python command line tool, including API.
-
-The following GUIs are available.
-
+- Epson One-Time Maintenance Ink Pad Reset Utility: https://epson.com/Support/wa00369
+  - Epson Maintenance Reset Utility: https://epson.com/epsonstorefront/orbeon/fr/us_regular_s03/us_ServiceInk_Pad_Reset/new
+  - Epson Ink Pads Reset Utility Terms and Conditions: https://epson.com/Support/wa00370
 - Epson Adjustment Program (developed by EPSON)
-- WIC-Reset: https://wic-reset.com / https://www.2manuals.com / https://resetters.com
-- PrintHelp: https://printhelp.info/
-
-Use at your risk.
+- WIC-Reset: https://wic-reset.com / https://www.2manuals.com / https://resetters.com (Use at your risk)
+- PrintHelp: https://printhelp.info/ (Use at your risk)
