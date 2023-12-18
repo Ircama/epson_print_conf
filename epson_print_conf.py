@@ -185,6 +185,10 @@ class EpsonPrinter:
             "alias": ["XP-235"],
             # uncompleted
         },
+        "SX400": {
+            "read_key": [73, 6],
+            # uncompleted
+        },
         "XP-540": {
             "read_key": [20, 4],
             "write_key": b'Firmiana',
@@ -238,6 +242,15 @@ class EpsonPrinter:
             "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # Incorrect
             # uncompleted
         },
+        "XP-2150": {
+            "read_key": [80, 9],
+            "write_key": b'Bidadari',
+            "raw_waste_reset": {
+                0x150: 0, 0x151: 0, 0x152: 0, 0x153: 0, 0x154: 0, 0x155: 0,
+                0x156: 0, 0x157: 0x5e, 0x158: 0x5e
+            }  # to be checked, not tested!
+            # uncompleted
+        },
         "ET-2500": {
             "read_key": [68, 1],
             "write_key": b'Gerbera*',
@@ -249,6 +262,7 @@ class EpsonPrinter:
         },
         "XP-3150": {
             "read_key": [80, 9],
+            "write_key": b'Bidadari',  # not sure, not tested
             "serial_number": range(1604, 1614),
             "printer_head_id_h": [171, 189, 190, 175],
             "printer_head_id_f": [191, 188],
