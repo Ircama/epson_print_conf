@@ -197,7 +197,7 @@ class EpsonPrinter:
             # uncompleted
         },
         "XP-610": {
-            "alias": ["XP-611", "XP-615", "XP-510"],
+            "alias": ["XP-611", "XP-615", "XP-510", "XP-55"],
             "read_key": [121, 4],
             "write_key": b'Gossypiu',
             "main_waste": {"oids": [16, 17], "divider": 84.5},  # incorrect divider
@@ -245,9 +245,13 @@ class EpsonPrinter:
         "XP-2150": {
             "read_key": [80, 9],
             "write_key": b'Bidadari',
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [0x157],
+                "Maintenance required level of 2nd waste ink counter": [0x158],
+            },
             "raw_waste_reset": {
                 0x150: 0, 0x151: 0, 0x152: 0, 0x153: 0, 0x154: 0, 0x155: 0,
-                0x156: 0, 0x157: 0x5e, 0x158: 0x5e
+                0x156: 0, 0x157: 94, 0x158: 94
             }  # to be checked, not tested!
             # uncompleted
         },
@@ -262,7 +266,7 @@ class EpsonPrinter:
         },
         "XP-3150": {
             "read_key": [80, 9],
-            "write_key": b'Bidadari',  # not sure, not tested
+            "write_key": b'Bidadari',
             "serial_number": range(1604, 1614),
             "printer_head_id_h": [171, 189, 190, 175],
             "printer_head_id_f": [191, 188],
@@ -1388,8 +1392,8 @@ class EpsonPrinter:
                                 1900 if int(i['PDY'], 16) > 80 else 2000),
                             "production_month": int(i['PDM'], 16),
                             # items which can be excluded
-                            "data": i.get('SID'),
-                            "manufacturer": i.get('LOG'),
+                            "data": i.get('SID').strip(),
+                            "manufacturer": i.get('LOG').strip(),
                         }.items()
                     if v  # exclude items without value
                 }
