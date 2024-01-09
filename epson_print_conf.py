@@ -581,9 +581,13 @@ class EpsonPrinter:
             return self.mib_dict[mib]
         if not self.hostname:
             return None, False
-        utt = UdpTransportTarget(
-                (self.hostname, self.port),
-            )
+        try:
+            utt = UdpTransportTarget(
+                    (self.hostname, self.port),
+                )
+        except Exception as e:
+            logging.critical("snmp_mib invalid address: %s", e)
+            quit(3)                    
         if self.timeout is not None:
             utt.timeout = self.timeout
         if self.retries is not None:
@@ -2077,7 +2081,7 @@ if __name__ == "__main__":
                         quit(1)
                 except (ValueError, SyntaxError):
                     print("invalid argument for write_eeprom")
-                    quit(1)                    
+                    quit(1)
         if args.info or not print_opt:
             ret = printer.stats()
             if ret:
