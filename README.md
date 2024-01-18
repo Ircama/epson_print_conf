@@ -128,6 +128,13 @@ printer = epson_print_conf.EpsonPrinter()
 
 # Decode write_key:
 printer.reverse_caesar(bytes.fromhex("48 62 7B 62 6F 6A 62 2B"))  # last 8 bytes
+'Gazania*'
+
+printer.reverse_caesar(b'Hpttzqjv')
+'Gossypiu'
+
+"".join(chr(b + 1) for b in b'Gossypiu')
+'Hpttzqjv'
 
 # Decode status:
 pprint.pprint(printer.status_parser(bytes.fromhex("40 42 44 43 20 53 54 32 0D 0A ....")))
