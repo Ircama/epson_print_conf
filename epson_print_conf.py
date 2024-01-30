@@ -98,6 +98,12 @@ class EpsonPrinter:
                 2042, 2045, 2044],
             # uncompleted
         },
+        "ET-2600": {
+            "alias": ["ET-2650"],
+            "read_key": [16, 8],
+            "write_key": b'Sinabung',
+            "main_waste": {"oids": [24, 25], "divider": 62.06},
+        },
         "ET-2720": {
             "alias": ["ET-2721", "ET-2723", "ET-2725"],
             "read_key": [151, 7],
@@ -659,7 +665,8 @@ class EpsonPrinter:
             f"  OID: {oid}={hex(oid)}"
         )
         tag, response = self.snmp_mib(
-            self.eeprom_oid_read_address(oid, label=label), label=label)
+            self.eeprom_oid_read_address(oid, label=label), label=label
+        )
         if not response:
             return None
         if self.invalid_response(response):
@@ -1330,7 +1337,8 @@ class EpsonPrinter:
                 f"  ADDRESS: {mib}"
             )
             tag, cartridge = self.snmp_mib(
-                mib, label="get_cartridge_information")
+                mib, label="get_cartridge_information"
+            )
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(cartridge))
             if not cartridge:
                 continue
@@ -1743,7 +1751,8 @@ if __name__ == "__main__":
         return int(x, 0)
 
     parser = argparse.ArgumentParser(
-        epilog='Epson Printer Configuration via SNMP (TCP/IP)')
+        epilog='Epson Printer Configuration via SNMP (TCP/IP)'
+    )
 
     parser.add_argument(
         '-m',
@@ -1886,7 +1895,8 @@ if __name__ == "__main__":
              "printer via SNMP)",
         default=0,
         nargs=1,
-        metavar='CONFIG_FILE')
+        metavar='CONFIG_FILE'
+    )
     parser.add_argument(
         "--simdata",
         dest='simdata_file',
@@ -1894,7 +1904,8 @@ if __name__ == "__main__":
         help="write SNMP dictionary map to simdata file",
         default=0,
         nargs=1,
-        metavar='SIMDATA_FILE')
+        metavar='SIMDATA_FILE'
+    )
     args = parser.parse_args()
 
     logging_level = logging.WARNING
