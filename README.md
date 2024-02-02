@@ -166,6 +166,15 @@ for key, value in printer.parm["raw_waste_reset"].items():
     " ".join('{0:02x}'.format(int(x)) for x in printer.eeprom_oid_write_address(oid=key, value=value).split(".")[15:]).upper()
 ```
 
+Generic query of the status of the printer (regardless of the model):
+
+```
+import epson_print_conf
+import pprint
+printer = epson_print_conf.EpsonPrinter(hostname="192.168.1.87")
+pprint.pprint(printer.status_parser(printer.snmp_mib("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
+```
+
 ### Byte sequences
 
 Header:
@@ -173,6 +182,7 @@ Header:
 ```
 1.3.6.1.4.1. [SNMP_OID_ENTERPRISE]
 1248. [SNMP_EPSON]
+
 1.2.2.44.1.1.2. [OID_PRV_CTRL]
 1.
 ```
