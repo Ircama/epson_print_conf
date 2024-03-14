@@ -805,6 +805,7 @@ class EpsonPrinter:
             0x2a: "Card loading Error",
             0x47: "Printing disable error",
             0x4a: "Maintenance Box near End error",
+            0x4b: "Driver mismatch error ",
         }
         
         warning_ids = {
@@ -897,6 +898,10 @@ class EpsonPrinter:
                     data_set["paper_path"] = "Roll paper"
                 if item == b'\x03\x02':
                     data_set["paper_path"] = "Photo Album"
+                if item == b'\x02\x01\x00':
+                    data_set["paper_path"] = "Cut Sheet (Auto Select)"
+                if item == b'\x02\x01':
+                    data_set["paper_path"] = "CD-R, cardboard"
                 if item == b'\x02\x01':
                     data_set["paper_path"] = "CD-R, cardboard"
 
