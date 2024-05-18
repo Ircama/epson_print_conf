@@ -82,6 +82,20 @@ class EpsonPrinter:
             "read_key": [65, 9],
             # uncompleted
         },
+        "L366": {
+            "read_key": [130, 2],
+            "write_key": 'Gerbera*',
+            "main_waste": {"oids": [24, 25, 30], "divider": 62.0625},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 24.20},
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [46],
+                "Maintenance required level of 2nd waste ink counter": [47],
+            },
+            "raw_waste_reset": {
+                24: 0, 25: 0, 30: 0, 26: 0, 27: 0, 34: 0, 28: 0, 29: 0
+            }
+            # uncompleted
+        },
         "L3250": {
             "read_key": [74, 54],
             "write_key": b'Maribaya',
