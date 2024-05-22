@@ -263,6 +263,7 @@ class EpsonPrinter:
             # uncompleted
         },
         "XP-2150": {
+            "alias": ["XP-2100"],
             "read_key": [80, 9],
             "write_key": b'Bidadari',
             "stats": {
