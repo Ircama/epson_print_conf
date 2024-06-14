@@ -119,13 +119,13 @@ class EpsonPrinter:
             "main_waste": {"oids": [24, 25], "divider": 62.06},
         },
         "ET-2720": {
-            "alias": ["ET-2721", "ET-2723", "ET-2725"],
+            "alias": ["ET-2714", "ET-2721", "ET-2723", "ET-2725"],
             "read_key": [151, 7],
             "write_key": b'Maribaya',
             "main_waste": {"oids": [48, 49], "divider": 63.45},
             "second_waste": {"oids": [50, 51], "divider": 34.15},
             "same-as": "ET-2700"
-            # uncompleted
+            # tested
         },
         "L3160": {
             "read_key": [151, 7],
