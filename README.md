@@ -438,3 +438,8 @@ emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
 - Epson Adjustment Program (developed by EPSON)
 - WIC-Reset: https://wic-reset.com / https://www.2manuals.com / https://resetters.com (Use at your risk)
 - PrintHelp: https://printhelp.info/ (Use at your risk)
+
+### Resources
+
+- https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
+- https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml

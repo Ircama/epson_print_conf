@@ -133,6 +133,13 @@ class EpsonPrinter:
             "same-as": "L4160"
             # uncompleted
         },
+        "L405": {
+            "read_key": [0x95, 0x03],
+            "write_key": b'Maninjau',
+            "raw_waste_reset": {
+                0x18:0, 0x19:0, 0x1c:0, 0x1d:0, 0x2e:0x5e, 0x1e:0
+            },
+        },
         "L4160": {
             "read_key": [73, 8],
             "write_key": b'Arantifo',
