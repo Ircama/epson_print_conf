@@ -119,6 +119,21 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 
 Note: resetting the ink waste counter is just removing a warning; not replacing the tank will make the ink spill.
 
+## parse_devices.py
+
+Within an [issue](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which reports a complete XML database of Epson model features.
+
+The program "parse_devices.py" transforms this XML DB into the dictionary that *epson_print_conf.py* can use.
+
+Here is a simple procedure to download that DB and run *parse_devices.py* to search for the XP-205 model and create the related PRINTER_CONFIG dictionary to the standard output:
+
+```bash
+curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
+python3 parse_devices.py -m XP-205
+```
+
+After generating the the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary.
+
 ## Utilities and notes
 
 ```
