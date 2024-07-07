@@ -160,6 +160,8 @@ optional arguments:
 Generate printer configuration from devices.xml
 ```
 
+The output is better viewed when also installing [black](https://pypi.org/project/black/).
+
 ### Other utilities
 
 ```
