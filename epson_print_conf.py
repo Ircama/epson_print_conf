@@ -60,27 +60,56 @@ class EpsonPrinter:
                 "Light cyan": {"1S": 0x6E, "2S": 0x6F, "3S": 0x9B},
             },
             "serial_number": range(0xE7, 0xF0),
-            # untested
         },
         "WF-7525": {
             "read_key": [101, 0],
             "write_key": b'Sasanqua',
             "alias": ["WF-7515"],
-            "main_waste": {"oids": [20, 21], "divider": 196.5},
-            "borderless_waste": {"oids": [22, 23], "divider": 52.05},
+            "main_waste": {"oids": [20, 21, 59], "divider": 196.5},
+            "borderless_waste": {"oids": [22, 23, 59], "divider": 52.05},
             "serial_number": range(192, 202),
             "stats": {
                 "Maintenance required level of 1st waste ink counter": [60],
                 "Maintenance required level of 2nd waste ink counter": [61],
+                "Manual cleaning counter": [131],
+                "Timer cleaning counter": [134],
+                "Ink replacement cleaning counter": [133],
+                "Total print pass counter": [159, 158, 157, 156],
+                "Total print page counter": [147, 146, 145, 144],
+                "Total scan counter": [471, 470, 469, 468],
+                "Total scan counter % (ADF)": [475, 474, 473, 472],
             },
-            "raw_waste_reset": {
+            "ink_replacement_counters": {
+                "Black": {"1L": 242, "1S": 243, "2S": 244},
+                "Yellow": {"1S": 248, "2S": 249, "3S": 250},
+                "Magenta": {"1S": 251, "2S": 252, "3S": 253},
+                "Cyan": {"1S": 245, "2S": 246, "3S": 247},
+            },
+           "raw_waste_reset": {
                 20: 0, 21: 0, 22: 0, 23: 0, 24: 0, 25: 0, 59: 0, 60: 94, 61: 94
             }
-            # uncompleted
         },
         "L355": {
             "read_key": [65, 9],
-            # uncompleted
+            "write_key": b"Wakatobi",
+            "main_waste": {"oids": [24, 25, 30], "divider": 65.0},
+            "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94},
+            "stats": {
+                "Manual cleaning counter": [147],
+                "Timer cleaning counter": [149],
+                "Total print pass counter": [171, 170, 169, 168],
+                "Total print page counter - Color": [439, 438, 437, 436],
+                "Total print page counter - Black": [435, 434, 433, 432],
+                "Total print page counter - Blank": [443, 442, 441, 440],
+                "Total print page counter": [167, 166, 165, 164],
+                "Total scan counter": [471, 470, 469, 468],
+                "First TI received time": [173, 172],
+                "Ink replacement counter - Black": [242],
+                "Ink replacement counter - Yellow": [244],
+                "Ink replacement counter - Magenta": [245],
+                "Ink replacement counter - Cyan": [243],
+            },
+            "serial_number": range(192, 202),
         },
         "L366": {
             "read_key": [130, 2],
@@ -90,44 +119,93 @@ class EpsonPrinter:
             "stats": {
                 "Maintenance required level of 1st waste ink counter": [46],
                 "Maintenance required level of 2nd waste ink counter": [47],
+                "Ink replacement counter - Black": [242],
+                "Ink replacement counter - Yellow": [243],
+                "Ink replacement counter - Cyan": [244],
+                "Ink replacement counter - Magenta": [245],
             },
             "raw_waste_reset": {
-                24: 0, 25: 0, 30: 0, 26: 0, 27: 0, 34: 0, 28: 0, 29: 0
-            }
-            # uncompleted
+                24: 0, 25: 0, 30: 0, 26: 0, 27: 0, 34: 0, 28: 0, 29: 0,
+                49: 0, 46: 94, 47: 94
+            },
+            "serial_number": range(192, 202),
         },
         "L3250": {
             "read_key": [74, 54],
             "write_key": b'Maribaya',
             "serial_number": range(1604, 1614),
-            "main_waste": {"oids": [48, 49], "divider": 63.45},
-            "second_waste": {"oids": [50, 51], "divider": 34.15},
-            "third_waste": {"oids": [252, 253], "divider": 13},
+            "main_waste": {"oids": [48, 49, 47], "divider": 63.45},
+            "second_waste": {"oids": [50, 51, 47], "divider": 34.15},
+            "third_waste": {"oids": [252, 253, 254], "divider": 13},
+
             "raw_waste_reset": {
-                48: 0, 49: 0, 50: 0, 51: 0, 252: 0, 253: 0
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
+                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94,
             },
             "last_printer_fatal_errors": [
                 289, 288, 291, 290, 293, 292, 295, 294, 297, 296, 1831, 1832,
                 1833, 1834, 1835, 2037, 2036, 2039, 2038, 2041, 2040, 2043,
                 2042, 2045, 2044],
-            # uncompleted
+            "stats": {
+                "Manual cleaning counter": [90],
+                "Timer cleaning counter": [89],
+                "Power cleaning counter": [91],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [776, 775, 774, 773],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+            },
+        },
+        "ET-2400": {
+            "alias": ["ET-2401", "ET-2403", "ET-2405"],
+            "read_key": [74, 54],
+            "write_key": b"Maribaya",
+            "main_waste": {"oids": [48, 49, 47], "divider": 63.46},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 34.16},
+            "third_waste": {"oids": [252, 253, 254], "divider": 13.0},
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
+                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94,
+            },
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+                "Maintenance required level of 3rd waste ink counter": [255],
+                "Manual cleaning counter": [90],
+                "Timer cleaning counter": [89],
+                "Power cleaning counter": [91],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [776, 775, 774, 773],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+            },
+            "serial_number": range(1604, 1614),
         },
         "ET-2600": {
-            "alias": ["ET-2650"],
+            "alias": ["ET-2650", "L395"],
             "read_key": [16, 8],
             "write_key": b'Sinabung',
-            "main_waste": {"oids": [24, 25], "divider": 62.06},
+            "main_waste": {"oids": [24, 25, 30], "divider": 62.06},
+            "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94},
+            "stats": {
+                "Manual cleaning counter": [147],
+                "Timer cleaning counter": [149],
+                "Power cleaning counter": [148],
+                "Total print pass counter": [171, 170, 169, 168],
+                "Total print page counter": [167, 166, 165, 164],
+                "Total scan counter": [471, 470, 469, 468],
+                "First TI received time": [173, 172],
+            },
+            "serial_number": range(192, 202),
         },
         "ET-2720": {
             "alias": ["ET-2714", "ET-2721", "ET-2723", "ET-2725"],
             "read_key": [151, 7],
             "write_key": b'Maribaya',
-            "main_waste": {"oids": [48, 49], "divider": 63.45},
-            "second_waste": {"oids": [50, 51], "divider": 34.15},
+            "main_waste": {"oids": [48, 49, 47], "divider": 63.45},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 34.15},
             "same-as": "ET-2700"
-            # tested
         },
         "ET-2750": {
+            "serial_number": range(1604, 1614),
             "alias": ["ET-2751", "ET-2756"],
             "read_key": [73, 8],
             "write_key": b"Arantifo",
@@ -156,37 +234,73 @@ class EpsonPrinter:
         "L3160": {
             "read_key": [151, 7],
             "write_key": b'Maribaya',
+            "main_waste": {"oids": [48, 49, 47], "divider": 63.46},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 34.16},
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+                "First TI received time": [9, 8],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [776, 775, 774, 773],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+                "Ink replacement counter - Black": [554],
+                "Ink replacement counter - Cyan": [555],
+                "Ink replacement counter - Magenta": [556],
+                "Ink replacement counter - Yellow": [557],
+            },
             "same-as": "L4160"
-            # uncompleted
         },
         "L405": {
-            "read_key": [0x95, 0x03],
-            "write_key": b'Maninjau',
-            "raw_waste_reset": {
-                0x18:0, 0x19:0, 0x1c:0, 0x1d:0, 0x2e:0x5e, 0x1e:0
+            "read_key": [149, 3],
+            "write_key": b"Maninjau",
+            "main_waste": {"oids": [24, 25, 30], "divider": 62.07},
+            "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94},
+            "stats": {
+                "Manual cleaning counter": [147],
+                "Timer cleaning counter": [149],
+                "Power cleaning counter": [148],
+                "Total print pass counter": [171, 170, 169, 168],
+                "Total print page counter": [167, 166, 165, 164],
+                "Total scan counter": [471, 470, 469, 468],
+                "First TI received time": [173, 172],
+                "Ink replacement counter - Black": [242],
+                "Ink replacement counter - Yellow": [244],
+                "Ink replacement counter - Magenta": [245],
+                "Ink replacement counter - Cyan": [243],
             },
+            "serial_number": range(192, 202),
         },
         "L4160": {
             "read_key": [73, 8],
             "write_key": b'Arantifo',
+            "main_waste": {"oids": [48, 49, 47], "divider": 109.13},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 16.31},
             "stats": {
                 "Maintenance required level of 1st waste ink counter": [54],
                 "Maintenance required level of 2nd waste ink counter": [55],
+                "First TI received time": [9, 8],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter - rear feed": [755, 754, 753, 752],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+                "Ink replacement counter - Black": [554],
+                "Ink replacement counter - Cyan": [555],
+                "Ink replacement counter - Magenta": [556],
+                "Ink replacement counter - Yellow": [557],
             },
+            "serial_number": range(1604, 1614),
             "raw_waste_reset": {
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
                 54: 94, 50: 0, 51: 0, 55: 94, 28: 0
             }
-            # uncompleted
         },
         "XP-315": {
             "alias": ["XP-312", "XP-313"],
             "read_key": [129, 8],
+            "write_key": b'Wakatobi',
             "printer_head_id_h": range(122, 126),
             "printer_head_id_f": [129],
             "main_waste": {"oids": [24, 25, 30], "divider": 69},
             "borderless_waste": {"oids": [26, 27, 34], "divider": 32.53},
-            "write_key": b'Wakatobi',
             "serial_number": range(192, 202),
             "stats": {
                 "Manual cleaning counter": [147],
@@ -215,7 +329,6 @@ class EpsonPrinter:
                 "Cyan": {"1B": 245, "1S": 243, "1L": 244},
             },
             "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
-            # untested
         },
         "XP-422": {
             "read_key": [85, 5],
@@ -319,6 +432,7 @@ class EpsonPrinter:
             # uncompleted
         },
         "XP-3150": {
+            "alias": ["XP-3151", "XP-3155"],
             "read_key": [80, 9],
             "write_key": b'Bidadari',
             "serial_number": range(1604, 1614),
@@ -386,6 +500,14 @@ class EpsonPrinter:
             "stats": {
                 "Maintenance required level of 1st waste ink counter": [54],
                 "Maintenance required level of 2nd waste ink counter": [55],
+                "First TI received time": [9, 8],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [776, 775, 774, 773],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+                "Ink replacement counter - Black": [554],
+                "Ink replacement counter - Cyan": [555],
+                "Ink replacement counter - Magenta": [556],
+                "Ink replacement counter - Yellow": [557],
             },
             "raw_waste_reset": {
                 48: 0, 49: 0, 47: 0,  # Data of 1st counter

@@ -3,6 +3,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 import itertools
+import textwrap
 
 def to_ranges(iterable):
     iterable = sorted(set(iterable))
@@ -61,7 +62,9 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
             "Tag: %s, Attributes: %s, Specs: %s",
             printer.tag, printer.attrib, printer.attrib['specs']
         )
-        printer_name = printer.attrib["short"]
+        printer_short_name = printer.attrib["short"]
+        printer_long_name = printer.attrib["title"]
+        printer_model_name = printer.attrib["model"]
         chars = {}
         for spec in specs:
             logging.debug("SPEC: %s", spec)
@@ -207,7 +210,10 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
                                 chars["sendlen"] = int(s.text, 16)
                             if full and s.tag == "readlen":
                                 chars["readlen"] = int(s.text, 16)
-        printer_config[printer_name] = chars
+        if full:
+            chars["long_name"] = printer_long_name
+            chars["model"] = printer_model_name
+        printer_config[printer_short_name] = chars
     return printer_config
 
 
@@ -225,6 +231,21 @@ if __name__ == "__main__":
         action="store",
         help='Printer model. Example: -m XP-205',
         required=True)
+
+    parser.add_argument(
+        '-l',
+        '--line',
+        dest='line_length',
+        type=int,
+        help='Set line length of the output (default: 120)',
+        default=120)
+
+    parser.add_argument(
+        '-i',
+        '--indent',
+        dest='indent',
+        action='store_true',
+        help='Indent output of 4 spaces')
 
     parser.add_argument(
         '-d',
@@ -296,9 +317,11 @@ if __name__ == "__main__":
     )
     try:
         import black
-        mode = black.Mode(line_length=120)
+        mode = black.Mode(line_length=args.line_length)
         dict_str = black.format_str(repr(printer_config), mode=mode)
-        print(dict_str)
     except Exception:
-        from pprint import pprint
-        pprint(printer_config)
+        import pprint
+        dict_str = pprint.pformat(printer_config)
+    if args.indent:
+        dict_str = textwrap.indent(dict_str, '    ')
+    print(dict_str)
