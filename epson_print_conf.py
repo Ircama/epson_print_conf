@@ -127,6 +127,32 @@ class EpsonPrinter:
             "same-as": "ET-2700"
             # tested
         },
+        "ET-2750": {
+            "alias": ["ET-2751", "ET-2756"],
+            "read_key": [73, 8],
+            "write_key": b"Arantifo",
+            "main_waste": {"oids": [48, 49, 47], "divider": 109.13},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 16.31},
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
+                54: 94,
+                50: 0, 51: 0,
+                55: 94,
+                28: 0
+            },
+            "stats": {
+                "First TI received time": [9, 8],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter - rear feed": [755, 754, 753, 752],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+                "Ink replacement counter - Black": [554],
+                "Ink replacement counter - Cyan": [555],
+                "Ink replacement counter - Magenta": [556],
+                "Ink replacement counter - Yellow": [557],
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+            },
+        },
         "L3160": {
             "read_key": [151, 7],
             "write_key": b'Maribaya',
@@ -306,10 +332,10 @@ class EpsonPrinter:
                 "Total scan counter": [0x0733, 0x0732, 0x0731, 0x0730],
                 "Paper count color": [0x314, 0x313, 0x312, 0x311],
                 "Paper count monochrome": [0x318, 0x317, 0x316, 0x315],
-                "Ink replacement counter - BL": [0x22a],
-                "Ink replacement counter - CY": [0x22b],
-                "Ink replacement counter - MG": [0x22c],
-                "Ink replacement counter - YE": [0x22d],
+                "Ink replacement counter - Black": [0x22a],
+                "Ink replacement counter - Cyan": [0x22b],
+                "Ink replacement counter - Magenta": [0x22c],
+                "Ink replacement counter - Yellow": [0x22d],
                 "Maintenance_box_replacement_counter": [0x22e],
             },
             "last_printer_fatal_errors": chain(
@@ -1093,10 +1119,10 @@ class EpsonPrinter:
 
             elif ftype == 0x45 and length == 4:  # Ink replacement counter (TBV)
                 data_set["ink_replacement_counter"] = {
-                    "BL": item[0],
-                    "CY": item[1],
-                    "MG": item[2],
-                    "YE": item[3],
+                    "Black": item[0],
+                    "Cyan": item[1],
+                    "Magenta": item[2],
+                    "Yellow": item[3],
                 }
 
             elif ftype == 0x46 and length == 1:  # Maintenance_box_replacement_counter (TBV)
