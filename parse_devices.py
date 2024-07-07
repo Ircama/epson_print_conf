@@ -27,12 +27,15 @@ def text_to_dict(text):
 
 def traverse_data(element, depth=0):
     indent = '    ' * depth
-    if element.tag:
-        print(indent + element.tag)
-    if element.attrib:
-        print(indent + '    Attributes:', element.attrib)
-    if element.text and element.text.strip():
-        print(indent + '    Text:', element.text.strip())
+    if element.tag and not element.attrib and element.text and element.text.strip():
+        print(indent + element.tag + " = " + element.text)
+    else:
+        if element.tag:
+            print(indent + element.tag + ":")
+        if element.attrib:
+            print(indent + '    Attributes:', element.attrib)
+        if element.text and element.text.strip():
+            print(indent + '    Text:', element.text.strip())
     
     # Recursively traverse the children
     for child in element:
