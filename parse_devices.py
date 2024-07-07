@@ -24,11 +24,28 @@ def text_to_dict(text):
     b = text_to_bytes(text)
     return {b[i]: b[i + 1] for i in range(0, len(b), 2)}
 
-def generate_config(config, full, printer_model):
+
+def traverse_data(element, depth=0):
+    indent = '    ' * depth
+    if element.tag:
+        print(indent + element.tag)
+    if element.attrib:
+        print(indent + '    Attributes:', element.attrib)
+    if element.text and element.text.strip():
+        print(indent + '    Text:', element.text.strip())
+    
+    # Recursively traverse the children
+    for child in element:
+        traverse_data(child, depth + 1)
+
+
+def generate_config(config, traverse, add_fatal_errors, full, printer_model):
     waste_string = [
         "main_waste", "borderless_waste", "third_waste", "fourth_waste"
     ]
-    irc_pattern = r'Ink replacement counter %-% (\w+) % \((\w+)\)'
+    irc_pattern = [
+        r'Ink replacement counter %-% (\w+) % \((\w+)\)'
+    ]
     tree = ET.parse(config)
     root = tree.getroot()
     printer_config = {}
@@ -46,8 +63,48 @@ def generate_config(config, full, printer_model):
         for spec in specs:
             logging.debug("SPEC: %s", spec)
             for elm in root.iterfind(".//" + spec):
+                if traverse:
+                    traverse_data(elm)
                 for item in elm:
                     logging.debug("item.tag: %s", item.tag)
+                    if elm.tag == 'EPSON' and item.tag == "status":
+                        for st in item:
+                            if full and st.tag == 'colors':
+                                chars["ink_color_ids"] = {}
+                                for color in st:
+                                    if color.tag == 'color':
+                                        color_code = ""
+                                        color_name = ""
+                                        for color_data in color:
+                                            if color_data.tag == "code":
+                                                color_code = color_data.text
+                                            if color_data.tag == "name":
+                                                color_name = color_data.text
+                                        chars["ink_color_ids"][color_code] = color_name
+                            if full and st.tag == 'states':
+                                chars["status_ids"] = {}
+                                for status_id in st:
+                                    if status_id.tag == 'state':
+                                        status_code = ""
+                                        status_name = ""
+                                        for status_data in status_id:
+                                            if status_data.tag == "code":
+                                                status_code = status_data.text
+                                            if status_data.tag == "text":
+                                                status_name = status_data.text
+                                        chars["status_ids"][status_code] = status_name
+                            if full and st.tag == 'errors':
+                                chars["errcode_ids"] = {}
+                                for error_id in st:
+                                    if error_id.tag == 'error':
+                                        error_code = ""
+                                        error_name = ""
+                                        for error_data in error_id:
+                                            if error_data.tag == "code":
+                                                error_code = error_data.text
+                                            if error_data.tag == "text":
+                                                error_name = error_data.text
+                                        chars["errcode_ids"][error_code] = error_name
                     if item.tag == "information":
                         for info in item:
                             if info.tag == "report":
@@ -55,7 +112,7 @@ def generate_config(config, full, printer_model):
                                 fatal = []
                                 irc = ""
                                 for number in info:
-                                    if number.tag == "fatals":
+                                    if number.tag == "fatals" and add_fatal_errors:
                                         for n in number:
                                             if n.tag == "registers":
                                                 for j in text_to_bytes(n.text):
@@ -72,16 +129,24 @@ def generate_config(config, full, printer_model):
                                                 n.tag == "registers"
                                                 and stat_name
                                             ):
-                                                match = re.search(irc_pattern, stat_name)
-                                                if match:
-                                                    color = match.group(1)
-                                                    identifier = f"{match.group(2)}"
-                                                    if "ink_replacement_counters" not in chars:
-                                                        chars["ink_replacement_counters"] = {}
-                                                    if color not in chars["ink_replacement_counters"]:
-                                                        chars["ink_replacement_counters"][color] = {}
-                                                    chars["ink_replacement_counters"][color][identifier] = int(n.text, 16)
-                                                else:
+                                                match = False
+                                                for ircp in irc_pattern:
+                                                    match = re.search(ircp, stat_name)
+                                                    if match:
+                                                        color = match.group(1)
+                                                        identifier = f"{match.group(2)}"
+                                                        if "ink_replacement_counters" not in chars:
+                                                            chars["ink_replacement_counters"] = {}
+                                                        if color not in chars["ink_replacement_counters"]:
+                                                            chars["ink_replacement_counters"][color] = {}
+                                                        chars["ink_replacement_counters"][color][identifier] = int(n.text, 16)
+                                                        break
+                                                if not match:
+                                                    stat_name = stat_name.replace("% BL", "- Black")
+                                                    stat_name = stat_name.replace("% CY", "- Cyan")
+                                                    stat_name = stat_name.replace("% MG", "- Magenta")
+                                                    stat_name = stat_name.replace("% YE", "- Yellow")
+                                                    stat_name = stat_name.replace("%-%", "-")
                                                     chars["stats"][stat_name] = text_to_bytes(n.text)
                     if item.tag == "waste":
                         for operations in item:
@@ -166,6 +231,13 @@ if __name__ == "__main__":
         help='Print debug information')
 
     parser.add_argument(
+        '-t',
+        '--traverse',
+        dest='traverse',
+        action='store_true',
+        help='Traverse the XML, dumping content related to the printer model')
+
+    parser.add_argument(
         '-v',
         '--verbose',
         dest='verbose',
@@ -178,6 +250,13 @@ if __name__ == "__main__":
         dest='full',
         action='store_true',
         help='Generate additional tags')
+
+    parser.add_argument(
+        '-e',
+        '--errors',
+        dest='add_fatal_errors',
+        action='store_true',
+        help='Add last_printer_fatal_errors')
 
     parser.add_argument(
         '-c',
@@ -207,6 +286,8 @@ if __name__ == "__main__":
 
     printer_config = generate_config(
         config=config,
+        traverse=args.traverse,
+        add_fatal_errors=args.add_fatal_errors,
         full=args.full,
         printer_model=args.printer_model
     )

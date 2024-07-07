@@ -119,22 +119,46 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 
 Note: resetting the ink waste counter is just removing a warning; not replacing the tank will make the ink spill.
 
-## parse_devices.py
+## Utilities and notes
+
+### parse_devices.py
 
 Within an [issue](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which reports a complete XML database of Epson model features.
 
 The program "parse_devices.py" transforms this XML DB into the dictionary that *epson_print_conf.py* can use.
 
-Here is a simple procedure to download that DB and run *parse_devices.py* to search for the XP-205 model and create the related PRINTER_CONFIG dictionary to the standard output:
+Here is a simple procedure to download that DB and run *parse_devices.py* to search for the XP-205 model and produce the related PRINTER_CONFIG dictionary to the standard output:
 
 ```bash
 curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
 python3 parse_devices.py -m XP-205
 ```
 
-After generating the the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary.
+After generating the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary.
 
-## Utilities and notes
+The `-m` option is mandatory and is used to filter the printer model in scope. If the produced output is not referred to the target model, use part of the model name as a filter (e.g., only the digits, like `parse_devices.py -m 315`) and select the appropriate model from the output.
+
+Program usage:
+
+```
+python3 parse_devices.py [-h] -m PRINTER_MODEL [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -m PRINTER_MODEL, --model PRINTER_MODEL
+                        Printer model. Example: -m XP-205
+  -d, --debug           Print debug information
+  -t, --traverse        Traverse the XML, dumping content related to the printer model
+  -v, --verbose         Print verbose information
+  -f, --full            Generate additional tags
+  -e, --errors          Add last_printer_fatal_errors
+  -c CONFIG_FILE, --config CONFIG_FILE
+                        use the XML configuration file to generate the configuration
+
+Generate printer configuration from devices.xml
+```
+
+### Other utilities
 
 ```
 import epson_print_conf
