@@ -1,7 +1,9 @@
 # epson_print_conf
+
 Epson Printer Configuration tool via SNMP (TCP/IP)
 
 ## Features
+
 - Access the Epson printer via SNMP (TCP/IP; printer connected over Wi-Fi)
 - Print the advanced status of the printer, with the possibility to restrict the query to specific information
 - Other inspection features:
@@ -13,7 +15,7 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 - Command line tool (no GUI)
 - Python API interface
 
-The software also provides a configurable printer dictionary, which can be easily extended.
+The software also provides a configurable printer dictionary, which can be easily extended. There is also a tool to import an extensive Epson printer configuration DB.
 
 ## Installation
 
@@ -123,7 +125,7 @@ Note: resetting the ink waste counter is just removing a warning; not replacing 
 
 ### parse_devices.py
 
-Within an [issue](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which reports a complete XML database of Epson model features.
+Within an [issue](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which reports an extensive XML database of Epson model features.
 
 The program "parse_devices.py" transforms this XML DB into the dictionary that *epson_print_conf.py* can use.
 
