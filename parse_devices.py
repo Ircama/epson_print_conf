@@ -317,8 +317,9 @@ if __name__ == "__main__":
     )
     try:
         import black
-        mode = black.Mode(line_length=args.line_length)
-        dict_str = black.format_str(repr(printer_config), mode=mode)
+        printer_config = "PRINTER_CONFIG = " + repr(printer_config)
+        mode = black.Mode(line_length=args.line_length, magic_trailing_comma=False)
+        dict_str = black.format_str(printer_config, mode=mode)
     except Exception:
         import pprint
         dict_str = pprint.pformat(printer_config)
