@@ -130,6 +130,32 @@ class EpsonPrinter:
             },
             "serial_number": range(192, 202),
         },
+        "L3060": {
+            "read_key": [149, 3],
+            "write_key": b"Maninjau",
+            "main_waste": {"oids": [24, 25, 30], "divider": 62.07},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 24.2},
+            "raw_waste_reset": {
+                24: 0, 25: 0, 30: 0, 28: 0, 29: 0,
+                46: 94, 26: 0, 27: 0, 34: 0, 47: 94
+            },
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [46],
+                "Maintenance required level of 2nd waste ink counter": [47],
+                "Manual cleaning counter": [147],
+                "Timer cleaning counter": [149],
+                "Power cleaning counter": [148],
+                "Total print pass counter": [171, 170, 169, 168],
+                "Total print page counter - rear feed": [167, 166, 165, 164],
+                "Total scan counter": [471, 470, 469, 468],
+                "First TI received time": [173, 172],
+                "Ink replacement counter - Black": [242],
+                "Ink replacement counter - Yellow": [244],
+                "Ink replacement counter - Magenta": [245],
+                "Ink replacement counter - Cyan": [243],
+            },
+            "serial_number": range(192, 202),
+        },
         "L3250": {
             "read_key": [74, 54],
             "write_key": b'Maribaya',
