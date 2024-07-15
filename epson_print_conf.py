@@ -16,7 +16,15 @@ import logging
 import os
 import yaml
 from pathlib import Path
+
+#The pysnmp module uses functionallity from importlib.util and importlib.machinery, which were seperated from the importlib module in python>=3.11
+try:
+    import importlib.util
+    import importlib.machinery
+except ImportError:
+    pass
 from pysnmp.hlapi.v1arch import *
+
 from pyasn1.type.univ import OctetString as OctetStringType
 from itertools import chain
 
