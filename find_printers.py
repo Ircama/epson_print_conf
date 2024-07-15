@@ -16,7 +16,7 @@ PRINTER_PORTS = [9100, 515, 631]
 class PrinterScanner:
 
     def ping(self, host):
-        result = subprocess.run(['ping', '-n', '1', host], stdout=subprocess.PIPE)
+        result = subprocess.run(['ping', '-n', '1', host], stdout=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW)
         return 'Reply from' in result.stdout.decode('utf-8')
 
     def check_printer(self, ip, port):
