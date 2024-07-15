@@ -25,6 +25,33 @@ class EpsonPrinter:
     """SNMP Epson Printer Configuration."""
 
     PRINTER_CONFIG = {  # Known Epson models
+        "L386": {
+            'borderless_waste': {'divider': 24.2, 'oids': [26, 27, 34]},
+            'main_waste': {'divider': 62.07, 'oids': [24, 25, 30]},
+            'raw_waste_reset': {24: 0,
+                                25: 0,
+                                26: 0,
+                                27: 0,
+                                28: 0,
+                                29: 0,
+                                30: 0,
+                                34: 0,
+                                46: 94,
+                                47: 94,
+                                49: 0},
+            'read_key': [16, 8],
+            'serial_number': range(192, 202),
+            'stats': {
+                'First TI received time': [173, 172],
+                'Manual cleaning counter': [147],
+                'Power cleaning counter': [148],
+                'Timer cleaning counter': [149],
+                'Total print page counter': [167, 166, 165, 164],
+                'Total print pass counter': [171, 170, 169, 168],
+                'Total scan counter': [471, 470, 469, 468]
+            },
+            'write_key': b'Sinabung'
+        },
         "XP-205": {
             "alias": ["XP-200", "XP-207"],
             "read_key": [25, 7],
