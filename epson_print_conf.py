@@ -17,7 +17,9 @@ import os
 import yaml
 from pathlib import Path
 
-#The pysnmp module uses functionallity from importlib.util and importlib.machinery, which were seperated from the importlib module in python>=3.11
+# The pysnmp module uses functionality from importlib.util and 
+# importlib.machinery, which were seperated from the importlib module
+# in python>=3.11
 try:
     import importlib.util
     import importlib.machinery
