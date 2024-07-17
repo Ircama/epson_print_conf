@@ -1739,8 +1739,8 @@ class EpsonPrinter:
             logging.error("EpsonPrinter - invalid API usage")
             return None
         try:
-            msb = self.parm["stats"]["poweroff_timer"][0]
-            lsb = self.parm["stats"]["poweroff_timer"][1]
+            msb = self.parm["stats"]["Power off timer"][0]
+            lsb = self.parm["stats"]["Power off timer"][1]
         except KeyError:
             logging.info("write_poweroff_timer: missing parameter")
             return False
