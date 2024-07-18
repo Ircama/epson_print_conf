@@ -36,31 +36,37 @@ class EpsonPrinter:
 
     PRINTER_CONFIG = {  # Known Epson models
         "L386": {
-            'borderless_waste': {'divider': 24.2, 'oids': [26, 27, 34]},
-            'main_waste': {'divider': 62.07, 'oids': [24, 25, 30]},
-            'raw_waste_reset': {24: 0,
-                                25: 0,
-                                26: 0,
-                                27: 0,
-                                28: 0,
-                                29: 0,
-                                30: 0,
-                                34: 0,
-                                46: 94,
-                                47: 94,
-                                49: 0},
-            'read_key': [16, 8],
-            'serial_number': range(192, 202),
-            'stats': {
-                'First TI received time': [173, 172],
-                'Manual cleaning counter': [147],
-                'Power cleaning counter': [148],
-                'Timer cleaning counter': [149],
-                'Total print page counter': [167, 166, 165, 164],
-                'Total print pass counter': [171, 170, 169, 168],
-                'Total scan counter': [471, 470, 469, 468]
+            "read_key": [16, 8],
+            "write_key": b"Sinabung",
+            "printer_head_id_h": range(122, 126),
+            "printer_head_id_f": [129],
+            "main_waste": {"oids": [24, 25, 30], "divider": 62.07},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 24.2},
+            "raw_waste_reset": {
+                24: 0, 25: 0, 30: 0,  # Data of 1st counter
+                28: 0, 29: 0,  # another store of 1st counter
+                46: 94,  # Maintenance required level of 1st counter
+                26: 0, 27: 0, 34: 0,  # Data of 2nd counter
+                47: 94,  # Maintenance required level of 2nd counter
+                49: 0  # ?
             },
-            'write_key': b'Sinabung'
+            "stats": {
+                "Manual cleaning counter": [147],
+                "Timer cleaning counter": [149],
+                "Power cleaning counter": [148],
+                "Total print pass counter": [171, 170, 169, 168],
+                "Total print page counter": [167, 166, 165, 164],
+                "Total scan counter": [471, 470, 469, 468],
+                "First TI received time": [173, 172],
+                "Maintenance required level of 1st waste ink counter": [46],
+                "Maintenance required level of 2nd waste ink counter": [47],
+                "Power off timer": [359, 358],
+            },
+            "serial_number": range(192, 202),
+            "last_printer_fatal_errors": [
+                453, 452, 455, 454, 457, 456, 459, 458, 461, 460, 467,
+                499, 498, 501, 500, 503, 502, 505, 504, 507, 506
+            ],
         },
         "XP-205": {
             "alias": ["XP-200", "XP-207"],
