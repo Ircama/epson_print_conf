@@ -1,0 +1,4 @@
+PyYAML
+git+https://github.com/etingof/pysnmp.git@master#egg=pysnmp
+pyasyncore;python_version>="3.12"
+
