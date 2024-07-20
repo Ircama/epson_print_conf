@@ -12,12 +12,24 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 	- Reset ink waste
     - Change power off timer
 	- Other admin stuffs and debug options
-- Command line tool (no GUI)
+- both a GUI and a command line tool
 - Python API interface
 
-The software also provides a configurable printer dictionary, which can be easily extended. There is also a tool to import an extensive Epson printer configuration DB.
+The GUI has an autodiscovery function which finds the printer IP addresses and their model names. By manually filling the printer model and the IP addresses in the related input boxes, the GUI can be used to get the printer status and to reset the ink waste counter.
+
+The software provides a configurable printer dictionary, which can be easily extended. There is also a tool to import an extensive Epson printer configuration DB.
 
 ## Installation
+
+Install requirements using *requirements.txt*:
+
+```bash
+git clone https://github.com/Ircama/epson_print_conf
+cd epson_print_conf
+pip install -r requirements.txt
+```
+
+Alternatively, install requirements via command line:
 
 ```
 git clone https://github.com/Ircama/epson_print_conf
@@ -36,7 +48,23 @@ This program exploits [pysnmp](https://github.com/etingof/pysnmp), with related 
 
 It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
+## Creating an executable for the GUI
+
+Install pyinstaller if not already installed with `pip install pyinstaller`.
+
+Run: `pyinstaller --onefile --noconsole ui.py`.
+
+Run the exe file created in the *dist/* folder.
+
 ## Usage
+
+Running the GUI:
+
+```
+python ui.py
+```
+
+Using the command-line tool:
 
 ```
 usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME] [--reset_waste_ink] [-d]
@@ -162,6 +190,16 @@ optional arguments:
 ```
 
 The output is better formatted when also installing [black](https://pypi.org/project/black/).
+
+### find_printers.py
+
+*find_printers.py* can be executed via `python find_printers.py` and prints the list of the discovered printers to the standard output. It is internally used as a library by *ui.py*.
+
+Output example:
+
+```json
+[{'ip': '192.168.178.29', 'hostname': 'EPSONDEFD03.fritz.box', 'name': 'EPSON XP-205 207 Series'}]
+```
 
 ### Other utilities
 
@@ -483,7 +521,11 @@ emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
 - WIC-Reset: https://wic-reset.com / https://www.2manuals.com / https://resetters.com (Use at your risk)
 - PrintHelp: https://printhelp.info/ (Use at your risk)
 
-### Resources
+### Other resources
 
 - https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
 - https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml
+
+## Acknowledgments
+
+Thanks to [sshsphere](https://github.com/sshsphere) for the GUI and other features.
