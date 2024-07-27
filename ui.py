@@ -8,12 +8,75 @@ from tkinter import ttk, Menu
 from tkinter.scrolledtext import ScrolledText
 import tkinter.font as tkfont
 from tkcalendar import DateEntry  # Ensure you have: pip install tkcalendar
+from tkinter import messagebox
 
+import pyperclip
 from epson_print_conf import EpsonPrinter
 from find_printers import PrinterScanner
 
 
 VERSION = "2.0"
+
+class ToolTip:
+    def __init__(self, widget, text='widget info', wrap_length=10):
+        self.widget = widget
+        self.text = text
+        self.wrap_length = wrap_length
+        self.tooltip_window = None
+        widget.bind("<Enter>", self.enter)
+        widget.bind("<Leave>", self.leave)
+    
+    def enter(self, event=None):
+        if self.tooltip_window or not self.text:
+            return
+        x, y, width, height = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 20
+        y += self.widget.winfo_rooty() + 20
+        self.tooltip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        
+        # Calculate the position for the tooltip
+        screen_width = self.widget.winfo_screenwidth()
+        screen_height = self.widget.winfo_screenheight()
+        
+        tw.geometry(f"+{x}+{y + height + 2}")  # Default position below the widget
+        
+        label = tk.Label(tw, text=self.wrap_text(self.text), justify='left',
+                         background='yellow', relief='solid', borderwidth=1)
+        label.pack(ipadx=1)
+
+        # Check if the tooltip goes off the screen
+        tw.update_idletasks()  # Ensures the tooltip size is calculated
+        tw_width = tw.winfo_width()
+        tw_height = tw.winfo_height()
+        
+        if x + tw_width > screen_width:  # If tooltip goes beyond screen width
+            x = screen_width - tw_width - 5
+        if y + height + tw_height > screen_height:  # If tooltip goes below screen height
+            y = y - tw_height - height - 2  # Position above the widget
+
+        tw.geometry(f"+{x}+{y}")
+
+    def leave(self, event=None):
+        tw = self.tooltip_window
+        self.tooltip_window = None
+        if tw:
+            tw.destroy()
+    
+    def wrap_text(self, text):
+        words = text.split()
+        lines = []
+        current_line = []
+        for word in words:
+            if len(current_line) + len(word.split()) <= self.wrap_length:
+                current_line.append(word)
+            else:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+        if current_line:
+            lines.append(' '.join(current_line))
+        return '\n'.join(lines)
+
 
 class EpsonPrinterUI(tk.Tk):
     def __init__(self):
@@ -22,6 +85,8 @@ class EpsonPrinterUI(tk.Tk):
         self.geometry("450x500")
         self.minsize(450, 500)
         self.printer_scanner=PrinterScanner()
+        self.ip_list = []
+        self.ip_list_cycle = None
 
         # configure the main window to be resizable
         self.columnconfigure(0, weight=1)
@@ -36,32 +101,45 @@ class EpsonPrinterUI(tk.Tk):
         main_frame = ttk.Frame(self, padding=FRAME_PAD)
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(4, weight=1)  # Number of elements
+        main_frame.rowconfigure(3, weight=1)  # Number of rows
+        row_n = 0
 
-        # [0] printer model selection
-        model_frame = ttk.LabelFrame(main_frame, text="Printer Model", padding=PAD)
-        model_frame.grid(row=0, column=0, pady=PADY, sticky=(tk.W, tk.E))
+        # [row 0] Container frame for the two LabelFrames Power-off timer and TI Received Time
+        model_ip_frame = ttk.Frame(main_frame, padding=PAD)
+        model_ip_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
+        model_ip_frame.columnconfigure(0, weight=1)  # Allow column to expand
+        model_ip_frame.columnconfigure(1, weight=1)  # Allow column to expand
+
+        # printer model selection
+        model_frame = ttk.LabelFrame(model_ip_frame, text="Printer Model", padding=PAD)
+        model_frame.grid(row=0, column=0, pady=PADY, padx=(0, PADX), sticky=(tk.W, tk.E))
+        model_frame.columnconfigure(0, weight=0)
         model_frame.columnconfigure(1, weight=1)
         
         self.model_var = tk.StringVar()
-        ttk.Label(model_frame, text="Select Printer Model:").grid(row=0, column=0, sticky=tk.W, padx=PADX)
+        ttk.Label(model_frame, text="Model:").grid(row=0, column=0, sticky=tk.W, padx=PADX)
         self.model_dropdown = ttk.Combobox(model_frame, textvariable=self.model_var)
         self.model_dropdown['values'] = sorted(EpsonPrinter().valid_printers)
         self.model_dropdown.grid(row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E))
+        ToolTip(self.model_dropdown, "Select the model of the printer, or press 'Detect printers'.")
         
-        # [1] IP address entry
-        ip_frame = ttk.LabelFrame(main_frame, text="Printer IP Address", padding=PAD)
-        ip_frame.grid(row=1, column=0, pady=PADY, sticky=(tk.W, tk.E))
+        # IP address entry
+        ip_frame = ttk.LabelFrame(model_ip_frame, text="Printer IP Address", padding=PAD)
+        ip_frame.grid(row=0, column=1, pady=PADY, padx=(PADX, 0), sticky=(tk.W, tk.E))
+        ip_frame.columnconfigure(0, weight=0)
         ip_frame.columnconfigure(1, weight=1)
         
         self.ip_var = tk.StringVar()
-        ttk.Label(ip_frame, text="Enter Printer IP Address:").grid(row=0, column=0, sticky=tk.W, padx=PADX)
+        ttk.Label(ip_frame, text="IP Address:").grid(row=0, column=0, sticky=tk.W, padx=PADX)
         self.ip_entry = ttk.Entry(ip_frame, textvariable=self.ip_var)
         self.ip_entry.grid(row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E))
+        self.ip_entry.bind("<F2>", self.next_ip)
+        ToolTip(self.ip_entry, "Enter the IP address, or press 'Detect printers' (enter part of it to speed up the detection), or press F2 to get the next local IP address, which can then be edited.")
 
-        # [2] Container frame for the two LabelFrames Power-off timer and TI Received Time
+        # [row 1] Container frame for the two LabelFrames Power-off timer and TI Received Time
+        row_n += 1
         container_frame = ttk.Frame(main_frame, padding=PAD)
-        container_frame.grid(row=2, column=0, pady=PADY, sticky=(tk.W, tk.E))
+        container_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
         container_frame.columnconfigure(0, weight=1)  # Allow column to expand
         container_frame.columnconfigure(1, weight=1)  # Allow column to expand
 
@@ -76,37 +154,41 @@ class EpsonPrinterUI(tk.Tk):
         validate_cmd = self.register(self.validate_number_input)
 
         self.po_timer_var = tk.StringVar()
-        self.po_timer_entry = ttk.Entry(po_timer_frame, textvariable=self.po_timer_var, validate='all', validatecommand=(validate_cmd, "%P"), width=6)
+        self.po_timer_entry = ttk.Entry(po_timer_frame, textvariable=self.po_timer_var, validate='all', validatecommand=(validate_cmd, "%P"), width=6, justify='center')
         self.po_timer_entry.grid(row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E))
+        ToolTip(self.po_timer_entry, "Enter a number of minutes.")
 
-        get_po_minutes = ttk.Button(po_timer_frame, text="Get", width=6, command=self.get_po_mins)
+        button_width = 7
+        get_po_minutes = ttk.Button(po_timer_frame, text="Get", width=button_width, command=self.get_po_mins)
         get_po_minutes.grid(row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W)
 
-        set_po_minutes = ttk.Button(po_timer_frame, text="Set", width=6, command=self.set_po_mins)
+        set_po_minutes = ttk.Button(po_timer_frame, text="Set", width=button_width, command=self.set_po_mins)
         set_po_minutes.grid(row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E)
 
         # TI Received Time
         ti_received_frame = ttk.LabelFrame(container_frame, text="TI Received Time (date)", padding=PAD)
         ti_received_frame.grid(row=0, column=1, pady=PADY, padx=(PADX, 0), sticky=(tk.W, tk.E))
         ti_received_frame.columnconfigure(0, weight=0)  # Button column on the left
-        ti_received_frame.columnconfigure(1, weight=0)  # Calendar column
+        ti_received_frame.columnconfigure(1, weight=1)  # Calendar column
         ti_received_frame.columnconfigure(2, weight=0)  # Button column on the right
 
         # TI Received Time Calendar Widget
         self.date_entry = DateEntry(ti_received_frame, date_pattern="yy-mm-dd", width=10, borderwidth=2)
         self.date_entry.grid(row=0, column=1, padx=PADX, pady=PADY, sticky=(tk.W, tk.E))
         self.date_entry.delete(0,"end")
+        ToolTip(self.date_entry, "Enter a valid date with format YY-MM-DD.")
 
         # TI Received Time Buttons
-        get_ti_received = ttk.Button(ti_received_frame, text="Get", width=6, command=self.get_ti_date)
+        get_ti_received = ttk.Button(ti_received_frame, text="Get", width=button_width, command=self.get_ti_date)
         get_ti_received.grid(row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W)
 
-        set_ti_received = ttk.Button(ti_received_frame, text="Set", width=6, command=self.set_ti_date)
+        set_ti_received = ttk.Button(ti_received_frame, text="Set", width=button_width, command=self.set_ti_date)
         set_ti_received.grid(row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E)
 
-        # [3] Buttons
+        # [row 2] Buttons
+        row_n += 1
         button_frame = ttk.Frame(main_frame, padding=PAD)
-        button_frame.grid(row=3, column=0, pady=PADY, sticky=(tk.W, tk.E))
+        button_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
         button_frame.columnconfigure((0, 1, 2), weight=1)
         
         self.detect_button = ttk.Button(button_frame, text="Detect Printers", command=self.start_detect_printers)
@@ -118,9 +200,10 @@ class EpsonPrinterUI(tk.Tk):
         self.reset_button = ttk.Button(button_frame, text="Reset Waste Ink Levels", command=self.reset_waste_ink)
         self.reset_button.grid(row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E))
 
-        # [4] Status display
+        # [row 3] Status display
+        row_n += 1
         status_frame = ttk.LabelFrame(main_frame, text="Status", padding=PAD)
-        status_frame.grid(row=4, column=0, pady=PADY, sticky=(tk.W, tk.E, tk.N, tk.S))
+        status_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E, tk.N, tk.S))
         status_frame.columnconfigure(0, weight=1)
         status_frame.rowconfigure(0, weight=1)
         
@@ -128,6 +211,7 @@ class EpsonPrinterUI(tk.Tk):
         self.status_text = ScrolledText(status_frame, wrap=tk.WORD, font=("TkDefaultFont"))
         self.status_text.grid(row=0, column=0, pady=PADY, padx=PADY, sticky=(tk.W, tk.E, tk.N, tk.S))
         self.status_text.bind("<Key>", lambda e: "break")  # disable editing text
+        self.status_text.bind("<Control-c>", lambda event: self.copy_to_clipboard(self.status_text))
         # self.status_text.bind("<Button-1>", lambda e: "break")  # also disable the mouse
 
         # Create a frame to contain the Treeview and its scrollbar
@@ -174,6 +258,26 @@ class EpsonPrinterUI(tk.Tk):
         # Hide the Treeview initially
         self.tree_frame.grid_remove()
 
+    def next_ip(self, event):
+        ip = self.ip_var.get()
+        if self.ip_list_cycle == None:
+            self.ip_list = self.printer_scanner.get_all_printers(local=True)
+            self.ip_list_cycle = 0
+        if not self.ip_list:
+            return
+        self.ip_var.set(self.ip_list[self.ip_list_cycle])
+        self.ip_list_cycle += 1
+        if self.ip_list_cycle >= len(self.ip_list):
+            self.ip_list_cycle = None
+
+    def copy_to_clipboard(self, text_widget):
+        try:
+            text = text_widget.selection_get()
+            pyperclip.copy(text)
+        except tk.TclError:
+            pass
+        return "break"
+
     def get_po_mins(self):
         self.show_status_text_view()
         model = self.model_var.get()
@@ -204,7 +308,11 @@ class EpsonPrinterUI(tk.Tk):
                 self.status_text.insert(tk.END, "[ERROR] Please Use a valid value for minutes.\n")
                 return
             self.status_text.insert(tk.END, f"[INFO] Set Power off timer: {po_timer} minutes.\n")
-            printer.write_poweroff_timer(int(po_timer))
+            response = messagebox.askyesno("Confirm Action", "Are you sure you want to proceed?")
+            if response:
+                printer.write_poweroff_timer(int(po_timer))
+            else:
+                self.status_text.insert(tk.END, f"[WARNING] Set Power off timer aborted.\n")
         except Exception as e:
             self.status_text.insert(tk.END, f"[ERROR] {e}: Cannot set 'Power off timer'; missing configuration\n")
 
@@ -235,7 +343,11 @@ class EpsonPrinterUI(tk.Tk):
             date_string = datetime.strptime(printer.stats()['stats']['First TI received time'], '%d %b %Y').strftime('%y-%m-%d')
             date_string = self.date_entry.get_date()
             self.status_text.insert(tk.END, f"[INFO] Set 'First TI received time' (YY-MM-DD) to: {date_string.strftime('%Y-%m-%d')}.\n")
-            #printer.write_first_ti_received_time(date_string.year, date_string.month, date_string.day)
+            response = messagebox.askyesno("Confirm Action", "Are you sure you want to proceed?")
+            if response:
+                printer.write_first_ti_received_time(date_string.year, date_string.month, date_string.day)
+            else:
+                self.status_text.insert(tk.END, f"[WARNING] Change of 'First TI received time' aborted.\n")
         except Exception as e:
             self.status_text.insert(tk.END, f"[ERROR] {e}: Cannot set 'First TI received time'; missing configuration\n")
 
@@ -284,8 +396,12 @@ class EpsonPrinterUI(tk.Tk):
             return
         printer = EpsonPrinter(model=model, hostname=ip_address)
         try:
-            printer.reset_waste_ink_levels()
-            self.status_text.insert(tk.END, "[INFO] Waste ink levels have been reset.\n")
+            response = messagebox.askyesno("Confirm Action", "Are you sure you want to proceed?")
+            if response:
+                printer.reset_waste_ink_levels()
+                self.status_text.insert(tk.END, "[INFO] Waste ink levels have been reset.\n")
+            else:
+                self.status_text.insert(tk.END, f"[WARNING] Waste ink levels reset aborted.\n")
         except Exception as e:
             self.status_text.insert(tk.END, f"[ERROR] {e}\n")
     

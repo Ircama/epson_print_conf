@@ -36,8 +36,13 @@ git clone https://github.com/Ircama/epson_print_conf
 pip3 install pyyaml
 pip3 install pyasn1==0.4.8
 pip3 install git+https://github.com/etingof/pysnmp.git
+pip3 install tkcalendar
+pip3 install pyperclip
+
 cd epson_print_conf
 ```
+
+With Python 12, also: `pip3 install pyasyncore`.
 
 Notes (at the time of writing):
 

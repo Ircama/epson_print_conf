@@ -53,12 +53,14 @@ class PrinterScanner:
                         return {"ip": ip, "hostname": hostname, "name": "Unknown"}
         return None
 
-    def get_all_printers(self, ip_addr=""):
+    def get_all_printers(self, ip_addr="", local=False):
         if ip_addr:
             result = self.scan_ip(ip_addr)
             if result:
                 return [result]
         local_device_ip_list = socket.gethostbyname_ex(socket.gethostname())[2]
+        if local:
+            return local_device_ip_list
         printers = []
         for local_device_ip in local_device_ip_list:
             if ip_addr and not local_device_ip.startswith(ip_addr):
