@@ -52,12 +52,19 @@ class PrinterScanner:
                     else:
                         return {"ip": ip, "hostname": hostname, "name": "Unknown"}
         return None
-    def get_all_printers(self):
+
+    def get_all_printers(self, ip_addr=""):
+        if ip_addr:
+            result = self.scan_ip(ip_addr)
+            if result:
+                return [result]
         local_device_ip_list = socket.gethostbyname_ex(socket.gethostname())[2]
+        printers = []
         for local_device_ip in local_device_ip_list:
+            if ip_addr and not local_device_ip.startswith(ip_addr):
+                continue
             base_ip = local_device_ip[:local_device_ip.rfind('.') + 1]
             ips=[f"{base_ip}{i}" for i in range(1, 255)]
-            printers = []
             threads = []
 
             def worker(ip):
@@ -77,5 +84,9 @@ class PrinterScanner:
 
 
 if __name__ == "__main__":
+    import sys
+    ip = ""
+    if len(sys.argv) > 1:
+        ip = sys.argv[1]
     scanner = PrinterScanner()
-    print(scanner.get_all_printers())
+    print(scanner.get_all_printers(ip))

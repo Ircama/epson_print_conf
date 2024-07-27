@@ -78,7 +78,7 @@ class EpsonPrinter:
             "same-as": "XP-315"
         },
         "Stylus Photo PX730WD": {
-            "alias": ["Epson Artisan 730"],
+            "alias": ["Stylus Photo PX730", "Artisan 730"],
             "read_key": [0x8, 0x77],
             "write_key": b'Cattleya',
             "main_waste": {"oids": [0xe, 0xf], "divider": 81.82},
@@ -525,7 +525,7 @@ class EpsonPrinter:
                 range(0x120, 0x12a), range(0x727, 0x72c), range(0x7f4, 0x7fe)
             ),
         },
-        "Artisan-800": {
+        "Artisan 800": {
             "read_key": [0x53, 0x09],
             # uncompleted
         },

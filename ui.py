@@ -3,6 +3,7 @@ from tkinter import ttk, Menu
 from tkinter.scrolledtext import ScrolledText
 import threading
 import ipaddress
+import re
 from find_printers import PrinterScanner
 from epson_print_conf import EpsonPrinter
 import tkinter.font as tkfont
@@ -13,7 +14,8 @@ class EpsonPrinterUI(tk.Tk):
         super().__init__()
         self.title("Epson Printer Configuration")
         self.geometry("450x400")
-        
+        self.printer_scanner=PrinterScanner()
+
         # configure the main window to be resizable
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -32,7 +34,7 @@ class EpsonPrinterUI(tk.Tk):
         self.model_var = tk.StringVar()
         ttk.Label(model_frame, text="Select Printer Model:").grid(row=0, column=0, sticky=tk.W, padx=5)
         self.model_dropdown = ttk.Combobox(model_frame, textvariable=self.model_var)
-        self.model_dropdown['values'] = sorted(list(EpsonPrinter.PRINTER_CONFIG.keys()))
+        self.model_dropdown['values'] = sorted(EpsonPrinter().valid_printers)
         self.model_dropdown.grid(row=0, column=1, pady=5, padx=5, sticky=(tk.W, tk.E))
         
         # IP address entry
@@ -160,12 +162,20 @@ class EpsonPrinterUI(tk.Tk):
     
     def detect_printers(self):
         self.show_status_text_view()
-        printer_scanner=PrinterScanner()
         try:
-            printers = printer_scanner.get_all_printers()
+            printers = self.printer_scanner.get_all_printers(self.ip_var.get().strip())
             if len(printers) > 0:
-                for printer in printers:
-                    self.status_text.insert(tk.END, f"[INFO] {printer['name']} found at {printer['ip']} (hostname: {printer['hostname']})\n")
+                if len(printers) == 1:
+                    self.status_text.insert(tk.END, f"[INFO] Found printer '{printers[0]['name']}' at {printers[0]['ip']} (hostname: {printers[0]['hostname']})\n")
+                    self.ip_var.set(printers[0]['ip'])
+                    for model in self.get_printer_models(printers[0]['name']):
+                        if model in EpsonPrinter().valid_printers:
+                            self.model_var.set(model)
+                            break
+                else:
+                    self.status_text.insert(tk.END, f"[INFO] Found {len(printers)} printers:\n")
+                    for printer in printers:
+                        self.status_text.insert(tk.END, f"[INFO] {printer['name']} found at {printer['ip']} (hostname: {printer['hostname']})\n")
             else:
                 self.status_text.insert(tk.END, "[WARN] No printers found.\n")
         except Exception as e:
@@ -247,6 +257,44 @@ class EpsonPrinterUI(tk.Tk):
             item_text = self.tree.item(selected_item[0], "text")
             self.clipboard_clear()
             self.clipboard_append(item_text)
+
+    def get_printer_models(self, input_string):
+        # Tokenize the string
+        tokens = re.split(' |/', input_string)
+        if not len(tokens):
+            return []
+
+        # Define the words to remove (uppercase, then case insensitive)
+        remove_tokens = {"EPSON", "SERIES"}
+
+        # Process tokens
+        processed_tokens = []
+        non_numeric_part = ""
+        pre_model = ""
+        for token in tokens:
+            upper_token = token.upper()
+            
+            # Remove tokens that match remove_tokens
+            if any(word == upper_token for word in remove_tokens):
+                continue
+
+            if not any(char.isdigit() for char in token):  # no alphanum inside
+                pre_model = pre_model + token + " "
+                continue
+
+            # Identify the non-numeric part of the first token
+            if not token.isnumeric() and not non_numeric_part:
+                non_numeric_part = ''.join(c for c in token if not c.isdigit())
+
+            # if token is numeric, prepend the non-numeric part
+            if token.isnumeric():
+                processed_tokens.append(f"{pre_model}{non_numeric_part}{token}")
+            else:
+                processed_tokens.append(f"{pre_model}{token}")
+        if not processed_tokens and pre_model:
+            processed_tokens.append(pre_model.strip())
+        return processed_tokens
+
 
 if __name__ == "__main__":
     app = EpsonPrinterUI()
