@@ -7,15 +7,15 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 - Access the Epson printer via SNMP (TCP/IP; printer connected over Wi-Fi)
 - Print the advanced status of the printer, with the possibility to restrict the query to specific information
 - Other inspection features:
-	- Read and write EEPROM addresses
-	- Dump a set of EEPROM addresses
 	- Reset ink waste
     - Change power off timer
 	- Other admin stuffs and debug options
+	- Read and write EEPROM addresses
+	- Dump a set of EEPROM addresses
 - both a GUI and a command line tool
 - Python API interface
 
-The GUI has an autodiscovery function which finds the printer IP addresses and their model names. By manually filling the printer model and the IP addresses in the related input boxes, the GUI can be used to get the printer status and to reset the ink waste counter.
+The GUI has an autodiscovery function which finds the printer IP addresses and their model names. The GUI can be used to get the printer status, to set the "Power-off timer", to set the "TI Received Time" and to reset the ink waste counter.
 
 The software provides a configurable printer dictionary, which can be easily extended. There is also a tool to import an extensive Epson printer configuration DB.
 

@@ -676,7 +676,7 @@ class EpsonPrinter:
         for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
             if "same-as" in printer_data:
                 sameas = printer_data["same-as"]
-                del printer_data["same-as"]
+                #del printer_data["same-as"]
                 if sameas in self.PRINTER_CONFIG:
                     self.PRINTER_CONFIG[printer_name] = {
                         **self.PRINTER_CONFIG[sameas],
@@ -727,8 +727,10 @@ class EpsonPrinter:
     def caesar(self, key, hex=False):
         """Convert the string write key to a sequence of numbers"""
         if hex:
-            return " ".join('{0:02x}'.format(b + 1) for b in key)
-        return ".".join(str(b + 1) for b in key)
+            return " ".join(
+                '00' if b == 0 else '{0:02x}'.format(b + 1) for b in key
+            )
+        return ".".join("0" if b == 0 else str(b + 1) for b in key)
 
 
     def reverse_caesar(self, eight_bytes):

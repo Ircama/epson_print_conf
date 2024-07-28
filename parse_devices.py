@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 import itertools
 import textwrap
 
+from ui import get_printer_models
+
 def to_ranges(iterable):
     iterable = sorted(set(iterable))
     for key, group in itertools.groupby(enumerate(iterable),
@@ -45,7 +47,8 @@ def traverse_data(element, depth=0):
 
 def generate_config(config, traverse, add_fatal_errors, full, printer_model):
     waste_string = [
-        "main_waste", "borderless_waste", "third_waste", "fourth_waste"
+        "main_waste", "borderless_waste", "third_waste", "fourth_waste",
+        "fifth_waste", "sixth_waste"
     ]
     irc_pattern = [
         r'Ink replacement counter %-% (\w+) % \((\w+)\)'
@@ -55,7 +58,7 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
     printer_config = {}
     for printer in root.iterfind(".//printer"):
         title = printer.attrib.get("title", "")
-        if printer_model not in title:
+        if printer_model and printer_model not in title:
             continue
         specs = printer.attrib["specs"].split(",")
         logging.info(
@@ -201,7 +204,7 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
                                 chars["write_key"] = (
                                     "".join(
                                         [
-                                            chr(b - 1)
+                                            chr(0 if b == 0 else b - 1)
                                             for b in text_to_bytes(s.text)
                                         ]
                                     )
@@ -216,6 +219,78 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
         printer_config[printer_short_name] = chars
     return printer_config
 
+def normalize_config(config):
+    # Remove printers without write_key or without read_key
+    for base_key, base_items in config.copy().items():
+        if 'write_key' not in base_items:
+            del config[base_key]
+            continue
+        if 'read_key' not in base_items:
+            del config[base_key]
+            continue
+
+    # Replace original names with converted names and add printers for all optional names
+    for key, items in config.copy().items():
+        printer_list = get_printer_models(key)
+        del config[key]
+        for i in printer_list:
+            if i in config and config[i] != items:
+                print("ERROR key", key)
+                quit()
+            config[i] = items
+
+    # Add aliases for same printer with different names and remove aliased printers
+    for base_key, base_items in config.copy().items():
+        found = False
+        for key, items in config.copy().items():
+            if not found:
+                if base_key == key and base_key in config:
+                    found = True
+                continue
+            if base_key != key and items == base_items:  # different name, same printer
+                if "alias" not in config[base_key]:
+                    config[base_key]["alias"] = []
+                for i in get_printer_models(key):
+                    if i not in config[base_key]["alias"]:
+                        config[base_key]["alias"].append(i)
+                del config[key]
+
+    # Add "same-as" for almost same printer (IGNORED_KEYS) with different names
+    IGNORED_KEYS = ['write_key', 'read_key', 'alias', 'main_waste', 'borderless_waste']
+    for base_key, base_items in config.copy().items():
+        found = False
+        for key, items in config.copy().items():
+            if not found:
+                if base_key == key and base_key in config:
+                    found = True
+                continue
+            if base_key != key:
+                if equal_dicts(base_items, items, IGNORED_KEYS):  # everything but the IGNORED_KEYS is the same
+                    # Get the IGNORED_KEYS from the printer
+                    write_key = base_items['write_key']
+                    read_key = base_items['read_key']
+                    alias = base_items['alias'] if 'alias' in base_items else []
+                    main_waste = base_items['main_waste'] if 'main_waste' in base_items else []
+                    borderless_waste = base_items['borderless_waste'] if 'borderless_waste' in base_items else []
+                    # Rebuild the printer with only the IGNORED_KEYS, then add the 'same-as'
+                    del config[base_key]
+                    config[base_key] = {}
+                    config[base_key]['write_key'] = write_key
+                    config[base_key]['read_key'] = read_key
+                    if alias:
+                        config[base_key]['alias'] = alias
+                    if main_waste:
+                        config[base_key]['main_waste'] = main_waste
+                    if borderless_waste:
+                        config[base_key]['borderless_waste'] = borderless_waste
+                    config[base_key]['same-as'] = key
+
+    return config
+
+def equal_dicts(a, b, ignore_keys):
+    ka = set(a).difference(ignore_keys)
+    kb = set(b).difference(ignore_keys)
+    return ka == kb and all(a[k] == b[k] for k in ka)
 
 if __name__ == "__main__":
     import argparse
@@ -228,9 +303,9 @@ if __name__ == "__main__":
         '-m',
         '--model',
         dest='printer_model',
+        default=False,
         action="store",
-        help='Printer model. Example: -m XP-205',
-        required=True)
+        help='Printer model. Example: -m XP-205')
 
     parser.add_argument(
         '-l',
@@ -315,14 +390,15 @@ if __name__ == "__main__":
         full=args.full,
         printer_model=args.printer_model
     )
+    normalized_config = normalize_config(printer_config)
     try:
         import black
-        printer_config = "PRINTER_CONFIG = " + repr(printer_config)
+        config_str = "PRINTER_CONFIG = " + repr(normalized_config)
         mode = black.Mode(line_length=args.line_length, magic_trailing_comma=False)
-        dict_str = black.format_str(printer_config, mode=mode)
+        dict_str = black.format_str(config_str, mode=mode)
     except Exception:
         import pprint
-        dict_str = pprint.pformat(printer_config)
+        dict_str = pprint.pformat(config_str)
     if args.indent:
         dict_str = textwrap.indent(dict_str, '    ')
     print(dict_str)
