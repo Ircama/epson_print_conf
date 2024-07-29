@@ -2203,7 +2203,7 @@ if __name__ == "__main__":
         "--pickle",
         dest='pickle',
         type=argparse.FileType('rb'),
-        help="Load a pickle configuration archive",
+        help="Load a pickle configuration archive saved by parse_devices.py",
         default=None,
         nargs=1,
         metavar='PICKLE_FILE'
@@ -2213,8 +2213,8 @@ if __name__ == "__main__":
         "--override",
         dest='override',
         action='store_true',
-        help="Override the default configuration with the one of the pickle "
-            "file instead of merging",
+        help="Replace the default configuration with the one in the pickle "
+            "file instead of merging (default is to merge)",
     )
     args = parser.parse_args()
 

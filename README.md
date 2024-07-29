@@ -69,8 +69,9 @@ ui.py [-h] [-P PICKLE_FILE] [-O]
 optional arguments:
   -h, --help            show this help message and exit
   -P PICKLE_FILE, --pickle PICKLE_FILE
-                        Save a pickle archive for subsequent load by ui.py and epson_print_conf.py
-  -O, --override        Override the default configuration with the one of the pickle file instead of merging
+                        Load a pickle configuration archive saved by parse_devices.py
+  -O, --override        Replace the default configuration with the one in the pickle file instead of merging (default
+                        is to merge)
 
 epson_print_conf GUI
 ```
@@ -78,9 +79,11 @@ epson_print_conf GUI
 ### Using the command-line tool
 
 ```
-epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME] [--reset_waste_ink] [-d] [--write-first-ti-received-time YEAR MONTH DAY]
-                           [--write-poweroff-timer MINUTES] [--dry-run] [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS] [--detect-key]
-                           [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES] [-c CONFIG_FILE] [--simdata SIMDATA_FILE] [-P PICKLE_FILE] [-O]
+epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME] [--reset_waste_ink] [-d]
+                           [--write-first-ti-received-time YEAR MONTH DAY] [--write-poweroff-timer MINUTES]
+                           [--dry-run] [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS]
+                           [--detect-key] [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES] [-c CONFIG_FILE]
+                           [--simdata SIMDATA_FILE] [-P PICKLE_FILE] [-O]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -113,12 +116,14 @@ optional arguments:
   -r RETRIES, --retries RETRIES
                         SNMP GET retries (floating point argument)
   -c CONFIG_FILE, --config CONFIG_FILE
-                        read a configuration file including the full log dump of a previous operation with '-d' flag (instead of accessing the printer via SNMP)
+                        read a configuration file including the full log dump of a previous operation with '-d' flag
+                        (instead of accessing the printer via SNMP)
   --simdata SIMDATA_FILE
                         write SNMP dictionary map to simdata file
   -P PICKLE_FILE, --pickle PICKLE_FILE
-                        Load a pickle configuration archive
-  -O, --override        Override the default configuration with the one of the pickle file instead of merging
+                        Load a pickle configuration archive saved by parse_devices.py
+  -O, --override        Replace the default configuration with the one in the pickle file instead of merging (default
+                        is to merge)
 
 Epson Printer Configuration via SNMP (TCP/IP)
 ```
