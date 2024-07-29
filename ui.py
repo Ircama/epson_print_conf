@@ -125,7 +125,7 @@ class ToolTip:
 
 
 class EpsonPrinterUI(tk.Tk):
-    def __init__(self):
+    def __init__(self, conf_dict={}, replace_conf=False):
         super().__init__()
         self.title("Epson Printer Configuration - v" + VERSION)
         self.geometry("450x500")
@@ -133,6 +133,8 @@ class EpsonPrinterUI(tk.Tk):
         self.printer_scanner = PrinterScanner()
         self.ip_list = []
         self.ip_list_cycle = None
+        self.conf_dict = conf_dict
+        self.replace_conf = replace_conf
 
         # configure the main window to be resizable
         self.columnconfigure(0, weight=1)
@@ -167,13 +169,21 @@ class EpsonPrinterUI(tk.Tk):
         model_frame.columnconfigure(1, weight=1)
 
         self.model_var = tk.StringVar()
+        if (
+            "internal_data" in conf_dict
+            and "default_model" in conf_dict["internal_data"]
+        ):
+            self.model_var.set(conf_dict["internal_data"]["default_model"])
         ttk.Label(model_frame, text="Model:").grid(
             row=0, column=0, sticky=tk.W, padx=PADX
         )
         self.model_dropdown = ttk.Combobox(
             model_frame, textvariable=self.model_var, state="readonly"
         )
-        self.model_dropdown["values"] = sorted(EpsonPrinter().valid_printers)
+        self.model_dropdown["values"] = sorted(EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf
+        ).valid_printers)
         self.model_dropdown.grid(
             row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
         )
@@ -193,6 +203,11 @@ class EpsonPrinterUI(tk.Tk):
         ip_frame.columnconfigure(1, weight=1)
 
         self.ip_var = tk.StringVar()
+        if (
+            "internal_data" in conf_dict
+            and "hostname" in conf_dict["internal_data"]
+        ):
+            self.ip_var.set(conf_dict["internal_data"]["hostname"])
         ttk.Label(ip_frame, text="IP Address:").grid(
             row=0, column=0, sticky=tk.W, padx=PADX
         )
@@ -446,7 +461,12 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update()
             return
-        printer = EpsonPrinter(model=model, hostname=ip_address)
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model,
+            hostname=ip_address
+        )
         try:
             po_timer = printer.stats()["stats"]["Power off timer"]
             self.status_text.insert(
@@ -478,7 +498,12 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(model=model, hostname=ip_address)
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model,
+            hostname=ip_address
+        )
         try:
             po_timer = printer.stats()["stats"]["Power off timer"]
             po_timer = self.po_timer_var.get()
@@ -525,7 +550,12 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(model=model, hostname=ip_address)
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model,
+            hostname=ip_address
+        )
         try:
             date_string = datetime.strptime(
                 printer.stats()["stats"]["First TI received time"], "%d %b %Y"
@@ -560,7 +590,12 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(model=model, hostname=ip_address)
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model,
+            hostname=ip_address
+        )
         try:
             date_string = datetime.strptime(
                 printer.stats()["stats"]["First TI received time"], "%d %b %Y"
@@ -624,7 +659,12 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(model=model, hostname=ip_address)
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model,
+            hostname=ip_address
+        )
 
         try:
             self.show_treeview()
@@ -662,7 +702,12 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(model=model, hostname=ip_address)
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model,
+            hostname=ip_address
+        )
         try:
             printer.stats()  # query the printer first
             response = messagebox.askyesno(
@@ -714,7 +759,10 @@ class EpsonPrinterUI(tk.Tk):
                     )
                     self.ip_var.set(printers[0]["ip"])
                     for model in get_printer_models(printers[0]["name"]):
-                        if model in EpsonPrinter().valid_printers:
+                        if model in EpsonPrinter(
+                            conf_dict=self.conf_dict,
+                            replace_conf=self.replace_conf
+                        ).valid_printers:
                             self.model_var.set(model)
                             break
                 else:
@@ -835,5 +883,34 @@ class EpsonPrinterUI(tk.Tk):
 
 
 if __name__ == "__main__":
-    app = EpsonPrinterUI()
+    import argparse
+    import pickle
+
+    parser = argparse.ArgumentParser(
+        epilog='epson_print_conf GUI'
+    )
+    parser.add_argument(
+        '-P',
+        "--pickle",
+        dest='pickle',
+        type=argparse.FileType('rb'),
+        help="Save a pickle archive for subsequent load by ui.py and epson_print_conf.py",
+        default=None,
+        nargs=1,
+        metavar='PICKLE_FILE'
+    )
+    parser.add_argument(
+        '-O',
+        "--override",
+        dest='override',
+        action='store_true',
+        help="Override the default configuration with the one of the pickle "
+            "file instead of merging",
+    )
+    args = parser.parse_args()
+    conf_dict = {}
+    if args.pickle:
+        conf_dict = pickle.load(args.pickle[0])
+
+    app = EpsonPrinterUI(conf_dict=conf_dict, replace_conf=args.override)
     app.mainloop()

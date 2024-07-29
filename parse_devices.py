@@ -219,71 +219,81 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
         printer_config[printer_short_name] = chars
     return printer_config
 
-def normalize_config(config):
+def normalize_config(
+        config,
+        remove_invalid,
+        expand_names,
+        add_alias,
+        add_same_as,
+    ):
     # Remove printers without write_key or without read_key
-    for base_key, base_items in config.copy().items():
-        if 'write_key' not in base_items:
-            del config[base_key]
-            continue
-        if 'read_key' not in base_items:
-            del config[base_key]
-            continue
+    if remove_invalid:
+        for base_key, base_items in config.copy().items():
+            if 'write_key' not in base_items:
+                del config[base_key]
+                continue
+            if 'read_key' not in base_items:
+                del config[base_key]
+                continue
 
     # Replace original names with converted names and add printers for all optional names
-    for key, items in config.copy().items():
-        printer_list = get_printer_models(key)
-        del config[key]
-        for i in printer_list:
-            if i in config and config[i] != items:
-                print("ERROR key", key)
-                quit()
-            config[i] = items
+    if expand_names:
+        for key, items in config.copy().items():
+            printer_list = get_printer_models(key)
+            del config[key]
+            for i in printer_list:
+                if i in config and config[i] != items:
+                    print("ERROR key", key)
+                    quit()
+                config[i] = items
 
     # Add aliases for same printer with different names and remove aliased printers
-    for base_key, base_items in config.copy().items():
-        found = False
-        for key, items in config.copy().items():
-            if not found:
-                if base_key == key and base_key in config:
-                    found = True
-                continue
-            if base_key != key and items == base_items:  # different name, same printer
-                if "alias" not in config[base_key]:
-                    config[base_key]["alias"] = []
-                for i in get_printer_models(key):
-                    if i not in config[base_key]["alias"]:
-                        config[base_key]["alias"].append(i)
-                del config[key]
+    if add_alias:
+        for base_key, base_items in config.copy().items():
+            found = False
+            for key, items in config.copy().items():
+                if not found:
+                    if base_key == key and base_key in config:
+                        found = True
+                    continue
+                if base_key != key and items == base_items:  # different name, same printer
+                    if "alias" not in config[base_key]:
+                        config[base_key]["alias"] = []
+                    for i in get_printer_models(key):
+                        if i not in config[base_key]["alias"]:
+                            config[base_key]["alias"].append(i)
+                    del config[key]
 
     # Add "same-as" for almost same printer (IGNORED_KEYS) with different names
-    IGNORED_KEYS = ['write_key', 'read_key', 'alias', 'main_waste', 'borderless_waste']
-    for base_key, base_items in config.copy().items():
-        found = False
-        for key, items in config.copy().items():
-            if not found:
-                if base_key == key and base_key in config:
-                    found = True
-                continue
-            if base_key != key:
-                if equal_dicts(base_items, items, IGNORED_KEYS):  # everything but the IGNORED_KEYS is the same
-                    # Get the IGNORED_KEYS from the printer
-                    write_key = base_items['write_key']
-                    read_key = base_items['read_key']
-                    alias = base_items['alias'] if 'alias' in base_items else []
-                    main_waste = base_items['main_waste'] if 'main_waste' in base_items else []
-                    borderless_waste = base_items['borderless_waste'] if 'borderless_waste' in base_items else []
-                    # Rebuild the printer with only the IGNORED_KEYS, then add the 'same-as'
-                    del config[base_key]
-                    config[base_key] = {}
-                    config[base_key]['write_key'] = write_key
-                    config[base_key]['read_key'] = read_key
-                    if alias:
-                        config[base_key]['alias'] = alias
-                    if main_waste:
-                        config[base_key]['main_waste'] = main_waste
-                    if borderless_waste:
-                        config[base_key]['borderless_waste'] = borderless_waste
-                    config[base_key]['same-as'] = key
+    if add_same_as:
+        IGNORED_KEYS = ['write_key', 'read_key', 'alias', 'main_waste', 'borderless_waste']
+        for base_key, base_items in config.copy().items():
+            found = False
+            for key, items in config.copy().items():
+                if not found:
+                    if base_key == key and base_key in config:
+                        found = True
+                    continue
+                if base_key != key:
+                    if equal_dicts(base_items, items, IGNORED_KEYS):  # everything but the IGNORED_KEYS is the same
+                        # Get the IGNORED_KEYS from the printer
+                        write_key = base_items['write_key']
+                        read_key = base_items['read_key']
+                        alias = base_items['alias'] if 'alias' in base_items else []
+                        main_waste = base_items['main_waste'] if 'main_waste' in base_items else []
+                        borderless_waste = base_items['borderless_waste'] if 'borderless_waste' in base_items else []
+                        # Rebuild the printer with only the IGNORED_KEYS, then add the 'same-as'
+                        del config[base_key]
+                        config[base_key] = {}
+                        config[base_key]['write_key'] = write_key
+                        config[base_key]['read_key'] = read_key
+                        if alias:
+                            config[base_key]['alias'] = alias
+                        if main_waste:
+                            config[base_key]['main_waste'] = main_waste
+                        if borderless_waste:
+                            config[base_key]['borderless_waste'] = borderless_waste
+                        config[base_key]['same-as'] = key
 
     return config
 
@@ -294,69 +304,69 @@ def equal_dicts(a, b, ignore_keys):
 
 if __name__ == "__main__":
     import argparse
+    import pickle
 
     parser = argparse.ArgumentParser(
         epilog='Generate printer configuration from devices.xml'
     )
-
     parser.add_argument(
         '-m',
         '--model',
         dest='printer_model',
         default=False,
         action="store",
-        help='Printer model. Example: -m XP-205')
-
+        help='Printer model. Example: -m XP-205'
+    )
     parser.add_argument(
         '-l',
         '--line',
         dest='line_length',
         type=int,
         help='Set line length of the output (default: 120)',
-        default=120)
-
+        default=120
+    )
     parser.add_argument(
         '-i',
         '--indent',
         dest='indent',
         action='store_true',
-        help='Indent output of 4 spaces')
-
+        help='Indent output of 4 spaces'
+    )
     parser.add_argument(
         '-d',
         '--debug',
         dest='debug',
         action='store_true',
-        help='Print debug information')
-
+        help='Print debug information'
+    )
     parser.add_argument(
         '-t',
         '--traverse',
         dest='traverse',
         action='store_true',
-        help='Traverse the XML, dumping content related to the printer model')
-
+        help='Traverse the XML, dumping content related to the printer model'
+    )
     parser.add_argument(
         '-v',
         '--verbose',
         dest='verbose',
         action='store_true',
-        help='Print verbose information')
-
+        help='Print verbose information'
+    )
     parser.add_argument(
         '-f',
         '--full',
         dest='full',
         action='store_true',
-        help='Generate additional tags')
-
+        help='Generate additional tags'
+    )
     parser.add_argument(
         '-e',
         '--errors',
         dest='add_fatal_errors',
         action='store_true',
-        help='Add last_printer_fatal_errors')
-
+        help='Add last_printer_fatal_errors'
+    )
     parser.add_argument(
         '-c',
         "--config",
@@ -366,6 +376,59 @@ if __name__ == "__main__":
         default=0,
         nargs=1,
         metavar='CONFIG_FILE'
+    )
+    parser.add_argument(
+        '-s',
+        '--default_model',
+        dest='default_model',
+        action="store",
+        help='Default printer model. Example: -s XP-205'
+    )
+    parser.add_argument(
+        '-a',
+        '--address',
+        dest='hostname',
+        action="store",
+        help='Default printer host name or IP address. (Example: -a 192.168.1.87)',
+        required=True
+    )
+    parser.add_argument(
+        '-p',
+        "--pickle",
+        dest='pickle',
+        type=argparse.FileType('wb'),
+        help="Save a pickle archive for subsequent load by ui.py and epson_print_conf.py",
+        default=0,
+        nargs=1,
+        metavar='PICKLE_FILE'
+    )
+    parser.add_argument(
+        '-I',
+        '--keep_invalid',
+        dest='keep_invalid',
+        action='store_true',
+        help='Do not remove printers without write_key or without read_key'
+    )
+    parser.add_argument(
+        '-N',
+        '--keep_names',
+        dest='keep_names',
+        action='store_true',
+        help='Do not replace original names with converted names and add printers for all optional names'
+    )
+    parser.add_argument(
+        '-A',
+        '--no_alias',
+        dest='no_alias',
+        action='store_true',
+        help='Do not add aliases for same printer with different names and remove aliased printers'
+    )
+    parser.add_argument(
+        '-S',
+        '--no_same_as',
+        dest='no_same_as',
+        action='store_true',
+        help='Do not add "same-as" for similar printers with different names'
     )
     args = parser.parse_args()
 
@@ -390,7 +453,26 @@ if __name__ == "__main__":
         full=args.full,
         printer_model=args.printer_model
     )
-    normalized_config = normalize_config(printer_config)
+    normalized_config = normalize_config(
+        config=printer_config,
+        remove_invalid=not args.keep_invalid,
+        expand_names=not args.keep_names,
+        add_alias=not args.no_alias,
+        add_same_as=not args.no_same_as,
+    )
+    if args.default_model:
+        if "internal_data" not in normalized_config:
+            normalized_config["internal_data"] = {}
+        normalized_config["internal_data"]["default_model"] = args.default_model
+    if args.hostname:
+        if "internal_data" not in normalized_config:
+            normalized_config["internal_data"] = {}
+        normalized_config["internal_data"]["hostname"] = args.hostname
+    if args.pickle:
+        pickle.dump(normalized_config, args.pickle[0]) # serialize the list
+        args.pickle[0].close()
+        quit()
+
     try:
         import black
         config_str = "PRINTER_CONFIG = " + repr(normalized_config)

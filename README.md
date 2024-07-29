@@ -55,35 +55,64 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
 ## Creating an executable for the GUI
 
-Install pyinstaller if not already installed with `pip install pyinstaller`.
+Install *pyinstaller* with `pip install pyinstaller`.
 
-Run: `pyinstaller --onefile --noconsole ui.py`.
+To create an executable file named *epson_print_conf.exe* from *ui.py*, run the following:
 
-Run the exe file created in the *dist/* folder.
+```bash
+pyinstaller --onefile ui.py --name epson_print_conf --hidden-import babel.numbers --windowed
+```
+
+Then run the *epson_print_conf.exe* file created in the *dist/* folder, which has the same options of `ui.py`.
+
+The package includes another file named *gui.py*, which also automatically loads the configuration file *printer_conf.pickle*, merging it with the program configuration. In this case, the *epson_print_conf.spec* file helps creating an executable with *pyinstaller*.
+
+Run the following to build the executable:
+
+```bash
+pip install pyinstaller  # if not yet installed
+curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
+python3 parse_devices.py -a 192.168.178.29 -s XP-205 -p printer_conf.pickle  # use your default IP address and printer model as default settings for the GUI
+pyinstaller epson_print_conf.spec
+```
+
+Run the *epson_print_conf.exe* file created in the *dist/* folder. This executable program does not have options, embeds the *printer_conf.pickle* file and starts with the default IP address and printer model defined in the build phase.
 
 ## Usage
 
-Running the GUI:
+### Running the GUI with Python
 
 ```
 python ui.py
 ```
 
-Using the command-line tool:
+GUI usage:
 
 ```
-usage: epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME] [--reset_waste_ink] [-d]
-                           [--write-first-ti-received-time YEAR MONTH DAY] [--write-poweroff-timer MINUTES]
-                           [--dry-run] [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET]
-                           [-e FIRST_ADDRESS LAST_ADDRESS] [--detect-key] [-S SEQUENCE_STRING] [-t TIMEOUT]
-                           [-r RETRIES] [-c CONFIG_FILE] [--simdata SIMDATA_FILE]
+ui.py [-h] [-P PICKLE_FILE] [-O]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -P PICKLE_FILE, --pickle PICKLE_FILE
+                        Save a pickle archive for subsequent load by ui.py and epson_print_conf.py
+  -O, --override        Override the default configuration with the one of the pickle file instead of merging
+
+epson_print_conf GUI
+```
+
+### Using the command-line tool
+
+```
+epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME] [--reset_waste_ink] [-d] [--write-first-ti-received-time YEAR MONTH DAY]
+                           [--write-poweroff-timer MINUTES] [--dry-run] [-R ADDRESS_SET] [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS] [--detect-key]
+                           [-S SEQUENCE_STRING] [-t TIMEOUT] [-r RETRIES] [-c CONFIG_FILE] [--simdata SIMDATA_FILE] [-P PICKLE_FILE] [-O]
 
 optional arguments:
   -h, --help            show this help message and exit
   -m MODEL, --model MODEL
                         Printer model. Example: -m XP-205 (use ? to print all supported models)
   -a HOSTNAME, --address HOSTNAME
-                        Printer host name or IP address. (Example: -m 192.168.1.87)
+                        Printer host name or IP address. (Example: -a 192.168.1.87)
   -p PORT, --port PORT  Printer port (default is 161)
   -i, --info            Print all available information and statistics (default option)
   -q QUERY_NAME, --query QUERY_NAME
@@ -98,8 +127,7 @@ optional arguments:
   -R ADDRESS_SET, --read-eeprom ADDRESS_SET
                         Read the values of a list of printer EEPROM addreses. Format is: address [, ...]
   -W ADDRESS_VALUE_SET, --write-eeprom ADDRESS_VALUE_SET
-                        Write related values to a list of printer EEPROM addresses. Format is: address: value
-                        [, ...]
+                        Write related values to a list of printer EEPROM addresses. Format is: address: value [, ...]
   -e FIRST_ADDRESS LAST_ADDRESS, --eeprom-dump FIRST_ADDRESS LAST_ADDRESS
                         Dump EEPROM
   --detect-key          Detect the read_key via brute force
@@ -110,10 +138,12 @@ optional arguments:
   -r RETRIES, --retries RETRIES
                         SNMP GET retries (floating point argument)
   -c CONFIG_FILE, --config CONFIG_FILE
-                        read a configuration file including the full log dump of a previous operation with
-                        '-d' flag (instead of accessing the printer via SNMP)
+                        read a configuration file including the full log dump of a previous operation with '-d' flag (instead of accessing the printer via SNMP)
   --simdata SIMDATA_FILE
                         write SNMP dictionary map to simdata file
+  -P PICKLE_FILE, --pickle PICKLE_FILE
+                        Load a pickle configuration archive
+  -O, --override        Override the default configuration with the one of the pickle file instead of merging
 
 Epson Printer Configuration via SNMP (TCP/IP)
 ```
@@ -160,7 +190,7 @@ Note: resetting the ink waste counter is just removing a warning; not replacing 
 
 Within an [issue](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which reports an extensive XML database of Epson model features.
 
-The program "parse_devices.py" transforms this XML DB into the dictionary that *epson_print_conf.py* can use.
+The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use.
 
 Here is a simple procedure to download that DB and run *parse_devices.py* to search for the XP-205 model and produce the related PRINTER_CONFIG dictionary to the standard output:
 
@@ -169,14 +199,15 @@ curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25b
 python3 parse_devices.py -i -m XP-205
 ```
 
-After generating the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary.
+After generating the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary. Alternatively, the program is able to create a *pickle* configuration file, which the other programs can load.
 
 The `-m` option is optional and is used to filter the printer model in scope. If the produced output is not referred to the target model, use part of the model name as a filter (e.g., only the digits, like `parse_devices.py -i -m 315`) and select the appropriate model from the output.
 
 Program usage:
 
 ```
-parse_devices.py [-h] [-m PRINTER_MODEL] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE]
+parse_devices.py [-h] [-m PRINTER_MODEL] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE] [-s DEFAULT_MODEL] -a HOSTNAME [-p PICKLE_FILE] [-I]
+                        [-N] [-A] [-S]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -192,6 +223,16 @@ optional arguments:
   -e, --errors          Add last_printer_fatal_errors
   -c CONFIG_FILE, --config CONFIG_FILE
                         use the XML configuration file to generate the configuration
+  -s DEFAULT_MODEL, --default_model DEFAULT_MODEL
+                        Default printer model. Example: -s XP-205
+  -a HOSTNAME, --address HOSTNAME
+                        Default printer host name or IP address. (Example: -a 192.168.1.87)
+  -p PICKLE_FILE, --pickle PICKLE_FILE
+                        Save a pickle archive for subsequent load by ui.py and epson_print_conf.py
+  -I, --keep_invalid    Do not remove printers without write_key or without read_key
+  -N, --keep_names      Do not replace original names with converted names and add printers for all optional names
+  -A, --no_alias        Do not add aliases for same printer with different names and remove aliased printers
+  -S, --no_same_as      Do not add "same-as" for similar printers with different names
 
 Generate printer configuration from devices.xml
 ```
@@ -316,9 +357,11 @@ AC = Value
 ### Specification
 
 ```python
-EpsonPrinter(model, hostname, port, timeout, retries, dry_run)
+EpsonPrinter(conf_dict, replace_conf, model, hostname, port, timeout, retries, dry_run)
 ```
 
+- `conf_dict`: optional configuration file in place of the default PRINTER_CONFIG (optional, default to `{}`)
+- `replace_conf`: (optional, default to False) set to True to replace PRINTER_CONFIG with `conf_dict` instead of merging it
 - `model`: printer model
 - `hostname`: IP address or network name of the printer
 - `port`: SNMP port number (default is 161)

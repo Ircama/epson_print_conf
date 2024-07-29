@@ -643,6 +643,8 @@ class EpsonPrinter:
 
     def __init__(
             self,
+            conf_dict: dict = {},
+            replace_conf = False,
             model: str = None,
             hostname: str = None,
             port: int = 161,
@@ -651,7 +653,19 @@ class EpsonPrinter:
             dry_run: bool = False
         ) -> None:
         """Initialise printer model."""
+        def merge(source, destination):
+            for key, value in source.items():
+                if isinstance(value, dict):
+                    merge(value, destination.setdefault(key, {}))
+                else:
+                    if key == "alias" and "alias" in destination:
+                        destination[key] += value
+                    else:
+                        destination[key] = value
+            return destination
         # process "alias" definintion
+        if conf_dict and replace_conf:
+            self.PRINTER_CONFIG = conf_dict
         for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
             if "alias" in printer_data:
                 aliases = printer_data["alias"]
@@ -672,6 +686,16 @@ class EpsonPrinter:
                         )
                     else:
                         self.PRINTER_CONFIG[alias_name] = printer_data
+        if conf_dict and not replace_conf:
+            self.PRINTER_CONFIG = merge(self.PRINTER_CONFIG, conf_dict)
+            for key, values in self.PRINTER_CONFIG.items():
+                if 'alias' in values:
+                    values['alias'] = [
+                        i for i in values['alias']
+                        if i not in self.PRINTER_CONFIG
+                    ]
+                    if not values['alias']:
+                        del values['alias']
         # process "same-as" definintion
         for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
             if "same-as" in printer_data:
@@ -2035,7 +2059,7 @@ if __name__ == "__main__":
         '--address',
         dest='hostname',
         action="store",
-        help='Printer host name or IP address. (Example: -m 192.168.1.87)',
+        help='Printer host name or IP address. (Example: -a 192.168.1.87)',
         required=True)
     parser.add_argument(
         '-p',
@@ -2174,6 +2198,24 @@ if __name__ == "__main__":
         nargs=1,
         metavar='SIMDATA_FILE'
     )
+    parser.add_argument(
+        '-P',
+        "--pickle",
+        dest='pickle',
+        type=argparse.FileType('rb'),
+        help="Load a pickle configuration archive",
+        default=None,
+        nargs=1,
+        metavar='PICKLE_FILE'
+    )
+    parser.add_argument(
+        '-O',
+        "--override",
+        dest='override',
+        action='store_true',
+        help="Override the default configuration with the one of the pickle "
+            "file instead of merging",
+    )
     args = parser.parse_args()
 
     logging_level = logging.WARNING
@@ -2198,7 +2240,13 @@ if __name__ == "__main__":
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    conf_dict = {}
+    if args.pickle:
+        conf_dict = pickle.load(args.pickle[0])
+
     printer = EpsonPrinter(
+        conf_dict=conf_dict,
+        replace_conf=args.override,
         model=args.model,
         hostname=args.hostname,
         port=args.port,
