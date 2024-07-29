@@ -55,19 +55,26 @@ It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
 ## Creating an executable for the GUI
 
+Alternatively to run the GUI via `python ui.py`, it is possible to build an executable file via *pyinstaller*.
+
 Install *pyinstaller* with `pip install pyinstaller`.
 
-To create an executable file named *epson_print_conf.exe* from *ui.py*, run the following:
+The *epson_print_conf.spec* file helps building the executable program. Run it with the following command.
+
+```bash
+pip install pyinstaller  # if not yet installed
+pyinstaller epson_print_conf.spec -- --default
+```
+
+Then run the *epson_print_conf.exe* file created in the *dist/* folder, which has the same options of `ui.py`.
+
+An alternative way to create the executable file named *epson_print_conf.exe* from *ui.py* without using *epson_print_conf.spec* is the following:
 
 ```bash
 pyinstaller --onefile ui.py --name epson_print_conf --hidden-import babel.numbers --windowed
 ```
 
-Then run the *epson_print_conf.exe* file created in the *dist/* folder, which has the same options of `ui.py`.
-
-The package includes another file named *gui.py*, which also automatically loads the configuration file *printer_conf.pickle*, merging it with the program configuration. In this case, the *epson_print_conf.spec* file helps creating an executable with *pyinstaller*.
-
-Run the following to build the executable:
+A file named *gui.py* is also included (similar to *ui.py*), which automatically loads a previously created configuration file that has to be named *printer_conf.pickle*, merging it with the program configuration. To build the executable program with this file instead of the default *ui.py*, run the following command:
 
 ```bash
 pip install pyinstaller  # if not yet installed
@@ -76,7 +83,7 @@ python3 parse_devices.py -a 192.168.178.29 -s XP-205 -p printer_conf.pickle  # u
 pyinstaller epson_print_conf.spec
 ```
 
-Run the *epson_print_conf.exe* file created in the *dist/* folder. This executable program does not have options, embeds the *printer_conf.pickle* file and starts with the default IP address and printer model defined in the build phase.
+When the build operation is completed, you can run the *epson_print_conf.exe* file created in the *dist/* folder. This executable program does not have options, embeds the *printer_conf.pickle* file and starts with the default IP address and printer model defined in the build phase.
 
 ## Usage
 

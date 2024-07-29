@@ -1,0 +1,51 @@
+name: Build Workflow
+
+on:
+  push:
+#    branches: master
+
+jobs:
+  build-windows:
+    runs-on: windows-2019
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Install Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.10'
+          architecture: 'x64'
+      - name: Install requirements
+        run: |
+          pip install -r requirements.txt
+      - name: Run PyInstaller
+        run: |
+          python -m PyInstaller epson_print_conf.spec -- --default
+      - uses: actions/upload-artifact@v2
+        with:
+          name: epson_print_conf
+          path: dist\epson_print_conf.exe
+
+      - name: create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.head_commit.message }}
+          release_name: ${{ github.event.head_commit.message }}
+          overwrite: true
+          body: |
+            Release v2.1.0
+          draft: false
+          prerelease: false
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{steps.create_release.outputs.upload_url}}
+          asset_path: dist\epson_print_conf.exe
+          asset_name: epson_print_conf.exe
+          asset_content_type: application/zip
