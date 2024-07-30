@@ -166,7 +166,7 @@ Note: resetting the ink waste counter is just removing a warning; not replacing 
 
 ## Creating an executable for the GUI
 
-Alternatively to run the GUI via `python ui.py`, it is possible to build an executable file via *pyinstaller*.
+Alternatively to running the GUI via `python ui.py`, it is possible to build an executable file via *pyinstaller*.
 
 Install *pyinstaller* with `pip install pyinstaller`.
 
