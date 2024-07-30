@@ -36,14 +36,15 @@ exe = EXE(
     a.datas,
     [],
     name='epson_print_conf',
-    debug=False,
+    debug=False,  # Setting to True gives you progress messages from the executable (for console=False there will be annoying MessageBoxes on Windows).
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    # console=False,
-    disable_windowed_traceback=False,
+    # console=False,  # On Windows or Mac OS governs whether to use the console executable or the windowed executable. Always True on Linux/Unix (always console executable - it does not matter there).
+    disable_windowed_traceback=False,  # Disable traceback dump of unhandled exception in windowed (noconsole) mode (Windows and macOS only)
+    hide_console='hide-early'. # Windows only. In console-enabled executable, hide or minimize the console window ('hide-early', 'minimize-early', 'hide-late', 'minimize-late')
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
