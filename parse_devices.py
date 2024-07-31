@@ -7,6 +7,11 @@ import textwrap
 
 from ui import get_printer_models
 
+WASTE_LABELS = [
+    "main_waste", "borderless_waste", "third_waste", "fourth_waste",
+    "fifth_waste", "sixth_waste"
+]
+
 def to_ranges(iterable):
     iterable = sorted(set(iterable))
     for key, group in itertools.groupby(enumerate(iterable),
@@ -46,10 +51,6 @@ def traverse_data(element, depth=0):
 
 
 def generate_config(config, traverse, add_fatal_errors, full, printer_model):
-    waste_string = [
-        "main_waste", "borderless_waste", "third_waste", "fourth_waste",
-        "fifth_waste", "sixth_waste"
-    ]
     irc_pattern = [
         r'Ink replacement counter %-% (\w+) % \((\w+)\)'
     ]
@@ -183,7 +184,7 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
                                             waste["oids"] += text_to_bytes(counter.text)
                                         else:
                                             waste["oids"] = text_to_bytes(counter.text)
-                                    chars[waste_string[count]] = waste
+                                    chars[WASTE_LABELS[count]] = waste
                                     count += 1
                     if item.tag == "serial":
                         chars["serial_number"] = text_to_bytes(item.text)
@@ -223,8 +224,10 @@ def normalize_config(
         remove_invalid,
         expand_names,
         add_alias,
+        aggregate_alias,
         add_same_as,
     ):
+    logging.info("Number of configuration entries before removing invalid ones: %s", len(config))
     # Remove printers without write_key or without read_key
     if remove_invalid:
         for base_key, base_items in config.copy().items():
@@ -236,6 +239,7 @@ def normalize_config(
                 continue
 
     # Replace original names with converted names and add printers for all optional names
+    logging.info("Number of configuration entries before adding optional names: %s", len(config))
     if expand_names:
         for key, items in config.copy().items():
             printer_list = get_printer_models(key)
@@ -247,6 +251,7 @@ def normalize_config(
                 config[i] = items
 
     # Add aliases for same printer with different names and remove aliased printers
+    logging.info("Number of configuration entries before removing aliases: %s", len(config))
     if add_alias:
         for base_key, base_items in config.copy().items():
             found = False
@@ -263,9 +268,9 @@ def normalize_config(
                             config[base_key]["alias"].append(i)
                     del config[key]
 
-    # Add "same-as" for almost same printer (IGNORED_KEYS) with different names
-    if add_same_as:
-        IGNORED_KEYS = ['write_key', 'read_key', 'alias', 'main_waste', 'borderless_waste']
+    # Aggregate aliases
+    logging.info("Number of configuration entries before aggregating aliases: %s", len(config))
+    if aggregate_alias:
         for base_key, base_items in config.copy().items():
             found = False
             for key, items in config.copy().items():
@@ -273,27 +278,59 @@ def normalize_config(
                     if base_key == key and base_key in config:
                         found = True
                     continue
-                if base_key != key:
-                    if equal_dicts(base_items, items, IGNORED_KEYS):  # everything but the IGNORED_KEYS is the same
-                        # Get the IGNORED_KEYS from the printer
-                        write_key = base_items['write_key']
-                        read_key = base_items['read_key']
-                        alias = base_items['alias'] if 'alias' in base_items else []
-                        main_waste = base_items['main_waste'] if 'main_waste' in base_items else []
-                        borderless_waste = base_items['borderless_waste'] if 'borderless_waste' in base_items else []
-                        # Rebuild the printer with only the IGNORED_KEYS, then add the 'same-as'
-                        del config[base_key]
-                        config[base_key] = {}
-                        config[base_key]['write_key'] = write_key
-                        config[base_key]['read_key'] = read_key
-                        if alias:
-                            config[base_key]['alias'] = alias
-                        if main_waste:
-                            config[base_key]['main_waste'] = main_waste
-                        if borderless_waste:
-                            config[base_key]['borderless_waste'] = borderless_waste
-                        config[base_key]['same-as'] = key
+                if base_key != key and equal_dicts(base_items, items, ["alias"]):  # everything but the alias is the same
+                    base_items["alias"] = sorted(list(set(
+                            (base_items["alias"] if "alias" in base_items else [])
+                            + (items["alias"] if "alias" in items else [])
+                            + [key]
+                    )))
+                    del config[key]
 
+    # Add "same-as" for almost same printer (IGNORED_KEYS) with different names
+    if add_same_as:
+        IGNORED_KEYS = [  # 'alias' must always be present
+            ['write_key', 'read_key', 'alias'],
+            ['write_key', 'read_key', 'alias'] + WASTE_LABELS,
+        ]
+        for ignored_keys in IGNORED_KEYS:
+            same_as_counter = 0
+            for base_key, base_items in config.copy().items():
+                found = False
+                for key, items in config.copy().items():
+                    if not found:
+                        if base_key == key and base_key in config:
+                            found = True
+                        continue
+                    if base_key != key and 'same-as' not in base_key:
+                        if equal_dicts(base_items, items, ignored_keys):  # everything but the ignored keys is the same
+                            # Rebuild the printer with only the ignored keys, then add the 'same-as'
+                            config[base_key] = {}
+                            for i in ignored_keys:
+                                if i in base_items:
+                                    config[base_key][i] = base_items[i]
+                            config[base_key]['same-as'] = key
+                            same_as_counter += 1
+            logging.info("Number of added 'same-as' entries with %s: %s", ignored_keys, same_as_counter)
+
+    # Aggregate aliases
+    logging.info("Number of configuration entries before aggregating aliases: %s", len(config))
+    if aggregate_alias:
+        for base_key, base_items in config.copy().items():
+            found = False
+            for key, items in config.copy().items():
+                if not found:
+                    if base_key == key and base_key in config:
+                        found = True
+                    continue
+                if base_key != key and equal_dicts(base_items, items, ["alias"]):  # everything but the alias is the same
+                    base_items["alias"] = sorted(list(set(
+                            (base_items["alias"] if "alias" in base_items else [])
+                            + (items["alias"] if "alias" in items else [])
+                            + [key]
+                    )))
+                    del config[key]
+
+    logging.info("Number of obtained configuration entries: %s", len(config))
     return config
 
 def equal_dicts(a, b, ignore_keys):
@@ -422,6 +459,13 @@ if __name__ == "__main__":
         help='Do not add aliases for same printer with different names and remove aliased printers'
     )
     parser.add_argument(
+        '-G',
+        '--no_aggregate_alias',
+        dest='no_aggregate_alias',
+        action='store_true',
+        help='Do not aggregate aliases of printers with same configuration'
+    )
+    parser.add_argument(
         '-S',
         '--no_same_as',
         dest='no_same_as',
@@ -456,8 +500,10 @@ if __name__ == "__main__":
         remove_invalid=not args.keep_invalid,
         expand_names=not args.keep_names,
         add_alias=not args.no_alias,
+        aggregate_alias=not args.no_aggregate_alias,
         add_same_as=not args.no_same_as,
     )
+
     if args.default_model:
         if "internal_data" not in normalized_config:
             normalized_config["internal_data"] = {}
@@ -469,6 +515,10 @@ if __name__ == "__main__":
     if args.pickle:
         pickle.dump(normalized_config, args.pickle[0]) # serialize the list
         args.pickle[0].close()
+
+        from epson_print_conf import EpsonPrinter
+        ep = EpsonPrinter(conf_dict=normalized_config, replace_conf=True)
+        logging.info("Number of expanded configuration entries: %s", len(ep.PRINTER_CONFIG))
         quit()
 
     try:

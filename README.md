@@ -185,7 +185,7 @@ An alternative way to create the executable file named *epson_print_conf.exe* fr
 pyinstaller --onefile ui.py --name epson_print_conf --hidden-import babel.numbers --windowed
 ```
 
-A file named *gui.py* is also included (similar to *ui.py*), which automatically loads a previously created configuration file that has to be named *printer_conf.pickle*, merging it with the program configuration. To build the executable program with this file instead of the default *ui.py*, run the following command:
+A file named *gui.py* is also included (similar to *ui.py*), which automatically loads a previously created configuration file that has to be named *printer_conf.pickle*, merging it with the program configuration. (See below the *parse_devices.py* utility.) To build the executable program with this file instead of the default *ui.py*, run the following command:
 
 ```bash
 pip install pyinstaller  # if not yet installed
@@ -200,7 +200,7 @@ When the build operation is completed, you can run the *epson_print_conf.exe* fi
 
 ### parse_devices.py
 
-Within an [issue](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which reports an extensive XML database of Epson model features.
+Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which includes an extensive XML database of Epson model features.
 
 The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use.
 
@@ -211,7 +211,7 @@ curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25b
 python3 parse_devices.py -i -m XP-205
 ```
 
-After generating the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary. Alternatively, the program is able to create a *pickle* configuration file, which the other programs can load.
+After generating the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary. Alternatively, the program is able to create a *pickle* configuration file (check the `-p` lowercase option), which the other programs can load (with the `-P` uppercase option and in addition with the optional `-O` flag).
 
 The `-m` option is optional and is used to filter the printer model in scope. If the produced output is not referred to the target model, use part of the model name as a filter (e.g., only the digits, like `parse_devices.py -i -m 315`) and select the appropriate model from the output.
 
@@ -264,9 +264,9 @@ Output example:
 ### Other utilities
 
 ```
-import epson_print_conf
+from epson_print_conf import EpsonPrinter
 import pprint
-printer = epson_print_conf.EpsonPrinter()
+printer = EpsonPrinter()
 
 # Decode write_key:
 printer.reverse_caesar(bytes.fromhex("48 62 7B 62 6F 6A 62 2B"))  # last 8 bytes
@@ -288,12 +288,12 @@ ink_level = int("".join(reversed(byte_sequence.split())), 16)
 waste_percent = round(ink_level / divider, 2)
 
 # Print the read key sequence in byte and hex formats:
-printer = epson_print_conf.EpsonPrinter(model="ET-2700")
+printer = EpsonPrinter(model="ET-2700")
 '.'.join(str(x) for x in printer.parm['read_key'])
 " ".join('{0:02x}'.format(x) for x in printer.parm['read_key'])
 
 # Print the write key sequence in byte and hex formats:
-printer = epson_print_conf.EpsonPrinter(model="ET-2700")
+printer = EpsonPrinter(model="ET-2700")
 printer.caesar(printer.parm['write_key'])
 printer.caesar(printer.parm['write_key'], hex=True).upper()
 
@@ -311,9 +311,9 @@ for key, value in printer.parm["raw_waste_reset"].items():
 Generic query of the status of the printer (regardless of the model):
 
 ```
-import epson_print_conf
+from epson_print_conf import EpsonPrinter
 import pprint
-printer = epson_print_conf.EpsonPrinter(hostname="192.168.1.87")
+printer = EpsonPrinter(hostname="192.168.1.87")
 pprint.pprint(printer.status_parser(printer.snmp_mib("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
 ```
 
@@ -393,12 +393,12 @@ ValueError
 ### Sample
 
 ```python
-import epson_print_conf
+from epson_print_conf import EpsonPrinter
 import logging
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")  # if logging is needed
 
-printer = epson_print_conf.EpsonPrinter(
+printer = EpsonPrinter(
     model="XP-205", hostname="192.168.1.87")
 
 if not printer.parm:
