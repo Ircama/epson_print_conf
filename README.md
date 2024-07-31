@@ -218,8 +218,8 @@ The `-m` option is optional and is used to filter the printer model in scope. If
 Program usage:
 
 ```
-parse_devices.py [-h] [-m PRINTER_MODEL] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE] [-s DEFAULT_MODEL] -a HOSTNAME [-p PICKLE_FILE] [-I]
-                        [-N] [-A] [-S]
+parse_devices.py [-h] [-m PRINTER_MODEL] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE]
+                        [-s DEFAULT_MODEL] [-a HOSTNAME] [-p PICKLE_FILE] [-I] [-N] [-A] [-S]
 
 optional arguments:
   -h, --help            show this help message and exit

@@ -170,20 +170,19 @@ def generate_config(config, traverse, add_fatal_errors, full, printer_model):
                                     for ncounter in counter:
                                         if ncounter.tag == "entry":
                                             if "oids" in waste:
-                                                waste["oids"] += text_to_bytes(
-                                                    ncounter.text
-                                                )
+                                                waste["oids"] += text_to_bytes(ncounter.text)
                                             else:
-                                                waste["oids"] = text_to_bytes(
-                                                    ncounter.text
-                                                )
+                                                waste["oids"] = text_to_bytes(ncounter.text)
                                         if ncounter.tag == "max":
-                                            waste["divider"] = (
-                                                int(ncounter.text) / 100
-                                            )
+                                            waste["divider"] = int(ncounter.text) / 100
                                         if full:
                                             for filter in ncounter:
                                                 waste["filter"] = filter.text
+                                    if counter.text:
+                                        if "oids" in waste:
+                                            waste["oids"] += text_to_bytes(counter.text)
+                                        else:
+                                            waste["oids"] = text_to_bytes(counter.text)
                                     chars[waste_string[count]] = waste
                                     count += 1
                     if item.tag == "serial":
@@ -389,8 +388,7 @@ if __name__ == "__main__":
         '--address',
         dest='hostname',
         action="store",
-        help='Default printer host name or IP address. (Example: -a 192.168.1.87)',
-        required=True
+        help='Default printer host name or IP address. (Example: -a 192.168.1.87)'
     )
     parser.add_argument(
         '-p',
