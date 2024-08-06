@@ -300,6 +300,52 @@ class EpsonPrinter:
                 "Maintenance required level of 2nd waste ink counter": [55],
             },
         },
+        "ET-2810": {
+            "read_key": [74, 54],
+            "write_key": b"Maribaya",
+            "main_waste": {"oids": [48, 49, 47], "divider": 63.46},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 34.16},
+            "third_waste": {"oids": [252, 253, 254], "divider": 13.0},
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
+                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94
+            },
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+                "Manual cleaning counter": [90],
+                "Timer cleaning counter": [89],
+                "Power cleaning counter": [91],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [776, 775, 774, 773],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+            },
+            "serial_number": range(1604, 1614),
+            "alias": ["ET-2811", "ET-2813", "ET-2815"],
+        },
+        "ET-2812": {
+            "read_key": [74, 54],
+            "write_key": b"Maribaya",
+            "main_waste": {"oids": [48, 49, 47], "divider": 63.46},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 34.16},
+            "third_waste": {"oids": [252, 253, 254], "divider": 13.0},
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
+                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94
+            },
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+                "Manual cleaning counter": [90],
+                "Timer cleaning counter": [89],
+                "Power cleaning counter": [91],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [776, 775, 774, 773],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+            },
+            "serial_number": range(1604, 1614),
+            "alias": ["ET-2814", "ET-2816", "ET-2818"],
+        },
         "L3160": {
             "read_key": [151, 7],
             "write_key": b'Maribaya',
@@ -325,6 +371,7 @@ class EpsonPrinter:
             "main_waste": {"oids": [24, 25, 30], "divider": 62.07},
             "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94},
             "stats": {
+                "Maintenance required level of waste ink counter": [46],
                 "Manual cleaning counter": [147],
                 "Timer cleaning counter": [149],
                 "Power cleaning counter": [148],
@@ -548,7 +595,7 @@ class EpsonPrinter:
         "ET-2550": {  # Epson EcoTank ET-2550
             "read_key": [0x44, 0x01],
             "write_key": b'Gazania*',
-            "main_waste": {"oids": [24, 25], "divider": 62.06},
+            "main_waste": {"oids": [24, 25, 30], "divider": 62.06},
             "serial_number": range(192, 202),
             "stats": {
                 "Maintenance required level of waste ink counter": [46]
@@ -561,17 +608,18 @@ class EpsonPrinter:
             # uncompleted
         },
         "ET-2700": {  # Epson EcoTank ET-2700 Series
+            "alias": ["ET-2701", "ET-2703", "ET-2705"],
             "read_key": [73, 8],
             "write_key": b'Arantifo',
             "serial_number": range(1604, 1614),
-            "main_waste": {"oids": [48, 49], "divider": 109.125},
-            "second_waste": {"oids": [50, 51], "divider": 16.31},
+            "main_waste": {"oids": [48, 49, 47], "divider": 109.13},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 16.31},
             "stats": {
                 "Maintenance required level of 1st waste ink counter": [54],
                 "Maintenance required level of 2nd waste ink counter": [55],
                 "First TI received time": [9, 8],
                 "Total print pass counter": [133, 132, 131, 130],
-                "Total print page counter": [776, 775, 774, 773],
+                "Total print page counter - rear feed": [755, 754, 753, 752],
                 "Total scan counter": [1843, 1842, 1841, 1840],
                 "Ink replacement counter - Black": [554],
                 "Ink replacement counter - Cyan": [555],
@@ -1685,26 +1733,34 @@ class EpsonPrinter:
                         j.rjust(4), i[j].rjust(4), value.rjust(4)
                     )
         try:
+            missing = "Not available"
             return [
                 {
                     k: v for k, v in 
                         {
-                            # items which must exist
-                            "ink_color": self.ink_color(int(i['IC1'], 16)),
-                            "ink_quantity": int(i['IQT'], 16),
+                            "ink_color": self.ink_color(int(i['IC1'], 16))
+                                if 'IC1' in i else missing,
+                            "ink_quantity": int(i['IQT'], 16)
+                                if 'IQT' in i else missing,
                             "production_year": int(i['PDY'], 16) + (
-                                1900 if int(i['PDY'], 16) > 80 else 2000),
-                            "production_month": int(i['PDM'], 16),
-                            # items which can be excluded
-                            "data": i.get('SID').strip(),
-                            "manufacturer": i.get('LOG').strip(),
+                                1900 if int(i['PDY'], 16) > 80 else 2000)
+                                if 'PDY' in i else missing,
+                            "production_month": int(i['PDM'], 16)
+                                if 'PDM' in i else missing,
+                            "data": i.get('SID').strip()
+                                if 'SID' in i else missing,
+                            "manufacturer": i.get('LOG').strip()
+                                if 'LOG' in i else missing,
                         }.items()
                     if v  # exclude items without value
+                } if 'II' in i and i['II'] == '03' else {
+                    "Ink Information": f"Unknown {i['II']}"
+                        if 'II' in i and i['II'] != '00' else missing
                 }
                 for i in cartridges
             ]
         except Exception as e:
-            logging.error("Cartridge value error: %s", e)
+            logging.error("Cartridge value error: %s.\n%s", e, cartridges)
             return None
 
     def dump_eeprom(self, start: int = 0, end: int = 0xFF):
@@ -2329,13 +2385,13 @@ if __name__ == "__main__":
                     args.query[0] in printer.parm["stats"]):
                 ret = printer.get_stats(args.query[0])
                 if ret:
-                    pprint(ret)
+                    pprint(ret, width=100, compact=True)
                 else:
                     print("No information returned. Check printer definition.")
             elif args.query[0] in printer.MIB_INFO.keys():
                 ret = printer.get_snmp_info(args.query[0])
                 if ret:
-                    pprint(ret)
+                    pprint(ret, width=100, compact=True)
                 else:
                     print("No information returned. Check printer definition.")
             else:
@@ -2346,7 +2402,7 @@ if __name__ == "__main__":
                 if method in printer.list_methods:
                     ret = printer.__getattribute__(method)()
                     if ret:
-                        pprint(ret)
+                        pprint(ret, width=100, compact=True)
                     else:
                         print(
                             "No information returned."
@@ -2412,7 +2468,7 @@ if __name__ == "__main__":
         if args.info or not print_opt:
             ret = printer.stats()
             if ret:
-                pprint(ret)
+                pprint(ret, width=100, compact=True)
             else:
                 print("No information returned. Check printer definition.")
     except TimeoutError as e:

@@ -4,7 +4,7 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 
 ## Features
 
-- Access the Epson printer via SNMP (TCP/IP; printer connected over Wi-Fi)
+- Interface Epson printers via SNMP (TCP/IP, with printers connected over Wi-Fi)
 - Print the advanced status of the printer, with the possibility to restrict the query to specific information
 - Other inspection features:
 	- Reset ink waste
@@ -12,12 +12,12 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 	- Other admin stuffs and debug options
 	- Read and write EEPROM addresses
 	- Dump a set of EEPROM addresses
-- both a GUI and a command line tool
+- Both a GUI and a command line tool
 - Python API interface
 
-The GUI has an autodiscovery function which finds the printer IP addresses and their model names. The GUI can be used to get the printer status, to set the "Power-off timer", to set the "TI Received Time" and to reset the ink waste counter.
+The GUI has an autodiscovery function which finds the printer IP addresses and their model names; it can be used to get the printer status, to set the "Power-off timer", to set the "TI Received Time" and to reset the ink waste counter.
 
-The software provides a configurable printer dictionary, which can be easily extended. There is also a tool to import an extensive Epson printer configuration DB.
+The software provides a configurable printer dictionary, which can be easily extended. There is also a tool to import and convert an extensive Epson printer configuration DB.
 
 ## Installation
 
@@ -218,8 +218,8 @@ The `-m` option is optional and is used to filter the printer model in scope. If
 Program usage:
 
 ```
-parse_devices.py [-h] [-m PRINTER_MODEL] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE]
-                        [-s DEFAULT_MODEL] [-a HOSTNAME] [-p PICKLE_FILE] [-I] [-N] [-A] [-S]
+parse_devices.py [-h] [-m PRINTER_MODEL] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE] [-s DEFAULT_MODEL] [-a HOSTNAME] [-p PICKLE_FILE] [-I]
+                        [-N] [-A] [-G] [-S] [-M]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -244,7 +244,10 @@ optional arguments:
   -I, --keep_invalid    Do not remove printers without write_key or without read_key
   -N, --keep_names      Do not replace original names with converted names and add printers for all optional names
   -A, --no_alias        Do not add aliases for same printer with different names and remove aliased printers
+  -G, --no_aggregate_alias
+                        Do not aggregate aliases of printers with same configuration
   -S, --no_same_as      Do not add "same-as" for similar printers with different names
+  -M, --no_maint_level  Do not add "Maintenance required levelas" in "stats"
 
 Generate printer configuration from devices.xml
 ```

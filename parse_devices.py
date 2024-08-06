@@ -1,4 +1,5 @@
 import sys
+import os
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -225,6 +226,7 @@ def normalize_config(
         expand_names,
         add_alias,
         aggregate_alias,
+        maint_level,
         add_same_as,
     ):
     logging.info("Number of configuration entries before removing invalid ones: %s", len(config))
@@ -330,15 +332,37 @@ def normalize_config(
                     )))
                     del config[key]
 
+    if maint_level:
+        for key, items in config.copy().items():
+            if "raw_waste_reset" in items:
+                n = 1
+                for k, v in items["raw_waste_reset"].items():
+                    if v == 94:
+                        if "stats" not in items:
+                            items["stats"] = {}
+                        m_key = f"Maintenance required level of {ordinal(n)} waste ink counter"
+                        if m_key in items["stats"]:
+                            print("ERROR key", key, m_key)
+                            quit()
+                        items["stats"][m_key] = [k]
+                        n += 1
+
     logging.info("Number of obtained configuration entries: %s", len(config))
     return config
+
+def ordinal(n: int):
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    else:
+        suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+    return str(n) + suffix
 
 def equal_dicts(a, b, ignore_keys):
     ka = set(a).difference(ignore_keys)
     kb = set(b).difference(ignore_keys)
     return ka == kb and all(a[k] == b[k] for k in ka)
 
-if __name__ == "__main__":
+def main():
     import argparse
     import pickle
 
@@ -472,6 +496,13 @@ if __name__ == "__main__":
         action='store_true',
         help='Do not add "same-as" for similar printers with different names'
     )
+    parser.add_argument(
+        '-M',
+        '--no_maint_level',
+        dest='no_maint_level',
+        action='store_true',
+        help='Do not add "Maintenance required levelas" in "stats"'
+    )
     args = parser.parse_args()
 
     if args.debug:
@@ -501,6 +532,7 @@ if __name__ == "__main__":
         expand_names=not args.keep_names,
         add_alias=not args.no_alias,
         aggregate_alias=not args.no_aggregate_alias,
+        maint_level=not args.no_maint_level,
         add_same_as=not args.no_same_as,
     )
 
@@ -532,3 +564,13 @@ if __name__ == "__main__":
     if args.indent:
         dict_str = textwrap.indent(dict_str, '    ')
     print(dict_str)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print('\nInterrupted.')
+        try:
+            sys.exit(130)
+        except SystemExit:
+            os._exit(130)
