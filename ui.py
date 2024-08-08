@@ -128,8 +128,8 @@ class EpsonPrinterUI(tk.Tk):
     def __init__(self, conf_dict={}, replace_conf=False):
         super().__init__()
         self.title("Epson Printer Configuration - v" + VERSION)
-        self.geometry("450x500")
-        self.minsize(450, 500)
+        self.geometry("500x500")
+        self.minsize(500, 500)
         self.printer_scanner = PrinterScanner()
         self.ip_list = []
         self.ip_list_cycle = None
@@ -654,8 +654,11 @@ class EpsonPrinterUI(tk.Tk):
         self.show_status_text_view()
         model = self.model_var.get()
         ip_address = self.ip_var.get()
-        if not model or not self._is_valid_ip(ip_address):
-            self.status_text.insert(tk.END, NO_CONF_ERROR)
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(
+                tk.END,
+                "[ERROR] Please enter a valid IP address, or press 'Detect Printers'.\n"
+            )
             self.config(cursor="")
             self.update_idletasks()
             return
