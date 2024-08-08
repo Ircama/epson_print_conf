@@ -15,7 +15,7 @@ A range of features are offered for both end-users and developers, making it eas
 - __Advanced Maintenance Functions__:
     - Reset the ink waste counter.
 
-    The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or replacement is programmed.
+      The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or replacement is programmed.
     - Adjust the power-off timer for more accurate energy efficiency.
     - Access various administrative and debugging options.
     - Read and write to EEPROM addresses for advanced configurations.
