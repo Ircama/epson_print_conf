@@ -4,16 +4,17 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 
 ## Product Overview
 
-The *Epson Printer Configuration Tool* simplifies the management of Epson printers connected via Wi-Fi over the SNMP protocol (TCP/IP, not USB).
+The *Epson Printer Configuration Tool* simplifies the management of Epson printers connected via Wi-Fi over the SNMP protocol.
 
 A range of features are offered for both end-users and developers, making it easier to administer and maintain Epson printers.
 
 ## Key Features
 
-- __SNMP Interface__: Seamlessly connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections.
+- __SNMP Interface__: Seamlessly connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections (not USB).
 - __Detailed Status Reporting__: Produce a comprehensive printer status report (with options to focus on specific details).
 - __Advanced Maintenance Functions__:
     - Reset the ink waste counter.
+
     The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or replacement is programmed.
     - Adjust the power-off timer for more accurate energy efficiency.
     - Access various administrative and debugging options.
@@ -30,6 +31,7 @@ The GUI can automatically find and display printer IP addresses and model names,
 - Set the power-off timer.
 - Reset the ink waste counter.
 - Configure the _First TI Received Time_.
+
   The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
 
 The software provides a configurable printer dictionary, which can be easily extended. In addition, a tool allows importing and converting an extensive Epson printer configuration DB.
