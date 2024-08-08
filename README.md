@@ -15,7 +15,7 @@ A range of features are offered for both end-users and developers, making it eas
 - __Advanced Maintenance Functions__:
     - Reset the ink waste counter.
 
-      The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or replacement is programmed.
+      The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or tank replacement is programmed.
     - Adjust the power-off timer for more accurate energy efficiency.
     - Access various administrative and debugging options.
     - Read and write to EEPROM addresses for advanced configurations.
@@ -35,6 +35,8 @@ The GUI can automatically find and display printer IP addresses and model names,
   The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
 
 The software provides a configurable printer dictionary, which can be easily extended. In addition, a tool allows importing and converting an extensive Epson printer configuration DB.
+
+Note: resetting the ink waste counter is just removing a lock; not replacing the tank will reduce the print quality and make the ink spill.
 
 ## Installation
 
@@ -186,8 +188,6 @@ python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -W 173:1,172:0xde
 # Read EEPROM address 173 and EEPROM address 172:
 python3 epson_print_conf.py -m XP-205 -a 192.168.1.87 -R 173,172
 ```
-
-Note: resetting the ink waste counter is just removing a warning; not replacing the tank will make the ink spill.
 
 ## Creating an executable asset for the GUI
 
