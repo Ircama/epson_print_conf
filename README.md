@@ -293,7 +293,7 @@ Output example:
 
 ### Other utilities
 
-```
+```python
 from epson_print_conf import EpsonPrinter
 import pprint
 printer = EpsonPrinter()
@@ -340,7 +340,7 @@ for key, value in printer.parm["raw_waste_reset"].items():
 
 Generic query of the status of the printer (regardless of the model):
 
-```
+```python
 from epson_print_conf import EpsonPrinter
 import pprint
 printer = EpsonPrinter(hostname="192.168.1.87")
