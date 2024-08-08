@@ -287,7 +287,7 @@ The output is better formatted when also installing [black](https://pypi.org/pro
 
 Output example:
 
-```json
+```
 [{'ip': '192.168.178.29', 'hostname': 'EPSONDEFD03.fritz.box', 'name': 'EPSON XP-205 207 Series'}]
 ```
 
