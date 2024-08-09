@@ -1,3 +1,4 @@
+import sys
 import re
 import threading
 import ipaddress
@@ -122,6 +123,19 @@ class ToolTip:
         if current_line:
             lines.append(" ".join(current_line))
         return "\n".join(lines)
+
+
+class BugFixedDateEntry(DateEntry):
+    """
+    Fixes a bug on the calendar that does not accept mouse selection with Linux
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def drop_down(self):
+        super().drop_down()
+        if self._top_cal is not None and not self._calendar.winfo_ismapped():
+            self._top_cal.lift()
 
 
 class EpsonPrinterUI(tk.Tk):
@@ -287,13 +301,13 @@ class EpsonPrinterUI(tk.Tk):
         ti_received_frame.columnconfigure(2, weight=0)  # Button column on the right
 
         # TI Received Time Calendar Widget
-        self.date_entry = DateEntry(
+        self.date_entry = BugFixedDateEntry(
             ti_received_frame, date_pattern="yyyy-mm-dd"
         )
         self.date_entry.grid(
             row=0, column=1, padx=PADX, pady=PADY, sticky=(tk.W, tk.E)
         )
-        self.date_entry.delete(0, "end")
+        self.date_entry.delete(0, "end")  # blank the field removing the current date
         ToolTip(self.date_entry, "Enter a valid date with format YYYY-MM-DD.")
 
         # TI Received Time Buttons
@@ -467,6 +481,14 @@ class EpsonPrinterUI(tk.Tk):
             model=model,
             hostname=ip_address
         )
+        if not printer.parm.get("stats", {}).get("Power off timer"):
+            self.status_text.insert(
+                tk.END,
+                f"[ERROR]: Missing 'Power off timer' in configuration\n",
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         try:
             po_timer = printer.stats()["stats"]["Power off timer"]
             self.status_text.insert(
@@ -474,10 +496,7 @@ class EpsonPrinterUI(tk.Tk):
             )
             self.po_timer_var.set(po_timer)
         except Exception as e:
-            self.status_text.insert(
-                tk.END,
-                f"[ERROR] {e}: Missing 'Power off timer' in configuration\n",
-            )
+            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
         finally:
             self.config(cursor="")
             self.update_idletasks()
@@ -504,35 +523,39 @@ class EpsonPrinterUI(tk.Tk):
             model=model,
             hostname=ip_address
         )
-        try:
-            po_timer = printer.stats()["stats"]["Power off timer"]
-            po_timer = self.po_timer_var.get()
-            self.config(cursor="")
-            self.update_idletasks()
-            if not po_timer.isnumeric():
-                self.status_text.insert(
-                    tk.END, "[ERROR] Please Use a valid value for minutes.\n"
-                )
-                return
-            self.status_text.insert(
-                tk.END, f"[INFO] Set Power off timer: {po_timer} minutes.\n"
-            )
-            response = messagebox.askyesno(
-                "Confirm Action", "Are you sure you want to proceed?"
-            )
-            if response:
-                printer.write_poweroff_timer(int(po_timer))
-            else:
-                self.status_text.insert(
-                    tk.END, f"[WARNING] Set Power off timer aborted.\n"
-                )
-        except Exception as e:
-            self.config(cursor="")
-            self.update_idletasks()
+        if not printer.parm.get("stats", {}).get("Power off timer"):
             self.status_text.insert(
                 tk.END,
-                f"[ERROR] {e}: Cannot set 'Power off timer'; missing configuration\n",
+                f"[ERROR]: Missing 'Power off timer' in configuration\n",
             )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        po_timer = self.po_timer_var.get()
+        self.config(cursor="")
+        self.update_idletasks()
+        if not po_timer.isnumeric():
+            self.status_text.insert(
+                tk.END, "[ERROR] Please Use a valid value for minutes.\n"
+            )
+            return
+        self.status_text.insert(
+            tk.END, f"[INFO] Set Power off timer: {po_timer} minutes.\n"
+        )
+        response = messagebox.askyesno(
+            "Confirm Action", "Are you sure you want to proceed?"
+        )
+        if response:
+            try:
+                printer.write_poweroff_timer(int(po_timer))
+            except Exception as e:
+                self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+        else:
+            self.status_text.insert(
+                tk.END, f"[WARNING] Set Power off timer aborted.\n"
+            )
+        self.config(cursor="")
+        self.update_idletasks()
 
     def get_ti_date(self, cursor=True):
         if cursor:
@@ -556,6 +579,14 @@ class EpsonPrinterUI(tk.Tk):
             model=model,
             hostname=ip_address
         )
+        if not printer.parm.get("stats", {}).get("First TI received time"):
+            self.status_text.insert(
+                tk.END,
+                f"[ERROR]: Missing 'First TI received time' in configuration\n",
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         try:
             date_string = datetime.strptime(
                 printer.stats()["stats"]["First TI received time"], "%d %b %Y"
@@ -566,10 +597,7 @@ class EpsonPrinterUI(tk.Tk):
             )
             self.date_entry.set_date(date_string)
         except Exception as e:
-            self.status_text.insert(
-                tk.END,
-                f"[ERROR] {e}: Missing 'First TI received time' in configuration\n",
-            )
+            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
         finally:
             self.config(cursor="")
             self.update_idletasks()
@@ -596,35 +624,36 @@ class EpsonPrinterUI(tk.Tk):
             model=model,
             hostname=ip_address
         )
-        try:
-            date_string = datetime.strptime(
-                printer.stats()["stats"]["First TI received time"], "%d %b %Y"
-            ).strftime("%y-%m-%d")
-            date_string = self.date_entry.get_date()
+        if not printer.parm.get("stats", {}).get("First TI received time"):
             self.status_text.insert(
                 tk.END,
-                f"[INFO] Set 'First TI received time' (YYYY-MM-DD) to: {date_string.strftime('%Y-%m-%d')}.\n",
+                f"[ERROR]: Missing 'First TI received time' in configuration\n",
             )
-            response = messagebox.askyesno(
-                "Confirm Action", "Are you sure you want to proceed?"
-            )
-            if response:
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        date_string = self.date_entry.get_date()
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Set 'First TI received time' (YYYY-MM-DD) to: {date_string.strftime('%Y-%m-%d')}.\n",
+        )
+        response = messagebox.askyesno(
+            "Confirm Action", "Are you sure you want to proceed?"
+        )
+        if response:
+            try:
                 printer.write_first_ti_received_time(
                     date_string.year, date_string.month, date_string.day
                 )
-            else:
-                self.status_text.insert(
-                    tk.END,
-                    f"[WARNING] Change of 'First TI received time' aborted.\n",
-                )
-        except Exception as e:
+            except Exception as e:
+                self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+        else:
             self.status_text.insert(
                 tk.END,
-                f"[ERROR] {e}: Cannot set 'First TI received time'; missing configuration\n",
+                f"[WARNING] Change of 'First TI received time' aborted.\n",
             )
-        finally:
-            self.config(cursor="")
-            self.update_idletasks()
+        self.config(cursor="")
+        self.update_idletasks()
 
     def validate_number_input(self, new_value):
         # This function will be called with the new input value
@@ -711,25 +740,23 @@ class EpsonPrinterUI(tk.Tk):
             model=model,
             hostname=ip_address
         )
-        try:
-            printer.stats()  # query the printer first
-            response = messagebox.askyesno(
-                "Confirm Action", "Are you sure you want to proceed?"
-            )
-            if response:
+        response = messagebox.askyesno(
+            "Confirm Action", "Are you sure you want to proceed?"
+        )
+        if response:
+            try:
                 printer.reset_waste_ink_levels()
                 self.status_text.insert(
                     tk.END, "[INFO] Waste ink levels have been reset.\n"
                 )
-            else:
-                self.status_text.insert(
-                    tk.END, f"[WARNING] Waste ink levels reset aborted.\n"
-                )
-        except Exception as e:
-            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
-        finally:
-            self.config(cursor="")
-            self.update_idletasks()
+            except Exception as e:
+                self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+        else:
+            self.status_text.insert(
+                tk.END, f"[WARNING] Waste ink levels reset aborted.\n"
+            )
+        self.config(cursor="")
+        self.update_idletasks()
 
     def start_detect_printers(self):
         self.show_status_text_view()
@@ -916,4 +943,8 @@ if __name__ == "__main__":
         conf_dict = pickle.load(args.pickle[0])
 
     app = EpsonPrinterUI(conf_dict=conf_dict, replace_conf=args.override)
-    app.mainloop()
+    try: 
+        app.mainloop()
+    except:
+        print("\nInterrupted.")
+        sys.exit(0)
