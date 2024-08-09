@@ -12,6 +12,9 @@ A range of features are offered for both end-users and developers, making it eas
 
 - __SNMP Interface__: Seamlessly connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections (not USB).
 - __Detailed Status Reporting__: Produce a comprehensive printer status report (with options to focus on specific details).
+
+    Epson printers produce a status response in a proprietary "new binary format" named @BDC ST2, including a binary data structure which is partially undocumented (such messages
+    start with `@BDC [SP] ST2 [CR] [LF]` ...). It is used to convey various aspects of the status of the printer, such as errors, paper status, ink and more. The element fields of this format may vary depending on the printer model. The *Epson Printer Configuration Tool* can decode all element fields found in the Epson Programming Manuals publicly available (a subset of fields used by the Epson printers).
 - __Advanced Maintenance Functions__:
     - Reset the ink waste counter.
 
