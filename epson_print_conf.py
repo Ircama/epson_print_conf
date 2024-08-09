@@ -683,6 +683,23 @@ class EpsonPrinter:
         "Power Off Timer": f"{EEPROM_LINK}.111.116.2.0.1.1"
     }
 
+    MIB_INFO_ADVANCED = {
+        "Printer Status": f"{MIB_MGMT}.1.25.3.5.1.1",  # hrPrinterStatus
+        "Printer Alerts": f"{MIB_MGMT}.1.43.18.1.1.8",  # prtAlertDescription
+        "Printer Marker Supplies Level": f"{MIB_MGMT}.1.43.11.1.1.9",  # prtMarkerSuppliesLevel
+        "Printer Marker Life Count": f"{MIB_MGMT}.1.43.11.1.1.6",  # prtMarkerLifeCount
+        "Input Tray Status": f"{MIB_MGMT}.1.43.8.2.1.10",  # prtInputStatus
+        "Output Tray Status": f"{MIB_MGMT}.1.43.9.2.1.10",  # prtOutputStatus
+        "Printer Description": f"{MIB_MGMT}.1.25.3.2.1.3",  # hrDeviceDescr
+        "Device Identification": f"{MIB_MGMT}.1.43.5.1.1.17",  # prtGeneralSerialNumber
+        "Job Count": f"{MIB_MGMT}.1.43.10.2.1.4",  # prtJobEntryJobCount
+        "Toner Level": f"{MIB_MGMT}.1.43.11.1.1.9.1",  # prtMarkerSuppliesLevel
+        "Error Status": f"{MIB_MGMT}.1.43.16.5.1.2",  # prtConsoleDisplayBufferText
+        "Power On Time": f"{MIB_MGMT}.1.25.3.2.1.5",  # hrDeviceUptime
+        "Device Name": f"{MIB_MGMT}.1.1.5",  # sysName
+        "Device Location": f"{MIB_MGMT}.1.1.6",  # sysLocation
+    }
+
     session: object
     model: str
     hostname: str
@@ -1421,13 +1438,21 @@ class EpsonPrinter:
                 data_set["unknown"].append((hex(ftype), item))
         return data_set
 
-    def get_snmp_info(self, mib_name: str = None) -> str:
+    def get_snmp_info(
+        self,
+        mib_name: str = None,
+        advanced: bool = False
+    ) -> str:
         """Return general SNMP information of printer."""
         sys_info = {}
-        if mib_name and mib_name in self.MIB_INFO.keys():
-            snmp_info = {mib_name: self.MIB_INFO[mib_name]}
+        if advanced:
+            oids = {**self.MIB_INFO, **self.MIB_INFO_ADVANCED}
         else:
-            snmp_info = self.MIB_INFO
+            oids = self.MIB_INFO
+        if mib_name and mib_name in oids.keys():
+            snmp_info = {mib_name: oids[mib_name]}
+        else:
+            snmp_info = oids
         for name, oid in snmp_info.items():
             logging.debug(
                 f"SNMP_DUMP {name}:\n"

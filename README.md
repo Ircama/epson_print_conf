@@ -11,10 +11,14 @@ A range of features are offered for both end-users and developers, making it eas
 ## Key Features
 
 - __SNMP Interface__: Seamlessly connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections (not USB).
+
+    Printers are queried via Simple Network Management Protocol (SNMP) with a set of Object Identifiers (OIDs) used by Epson printers. Some of them are also valid with other printer brands. SNMP is also used to manage the EEPROM and read/set specific Epson configuration.
+
 - __Detailed Status Reporting__: Produce a comprehensive printer status report (with options to focus on specific details).
 
-    Epson printers produce a status response in a proprietary "new binary format" named @BDC ST2, including a binary data structure which is partially undocumented (such messages
-    start with `@BDC [SP] ST2 [CR] [LF]` ...). It is used to convey various aspects of the status of the printer, such as errors, paper status, ink and more. The element fields of this format may vary depending on the printer model. The *Epson Printer Configuration Tool* can decode all element fields found in the Epson Programming Manuals publicly available (a subset of fields used by the Epson printers).
+    Epson printers produce a status response in a proprietary "new binary format" named @BDC ST2, including a data structure which is partially undocumented (such messages
+    start with `@BDC [SP] ST2 [CR] [LF]` ...). It is used to convey various aspects of the status of the printer, such as errors, paper status, ink and more. The element fields of this format may vary depending on the printer model. The *Epson Printer Configuration Tool* can decode all element fields found in publicly available Epson Programming Manuals of various printer models (a relevant subset of fields used by the Epson printers).
+
 - __Advanced Maintenance Functions__:
     - Reset the ink waste counter.
 
@@ -23,6 +27,7 @@ A range of features are offered for both end-users and developers, making it eas
     - Access various administrative and debugging options.
     - Read and write to EEPROM addresses for advanced configurations.
     - Dump and analyze sets of EEPROM addresses.
+
 - __User-Friendly Interfaces__:
     - __Graphical User Interface (GUI)__: Intuitive interface with an autodiscovery function that detects printer IP addresses and model names.
     - __Command Line Tool__: For users who prefer command-line interactions, providing the full set of features.
@@ -433,8 +438,7 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")  # if logging is needed
 
-printer = EpsonPrinter(
-    model="XP-205", hostname="192.168.1.87")
+printer = EpsonPrinter(model="XP-205", hostname="192.168.178.29")
 
 if not printer.parm:
     print("Unknown printer")
@@ -463,6 +467,10 @@ ret = printer.get_last_printer_fatal_errors()
 print("get_last_printer_fatal_errors:", ret)
 ret = printer.get_stats()
 print("get_stats:", ret)
+
+# Dump all printer parameters
+from pprint import pprint
+pprint(printer.parm)
 
 printer.reset_waste_ink_levels()
 printer.brute_force_read_key()
