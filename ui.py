@@ -203,8 +203,9 @@ class EpsonPrinterUI(tk.Tk):
         )
         ToolTip(
             self.model_dropdown,
-            "Select the model of the printer, or press 'Detect Printers'.",
+            "Select the model of the printer, or press 'Detect Printers'.\nPress F2 to dump the parameters associated to the printer model.",
         )
+        self.model_dropdown.bind("<F2>", self.printer_config)
 
         # IP address entry
         ip_frame = ttk.LabelFrame(
@@ -415,7 +416,6 @@ class EpsonPrinterUI(tk.Tk):
 
         # Create and configure the Treeview widget
         self.tree = ttk.Treeview(self.tree_frame, style="Treeview")
-        self.tree.heading("#0", text="Status Information", anchor="w")
         self.tree.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Create a vertical scrollbar for the Treeview
@@ -705,8 +705,10 @@ class EpsonPrinterUI(tk.Tk):
             self.tree.tag_configure("key", foreground="black")
             self.tree.tag_configure("key_value", foreground="dark blue")
             self.tree.tag_configure("value", foreground="blue")
+            self.tree.heading("#0", text="Status Information", anchor="w")
 
             # Populate the Treeview
+            self.tree.delete(*self.tree.get_children())
             self.populate_treeview("", self.tree, printer.stats())
 
             # Expand all nodes
@@ -716,6 +718,34 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(tk.END, f"[ERROR] {e}\n")
         finally:
             self.config(cursor="")
+            self.update_idletasks()
+
+    def printer_config(self, cursor=True):
+        model = self.model_var.get()
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model
+        )
+        try:
+            self.show_treeview()
+
+            # Configure tags
+            self.tree.tag_configure("key", foreground="black")
+            self.tree.tag_configure("key_value", foreground="dark blue")
+            self.tree.tag_configure("value", foreground="blue")
+            self.tree.heading("#0", text="Printer parameters", anchor="w")
+
+            # Populate the Treeview
+            self.tree.delete(*self.tree.get_children())
+            self.populate_treeview("", self.tree, printer.parm)
+
+            # Expand all nodes
+            self.expand_all(self.tree)
+        except Exception as e:
+            self.show_status_text_view()
+            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+        finally:
             self.update_idletasks()
 
     def reset_waste_ink(self, cursor=True):

@@ -206,7 +206,6 @@ class EpsonPrinter:
             "main_waste": {"oids": [48, 49, 47], "divider": 63.45},
             "second_waste": {"oids": [50, 51, 47], "divider": 34.15},
             "third_waste": {"oids": [252, 253, 254], "divider": 13},
-
             "raw_waste_reset": {
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
                 55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94,
@@ -346,23 +345,12 @@ class EpsonPrinter:
             "serial_number": range(1604, 1614),
             "alias": ["ET-2814", "ET-2816", "ET-2818"],
         },
-        "L3160": {
+        "L3150": {
+            "alias": ["L3151", "L3160", "L3166", "L3168"],
             "read_key": [151, 7],
             "write_key": b'Maribaya',
             "main_waste": {"oids": [48, 49, 47], "divider": 63.46},
             "borderless_waste": {"oids": [50, 51, 47], "divider": 34.16},
-            "stats": {
-                "Maintenance required level of 1st waste ink counter": [54],
-                "Maintenance required level of 2nd waste ink counter": [55],
-                "First TI received time": [9, 8],
-                "Total print pass counter": [133, 132, 131, 130],
-                "Total print page counter": [776, 775, 774, 773],
-                "Total scan counter": [1843, 1842, 1841, 1840],
-                "Ink replacement counter - Black": [554],
-                "Ink replacement counter - Cyan": [555],
-                "Ink replacement counter - Magenta": [556],
-                "Ink replacement counter - Yellow": [557],
-            },
             "same-as": "L4160"
         },
         "L405": {
@@ -396,7 +384,7 @@ class EpsonPrinter:
                 "Maintenance required level of 2nd waste ink counter": [55],
                 "First TI received time": [9, 8],
                 "Total print pass counter": [133, 132, 131, 130],
-                "Total print page counter - rear feed": [755, 754, 753, 752],
+                "Total print page counter": [776, 775, 774, 773],
                 "Total scan counter": [1843, 1842, 1841, 1840],
                 "Ink replacement counter - Black": [554],
                 "Ink replacement counter - Cyan": [555],
@@ -406,8 +394,11 @@ class EpsonPrinter:
             "serial_number": range(1604, 1614),
             "raw_waste_reset": {
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0,
-                54: 94, 50: 0, 51: 0, 55: 94, 28: 0
-            }
+                54: 94,
+                50: 0, 51: 0,
+                55: 94,
+                28: 0
+            },
         },
         "XP-315": {
             "alias": ["XP-312", "XP-313"],
