@@ -719,29 +719,13 @@ class EpsonPrinter:
                     else:
                         destination[key] = value
             return destination
-        # process "alias" definintion
+
+        if conf_dict:
+            self.expand_printer_conf(conf_dict)
         if conf_dict and replace_conf:
             self.PRINTER_CONFIG = conf_dict
-        for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
-            if "alias" in printer_data:
-                aliases = printer_data["alias"]
-                del printer_data["alias"]
-                if not isinstance(aliases, list):
-                    logging.error(
-                        "Alias '%s' of printer '%s' in configuration "
-                        "must be a list.",
-                        aliases, printer_name
-                    )
-                    continue
-                for alias_name in aliases:
-                    if alias_name in self.PRINTER_CONFIG:
-                        logging.error(
-                            "Alias '%s' of printer '%s' is already defined "
-                            "in configuration.",
-                            alias_name, printer_name
-                        )
-                    else:
-                        self.PRINTER_CONFIG[alias_name] = printer_data
+        else:
+            self.expand_printer_conf(self.PRINTER_CONFIG)
         if conf_dict and not replace_conf:
             self.PRINTER_CONFIG = merge(self.PRINTER_CONFIG, conf_dict)
             for key, values in self.PRINTER_CONFIG.items():
@@ -752,22 +736,6 @@ class EpsonPrinter:
                     ]
                     if not values['alias']:
                         del values['alias']
-        # process "same-as" definintion
-        for printer_name, printer_data in self.PRINTER_CONFIG.copy().items():
-            if "same-as" in printer_data:
-                sameas = printer_data["same-as"]
-                #del printer_data["same-as"]
-                if sameas in self.PRINTER_CONFIG:
-                    self.PRINTER_CONFIG[printer_name] = {
-                        **self.PRINTER_CONFIG[sameas],
-                        **printer_data
-                    }
-                else:
-                    logging.error(
-                        "Undefined 'same-as' printer '%s' "
-                        "in '%s' configuration.",
-                        sameas, printer_name
-                    )
         self.model = model
         self.hostname = hostname
         self.port = port
@@ -792,6 +760,48 @@ class EpsonPrinter:
     def list_methods(self):
         """Return list of available information methods about a printer."""
         return(filter(lambda x: x.startswith("get_"), dir(self)))
+
+    def expand_printer_conf(self, conf):
+        """
+        Expand "alias" and "same-as" of a printer database for all printers
+        """
+        # process "alias" definintion
+        for printer_name, printer_data in conf.copy().items():
+            if "alias" in printer_data:
+                aliases = printer_data["alias"]
+                del printer_data["alias"]
+                if not isinstance(aliases, list):
+                    logging.error(
+                        "Alias '%s' of printer '%s' in configuration "
+                        "must be a list.",
+                        aliases, printer_name
+                    )
+                    continue
+                for alias_name in aliases:
+                    if alias_name in conf:
+                        logging.error(
+                            "Alias '%s' of printer '%s' is already defined "
+                            "in configuration.",
+                            alias_name, printer_name
+                        )
+                    else:
+                        conf[alias_name] = printer_data
+        # process "same-as" definintion
+        for printer_name, printer_data in conf.copy().items():
+            if "same-as" in printer_data:
+                sameas = printer_data["same-as"]
+                #del printer_data["same-as"]
+                if sameas in conf:
+                    conf[printer_name] = {
+                        **conf[sameas],
+                        **printer_data
+                    }
+                else:
+                    logging.error(
+                        "Undefined 'same-as' printer '%s' "
+                        "in '%s' configuration.",
+                        sameas, printer_name
+                    )
 
     def stats(self):
         """Return all available information about a printer."""

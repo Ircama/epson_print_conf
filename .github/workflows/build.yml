@@ -23,6 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           #pip install git+https://github.com/pyinstaller/pyinstaller@develop
           pip install pyinstaller
+          pip install Pillow
           pip install -r requirements.txt
 
       - name: Run PyInstaller to create epson_print_conf.exe
@@ -30,9 +31,9 @@ jobs:
           python -m PyInstaller epson_print_conf.spec -- --default
 
       - name: Zip the epson_print_conf.exe asset to epson_print_conf.zip
-        run: >
-          powershell -Command Compress-Archive dist/epson_print_conf.exe
-          dist/epson_print_conf.zip
+        run: |
+          Compress-Archive dist/epson_print_conf.exe dist/epson_print_conf.zip
+        shell: pwsh
 
       - name: Generate Changelog
         run: >

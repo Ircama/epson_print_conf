@@ -942,7 +942,7 @@ class EpsonPrinterUI(tk.Tk):
             self.clipboard_append(item_text)
 
 
-if __name__ == "__main__":
+def main():
     import argparse
     import pickle
 
@@ -972,9 +972,12 @@ if __name__ == "__main__":
     if args.pickle:
         conf_dict = pickle.load(args.pickle[0])
 
-    app = EpsonPrinterUI(conf_dict=conf_dict, replace_conf=args.override)
-    try: 
-        app.mainloop()
+    return EpsonPrinterUI(conf_dict=conf_dict, replace_conf=args.override)
+
+
+if __name__ == "__main__":
+    try:
+        main().mainloop()
     except:
         print("\nInterrupted.")
         sys.exit(0)
