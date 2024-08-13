@@ -7,12 +7,15 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 def create_image(png_file, text):
-    img = Image.new('RGB', (800, 150), color='black')
-    fnt = ImageFont.truetype('arialbd.ttf', 30)
+    x_size = 800
+    y_size = 150
+    font_size = 30
+    img = Image.new('RGB', (x_size, y_size), color='black')
+    fnt = ImageFont.truetype('arialbd.ttf', font_size)
     d = ImageDraw.Draw(img)
     shadow_offset = 2
     bbox = d.textbbox((0, 0), text, font=fnt)
-    x, y = (800-bbox[2])/2, (150-bbox[3])/2
+    x, y = (x_size-bbox[2])/2, (y_size-bbox[3])/2
     d.text((x+shadow_offset, y+shadow_offset), text, font=fnt, fill='gray')
     d.text((x, y), text, font=fnt, fill='#baf8f8')
     img.save(png_file, 'PNG')
@@ -20,6 +23,7 @@ def create_image(png_file, text):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--default", action="store_true")
+parser.add_argument("--version", action="store", default=None)
 options = parser.parse_args()
 
 PROGRAM = [ 'gui.py' ]
@@ -27,6 +31,10 @@ BASENAME = 'epson_print_conf'
 
 DATAS = [(BASENAME + '.pickle', '.')]
 SPLASH_IMAGE = BASENAME + '.png'
+
+version = (
+    "ui.VERSION = '" + options.version.replace('v', '') + "'"
+) if options.version else ""
 
 create_image(
     SPLASH_IMAGE, 'Epson Printer Configuration tool loading...'
@@ -38,15 +46,16 @@ if not options.default and not os.path.isfile(DATAS[0][0]):
 
 gui_wrapper = """import pyi_splash
 import pickle
-from ui import EpsonPrinterUI
+import ui
 from os import path
 
+""" + version + """
 path_to_pickle = path.abspath(
     path.join(path.dirname(__file__), '""" + DATAS[0][0] + """')
 )
 with open(path_to_pickle, 'rb') as fp:
     conf_dict = pickle.load(fp)
-app = EpsonPrinterUI(conf_dict=conf_dict, replace_conf=False)
+app = ui.EpsonPrinterUI(conf_dict=conf_dict, replace_conf=False)
 pyi_splash.close()
 app.mainloop()
 """
@@ -55,10 +64,11 @@ if options.default:
     DATAS = []
     gui_wrapper = """import pyi_splash
 import pickle
-from ui import main
+import ui
 from os import path
 
-app = main()
+""" + version + """
+app = ui.main()
 pyi_splash.close()
 app.mainloop()
 """
