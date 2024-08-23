@@ -478,26 +478,88 @@ class EpsonPrinter:
             # uncompleted
         },
         "XP-620": {
-            "read_key": [57, 5],
-            "write_key": b'Althaea.',
-            # uncompleted
+            "read_key": [87, 5],
+            "write_key": b"Althaea.",
+            "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 33.7},
+            "raw_waste_reset": {16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0, 53: 94, 493: 0},
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print CD-R counter": [255, 254],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
+            "alias": ["XP-621", "XP-625"],
         },
         "XP-700": {
             "read_key": [40, 0],
-            # uncompleted
+            "write_key": b"Hibiscus",
+            "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 29.03},
+            "raw_waste_reset": {16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0, 53: 94, 493: 0},
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print CD-R counter": [255, 254],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
+            "alias": ["XP-701", "XP-702"],
         },
         "XP-760": {
             "read_key": [87, 5],
-            # uncompleted
+            "write_key": b"Althaea.",
+            "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 33.7},
+            "raw_waste_reset": {16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0, 53: 94, 493: 0},
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print CD-R counter": [255, 254],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
         },
         "XP-830": {
-            "alias": ["XP-530", "XP-630", "XP-635"],
             "read_key": [40, 9],
-            "write_key": b'Irisgarm',  # (Iris graminea with typo?)
-            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # Incorrect
-            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # Incorrect
+            "write_key": b"Irisgarm",  # (Iris graminea with typo?)
+            "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 33.7},
+            "raw_waste_reset": {16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0, 53: 94, 493: 0},
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print CD-R counter": [255, 254],
+                "Total scan counter": [453, 452, 451, 450],
+                "Total scan counter % (ADF)": [457, 456, 455, 454],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
             "idProduct": 0x110b,
-            # uncompleted
+        },
+        "XP-960": {
+            "read_key": [40, 9],
+            "write_key": b"Irisgarm",
+            "main_waste": {"oids": [16, 17, 6], "divider": 93.85},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 29.77},
+            "raw_waste_reset": {
+                16: 0, 17: 0, 6: 0, 52: 94, 18: 0, 19: 0, 20: 0, 21: 0,
+                53: 94, 493: 0
+            },
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print CD-R counter": [255, 254],
+                "Total scan counter": [453, 452, 451, 450],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
         },
         "XP-850": {
             "alias": ["XP-820"],
