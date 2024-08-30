@@ -6,18 +6,14 @@ import warnings
 
 from epson_print_conf import EpsonPrinter
 
-
 # suppress pysnmp warnings
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 # common printer ports
 PRINTER_PORTS = [9100, 515, 631]
 
-class PrinterScanner:
 
-    def ping(self, host):
-        result = subprocess.run(['ping', '-n', '1', host], stdout=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW)
-        return 'Reply from' in result.stdout.decode('utf-8')
+class PrinterScanner:
 
     def check_printer(self, ip, port):
         try:
@@ -38,19 +34,26 @@ class PrinterScanner:
             return None
 
     def scan_ip(self, ip):
-        if self.ping(ip):
-            for port in PRINTER_PORTS:
-                if self.check_printer(ip, port):
-                    try:
-                        hostname = socket.gethostbyaddr(ip)[0]
-                    except socket.herror:
-                        hostname = "Unknown"
+        for port in PRINTER_PORTS:
+            if self.check_printer(ip, port):
+                try:
+                    hostname = socket.gethostbyaddr(ip)[0]
+                except socket.herror:
+                    hostname = "Unknown"
 
-                    printer_name = self.get_printer_name(ip)
-                    if printer_name:
-                        return {"ip": ip, "hostname": hostname, "name": printer_name}
-                    else:
-                        return {"ip": ip, "hostname": hostname, "name": "Unknown"}
+                printer_name = self.get_printer_name(ip)
+                if printer_name:
+                    return {
+                        "ip": ip,
+                        "hostname": hostname,
+                        "name": printer_name
+                    }
+                else:
+                    return {
+                        "ip": ip,
+                        "hostname": hostname,
+                        "name": "Unknown"
+                    }
         return None
 
     def get_all_printers(self, ip_addr="", local=False):
