@@ -77,12 +77,46 @@ class EpsonPrinter:
             "borderless_waste": {"oids": [26, 27, 34], "divider": 34.34},
             "same-as": "XP-315"
         },
+        "Stylus Photo PX720WD": {
+            "read_key": [54, 6],
+            "write_key": b"IhroroQU",
+            "main_waste": {"divider": 79.23, "oids": [14, 15]},
+            "borderless_waste": {"divider": 122.84, "oids": [16, 17]},
+            "raw_waste_reset": {
+                8: 0, 9: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0,
+                18: 0, 19: 0
+            },
+            "stats": {
+                "Manual cleaning counter": [126],
+                "Timer cleaning counter": [97],
+                "Total print pass counter": [47, 46, 45, 44],
+                "Total print page counter": [159, 158],
+                "Total print page counter - duplex": [161, 160],
+                "Total print CD-R counter": [75, 74],
+                "Total CD-R tray open/close counter": [163, 162],
+                "Total scan counter": [477, 476, 475, 474],
+            },
+            "ink_replacement_counters": {
+                "Black": {"1S": 102, "2S": 103, "3S": 98},
+                "Yellow": {"1S": 112, "2S": 113, "4S": 171},
+                "Magenta": {"1S": 104, "2S": 105, "4S": 99},
+                "Cyan": {"1S": 108, "2S": 109, "4S": 101},
+                "Light Magenta": {"1S": 106, "2S": 107, "3S": 100},
+                "Light Cyan": {"1S": 110, "2S": 111, "3S": 155},
+            },
+            "serial_number": range(231, 241),
+            "alias": ["TX720WD", "Artisan 720", "PX720WD"],
+        },
         "Stylus Photo PX730WD": {
-            "alias": ["Stylus Photo PX730", "Artisan 730"],
-            "read_key": [0x8, 0x77],
+            "alias": ["TX730WD", "PX730WD", "Stylus Photo PX730", "Artisan 730"],
+            "read_key": [119, 8],  # "read_key": [0x8, 0x77], (I'm afraid this is 0x8, 0x77 is wrong)
             "write_key": b'Cattleya',
-            "main_waste": {"oids": [0xe, 0xf], "divider": 81.82},
-            "borderless_waste": {"oids": [0x10, 0x11], "divider": 122.88},
+            "main_waste": {"oids": [0xe, 0xf, 60], "divider": 81.82},
+            "borderless_waste": {"oids": [0x10, 0x11, 60], "divider": 122.88},
+            "raw_waste_reset": {
+                8: 0, 9: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0,
+                18: 0, 19: 0, 60: 0, 61: 94, 62: 94
+            },
             "stats": {
                 "Manual cleaning counter": [0x7e],
                 "Timer cleaning counter": [0x61],
@@ -92,17 +126,19 @@ class EpsonPrinter:
                 "Total print CD-R counter": [0x4A, 0x4B],
                 "Total print CD-R tray open/close counter": [0xA2, 0xA3],
                 "Total scan counter": [0x01DA, 0x01DB, 0x01DC, 0x01DD],
+                "Maintenance required level of 1st waste ink counter": [61],
+                "Maintenance required level of 2nd waste ink counter": [62],
             },
             "last_printer_fatal_errors": [0x3B, 0xC0, 0xC1, 0xC2, 0xC3, 0x5C],
             "ink_replacement_counters": {
                 "Black": {"1S": 0x66, "2S": 0x67, "3S": 0x62},
-                "Yellow": {"1S": 0x70, "2S": 0x71, "3S": 0xAB},
-                "Magenta": {"1S": 0x68, "2S": 0x69, "3S": 0x63},
-                "Cyan": {"1S": 0x6C, "2S": 0x6D, "3S": 0x65},
+                "Yellow": {"1S": 0x70, "2S": 0x71, "4S": 0xAB},
+                "Magenta": {"1S": 0x68, "2S": 0x69, "4S": 0x63},
+                "Cyan": {"1S": 0x6C, "2S": 0x6D, "4S": 0x65},
                 "Light magenta": {"1S": 0x6A, "2S": 0x6B, "3S": 0x64},
                 "Light cyan": {"1S": 0x6E, "2S": 0x6F, "3S": 0x9B},
             },
-            "serial_number": range(0xE7, 0xF0),
+            "serial_number": range(0xE7, 0xF1),
         },
         "WF-7525": {
             "read_key": [101, 0],
@@ -200,6 +236,7 @@ class EpsonPrinter:
             "serial_number": range(192, 202),
         },
         "L3250": {
+            "alias": ["L3251", "L3253", "L3255"],
             "read_key": [74, 54],
             "write_key": b'Maribaya',
             "serial_number": range(1604, 1614),
@@ -208,13 +245,16 @@ class EpsonPrinter:
             "third_waste": {"oids": [252, 253, 254], "divider": 13},
             "raw_waste_reset": {
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
-                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94,
+                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94
             },
             "last_printer_fatal_errors": [
                 289, 288, 291, 290, 293, 292, 295, 294, 297, 296, 1831, 1832,
                 1833, 1834, 1835, 2037, 2036, 2039, 2038, 2041, 2040, 2043,
                 2042, 2045, 2044],
             "stats": {
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+                "Maintenance required level of 3rd waste ink counter": [255],
                 "Manual cleaning counter": [90],
                 "Timer cleaning counter": [89],
                 "Power cleaning counter": [91],

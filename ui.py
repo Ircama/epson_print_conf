@@ -777,7 +777,9 @@ class EpsonPrinterUI(tk.Tk):
             try:
                 printer.reset_waste_ink_levels()
                 self.status_text.insert(
-                    tk.END, "[INFO] Waste ink levels have been reset.\n"
+                    tk.END,
+                    "[INFO] Waste ink levels have been reset."
+                    " Perform a power cycle of the printer now.\n"
                 )
             except Exception as e:
                 self.status_text.insert(tk.END, f"[ERROR] {e}\n")

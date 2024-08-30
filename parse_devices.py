@@ -53,7 +53,8 @@ def traverse_data(element, depth=0):
 
 def generate_config(config, traverse, add_fatal_errors, full, printer_model):
     irc_pattern = [
-        r'Ink replacement counter %-% (\w+) % \((\w+)\)'
+        r'Ink replacement counter %-% (\w+) % \((\w+)\)',
+        'Ink replacement counter %-% (\\w+ \\w+) % \\((\\w+)\\)'
     ]
     tree = ET.parse(config)
     root = tree.getroot()

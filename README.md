@@ -464,13 +464,20 @@ print("get_last_printer_fatal_errors:", ret)
 ret = printer.get_stats()
 print("get_stats:", ret)
 
+printer.reset_waste_ink_levels()
+printer.brute_force_read_key()
+printer.write_first_ti_received_time(2000, 1, 2)
+
 # Dump all printer parameters
 from pprint import pprint
 pprint(printer.parm)
 
-printer.reset_waste_ink_levels()
-printer.brute_force_read_key()
-printer.write_first_ti_received_time(2000, 1, 2)
+# "black" way to dump all printer parameters
+import textwrap, black
+from epson_print_conf import EpsonPrinter
+printer = EpsonPrinter(model="TX730WD", hostname="192.168.178.29")
+mode = black.Mode(line_length=200, magic_trailing_comma=False)
+print(textwrap.indent(black.format_str(f"{printer.model}: " + repr(printer.parm), mode=mode), 8*' '))
 ```
 
 ## Output example
