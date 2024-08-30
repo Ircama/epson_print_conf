@@ -77,6 +77,30 @@ class EpsonPrinter:
             "borderless_waste": {"oids": [26, 27, 34], "divider": 34.34},
             "same-as": "XP-315"
         },
+        "ET-4700": {
+            "read_key": [151, 7],
+            "write_key": b"Maribaya",
+            "main_waste": {"oids": [48, 49, 47], "divider": 63.46},
+            "borderless_waste": {"oids": [50, 51, 47], "divider": 34.16},
+            "raw_waste_reset": {
+                48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
+                55: 94, 28: 0
+            },
+            "stats": {
+                "First TI received time": [9, 8],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total print page counter": [776, 775, 774, 773],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+                "Total scan counter % (ADF)": [1855, 1854, 1853, 1852],
+                "Ink replacement counter - Black": [554],
+                "Ink replacement counter - Cyan": [555],
+                "Ink replacement counter - Magenta": [556],
+                "Ink replacement counter - Yellow": [557],
+                "Maintenance required level of 1st waste ink counter": [54],
+                "Maintenance required level of 2nd waste ink counter": [55],
+            },
+            "serial_number": range(1604, 1614),
+        },
         "Stylus Photo PX720WD": {
             "read_key": [54, 6],
             "write_key": b"IhroroQU",
@@ -339,29 +363,6 @@ class EpsonPrinter:
                 "Maintenance required level of 2nd waste ink counter": [55],
             },
         },
-        "ET-2810": {
-            "read_key": [74, 54],
-            "write_key": b"Maribaya",
-            "main_waste": {"oids": [48, 49, 47], "divider": 63.46},
-            "borderless_waste": {"oids": [50, 51, 47], "divider": 34.16},
-            "third_waste": {"oids": [252, 253, 254], "divider": 13.0},
-            "raw_waste_reset": {
-                48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
-                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94
-            },
-            "stats": {
-                "Maintenance required level of 1st waste ink counter": [54],
-                "Maintenance required level of 2nd waste ink counter": [55],
-                "Manual cleaning counter": [90],
-                "Timer cleaning counter": [89],
-                "Power cleaning counter": [91],
-                "Total print pass counter": [133, 132, 131, 130],
-                "Total print page counter": [776, 775, 774, 773],
-                "Total scan counter": [1843, 1842, 1841, 1840],
-            },
-            "serial_number": range(1604, 1614),
-            "alias": ["ET-2811", "ET-2813", "ET-2815"],
-        },
         "ET-2812": {
             "read_key": [74, 54],
             "write_key": b"Maribaya",
@@ -375,6 +376,7 @@ class EpsonPrinter:
             "stats": {
                 "Maintenance required level of 1st waste ink counter": [54],
                 "Maintenance required level of 2nd waste ink counter": [55],
+                "Maintenance required level of 3rd waste ink counter": [255],
                 "Manual cleaning counter": [90],
                 "Timer cleaning counter": [89],
                 "Power cleaning counter": [91],
@@ -383,7 +385,10 @@ class EpsonPrinter:
                 "Total scan counter": [1843, 1842, 1841, 1840],
             },
             "serial_number": range(1604, 1614),
-            "alias": ["ET-2814", "ET-2816", "ET-2818"],
+            "alias": [
+                "ET-2814", "ET-2816", "ET-2818", "ET-2810", "ET-2811",
+                "ET-2813", "ET-2815"
+            ],
         },
         "L3150": {
             "alias": ["L3151", "L3160", "L3166", "L3168"],
