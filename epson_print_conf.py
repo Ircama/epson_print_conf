@@ -419,6 +419,36 @@ class EpsonPrinter:
             },
             "serial_number": range(192, 202),
         },
+        "R2000": {
+            "read_key": [1, 0],
+            "write_key": b"Yutamori",
+            "main_waste": {"divider": 215.0, "oids": [87, 88]},
+            "borderless_waste": {"divider": 70.3, "oids": [89, 90]},
+            "raw_waste_reset": {
+                83: 0, 84: 0, 85: 0, 86: 0, 87: 0, 88: 0, 89: 0, 90: 0,
+                58: 0, 59: 0
+            },
+            "stats": {
+                "Manual cleaning counter": [362],
+                "Timer cleaning counter": [364],
+                "Ink replacement cleaning counter": [363],
+                "Total print pass counter": [183, 182, 181, 180],
+                "Total print page counter": [179, 178, 177, 176],
+                "Total print CD-R counter": [185, 184],
+                "Total print page counter - fine paper": [211, 210, 209, 208],
+                "Total print page counter - board paper": [193, 192],
+                "Total print page counter - roll paper": [397, 396, 395, 394],
+                "Ink replacement counter - Yellow": [400],
+                "Ink replacement counter - Magenta": [401],
+                "Ink replacement counter - Matte Black": [402],
+                "Ink replacement counter - Red": [403],
+                "Ink replacement counter - Orange": [404],
+                "Ink replacement counter - Photo Black": [405],
+                "Ink replacement counter - Gloss Optimizer": [406],
+                "Ink replacement counter - Cyan": [407],
+            },
+            "serial_number": range(466, 476),
+        },
         "L4160": {
             "read_key": [73, 8],
             "write_key": b'Arantifo',
@@ -606,14 +636,30 @@ class EpsonPrinter:
             },
             "serial_number": range(216, 226),
         },
+        "XP-820": {
+            "read_key": [87, 5],
+            "write_key": b"Althaea.",
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 33.7},
+            "alias": ["XP-821"],
+            "same-as": "XP-850"
+        },
         "XP-850": {
-            "alias": ["XP-820"],
             "read_key": [40, 0],
-            "write_key": b'Hibiscus',
-            "main_waste": {"oids": [16, 17], "divider": 84.5},  # incorrect divider
-            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # incorrect divider
-            "raw_waste_reset": {16: 0, 17: 0, 18: 0, 19: 0, 20: 0, 21: 0}  # to be checked
-            # uncompleted
+            "write_key": b"Hibiscus",
+            "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 29.03},
+            "raw_waste_reset": {
+                16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0,
+                53: 94, 493: 0
+            },
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print CD-R counter": [255, 254],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
         },
         "XP-7100": {
             "read_key": [40, 5],
