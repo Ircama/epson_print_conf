@@ -287,6 +287,22 @@ The output is better formatted when also installing [black](https://pypi.org/pro
 
 The program does not provide *printer_head_id* and *Power off timer*.
 
+#### Example to integrate new printers
+
+Suppose ET-4800 ia a printer already defined in the mentioned [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) with valid data, that you want to integrate.
+
+```bash
+curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
+python3 parse_devices.py -m ET-4800 -p epson_print_conf.pickle
+python3 ui.py -P epson_print_conf.pickle
+```
+
+If you also want to create an executable program:
+
+```bash
+pyinstaller epson_print_conf.spec
+```
+
 ### find_printers.py
 
 *find_printers.py* can be executed via `python find_printers.py` and prints the list of the discovered printers to the standard output. It is internally used as a library by *ui.py*.
