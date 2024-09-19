@@ -955,6 +955,26 @@ class EpsonPrinter:
                         "in '%s' configuration.",
                         sameas, printer_name
                     )
+        # process itertools classes
+        def expand_itertools_in_dict(d):
+            for key, value in d.items():
+                if isinstance(value, dict):  # If the value is another dictionary, recurse into it
+                    expand_itertools_in_dict(value)
+                elif isinstance(
+                    value, (
+                    itertools.chain, itertools.cycle, itertools.islice, 
+                    itertools.permutations, itertools.combinations, 
+                    itertools.product, itertools.zip_longest, 
+                    itertools.starmap, itertools.groupby
+                    )
+                ):
+                    d[key] = list(value)  # Convert itertools object to a list
+                elif isinstance(value, list):  # Check inside lists for dictionaries
+                    for i, item in enumerate(value):
+                        if isinstance(item, dict):
+                            expand_itertools_in_dict(item)
+        for printer_name, printer_data in conf.copy().items():
+            expand_itertools_in_dict(printer_data)
 
     def stats(self):
         """Return all available information about a printer."""
@@ -1954,7 +1974,7 @@ class EpsonPrinter:
             )
         return d
 
-    def reset_waste_ink_levels(self) -> bool:
+    def reset_waste_ink_levels(self, dry_run=False) -> bool:
         """
         Set waste ink levels to 0.
         """
@@ -1962,12 +1982,16 @@ class EpsonPrinter:
             logging.error("EpsonPrinter - invalid API usage")
             return None
         if "raw_waste_reset" in self.parm:
+            if dry_run:
+                return True
             for oid, value in self.parm["raw_waste_reset"].items():
                 if not self.write_eeprom(oid, value, label="raw_waste_reset"):
                     return False
             return True
         if "main_waste" not in self.parm:
             return None
+        if dry_run:
+            return True
         for oid in self.parm["main_waste"]["oids"]:
             if not self.write_eeprom(oid, 0, label="main_waste"):
                 return False

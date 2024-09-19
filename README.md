@@ -99,10 +99,14 @@ This GUI runs on any Operating Systems supported by Python (not just Windows), b
 GUI usage:
 
 ```
-python ui.py [-h] [-P PICKLE_FILE] [-O]
+python ui.py [-h] [-m MODEL] [-a HOSTNAME] [-P PICKLE_FILE] [-O]
 
 optional arguments:
   -h, --help            show this help message and exit
+  -m MODEL, --model MODEL
+                        Printer model. Example: -m XP-205
+  -a HOSTNAME, --address HOSTNAME
+                        Printer host name or IP address. (Example: -a 192.168.1.87)
   -P PICKLE_FILE, --pickle PICKLE_FILE
                         Load a pickle configuration archive saved by parse_devices.py
   -O, --override        Replace the default configuration with the one in the pickle file instead of merging (default
@@ -484,16 +488,22 @@ printer.reset_waste_ink_levels()
 printer.brute_force_read_key()
 printer.write_first_ti_received_time(2000, 1, 2)
 
-# Dump all printer parameters
+# Dump all printer configuration parameters
 from pprint import pprint
 pprint(printer.parm)
+```
 
-# "black" way to dump all printer parameters
+"black" way to dump all printer parameters:
+
+```python
 import textwrap, black
 from epson_print_conf import EpsonPrinter
 printer = EpsonPrinter(model="TX730WD", hostname="192.168.178.29")
 mode = black.Mode(line_length=200, magic_trailing_comma=False)
-print(textwrap.indent(black.format_str(f"{printer.model}: " + repr(printer.parm), mode=mode), 8*' '))
+print(textwrap.indent(black.format_str(f'"{printer.model}": ' + repr(printer.parm), mode=mode), 8*' '))
+
+# Print status:
+print(black.format_str(f'"{printer.model}": ' + repr(printer.stats()), mode=mode))
 ```
 
 ## Output example

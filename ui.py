@@ -1,10 +1,19 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Epson Printer Configuration via SNMP (TCP/IP) - GUI
+"""
+
 import sys
 import re
 import threading
 import ipaddress
 import inspect
 from datetime import datetime
+import socket
 
+import black
 import tkinter as tk
 from tkinter import ttk, Menu
 from tkinter.scrolledtext import ScrolledText
@@ -17,10 +26,11 @@ from epson_print_conf import EpsonPrinter
 from find_printers import PrinterScanner
 
 
-VERSION = "2.1"
+VERSION = "2.2"
 
 NO_CONF_ERROR = (
-    "[ERROR] Please select a printer model and a valid IP address, or press 'Detect Printers'.\n"
+    "[ERROR] Please select a printer model and a valid IP address,"
+    " or press 'Detect Printers'.\n"
 )
 
 
@@ -60,14 +70,33 @@ def get_printer_models(input_string):
 
 
 class ToolTip:
-    def __init__(self, widget, text="widget info", wrap_length=10):
+    def __init__(
+        self,
+        widget,
+        text="widget info",
+        wrap_length=10,
+        destroy=True
+    ):
         self.widget = widget
         self.text = text
         self.wrap_length = wrap_length
         self.tooltip_window = None
+
+        # Check and remove existing bindings if they exist
+        if destroy:
+            self.remove_existing_binding("<Enter>")
+            self.remove_existing_binding("<Leave>")
+            self.remove_existing_binding("<Button-1>")
+
+        # Set new bindings
         widget.bind("<Enter>", self.enter, "+")  # Show the tooltip on hover
         widget.bind("<Leave>", self.leave, "+")  # Hide the tooltip on leave
         widget.bind("<Button-1>", self.leave, "+")  # Hide tooltip on mouse click
+
+    def remove_existing_binding(self, event):
+        # Check if there's already a binding for the event
+        if self.widget.bind(event):
+            self.widget.unbind(event)  # Remove the existing binding
 
     def enter(self, event=None):
         if self.tooltip_window or not self.text:
@@ -128,18 +157,26 @@ class ToolTip:
 class BugFixedDateEntry(DateEntry):
     """
     Fixes a bug on the calendar that does not accept mouse selection with Linux
+    Fixes a drop down bug when the DateEntry widget is not focused
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def drop_down(self):
+        self.focus_set()  # Set focus to the DateEntry widget
         super().drop_down()
         if self._top_cal is not None and not self._calendar.winfo_ismapped():
             self._top_cal.lift()
 
 
 class EpsonPrinterUI(tk.Tk):
-    def __init__(self, conf_dict={}, replace_conf=False):
+    def __init__(
+        self,
+        model: str = None,
+        hostname: str = None,
+        conf_dict={},
+        replace_conf=False
+        ):
         super().__init__()
         self.title("Epson Printer Configuration - v" + VERSION)
         self.geometry("500x500")
@@ -149,6 +186,9 @@ class EpsonPrinterUI(tk.Tk):
         self.ip_list_cycle = None
         self.conf_dict = conf_dict
         self.replace_conf = replace_conf
+        self.text_dump = ""
+        self.mode = black.Mode(line_length=200, magic_trailing_comma=False)
+        self.printer = None
 
         # configure the main window to be resizable
         self.columnconfigure(0, weight=1)
@@ -172,7 +212,7 @@ class EpsonPrinterUI(tk.Tk):
         model_ip_frame.columnconfigure(0, weight=1)  # Allow column to expand
         model_ip_frame.columnconfigure(1, weight=1)  # Allow column to expand
 
-        # printer model selection
+        # BOX printer model selection
         model_frame = ttk.LabelFrame(
             model_ip_frame, text="Printer Model", padding=PAD
         )
@@ -182,12 +222,15 @@ class EpsonPrinterUI(tk.Tk):
         model_frame.columnconfigure(0, weight=0)
         model_frame.columnconfigure(1, weight=1)
 
+        # Model combobox
         self.model_var = tk.StringVar()
         if (
             "internal_data" in conf_dict
             and "default_model" in conf_dict["internal_data"]
         ):
             self.model_var.set(conf_dict["internal_data"]["default_model"])
+        if model:
+            self.model_var.set(model)
         ttk.Label(model_frame, text="Model:").grid(
             row=0, column=0, sticky=tk.W, padx=PADX
         )
@@ -203,11 +246,12 @@ class EpsonPrinterUI(tk.Tk):
         )
         ToolTip(
             self.model_dropdown,
-            "Select the model of the printer, or press 'Detect Printers'.\nPress F2 to dump the parameters associated to the printer model.",
+            "Select the model of the printer, or press 'Detect Printers'.\n"
+            "Press F2 to dump the parameters associated to the printer model.",
         )
         self.model_dropdown.bind("<F2>", self.printer_config)
 
-        # IP address entry
+        # BOX IP address
         ip_frame = ttk.LabelFrame(
             model_ip_frame, text="Printer IP Address", padding=PAD
         )
@@ -217,12 +261,15 @@ class EpsonPrinterUI(tk.Tk):
         ip_frame.columnconfigure(0, weight=0)
         ip_frame.columnconfigure(1, weight=1)
 
+        # IP address entry
         self.ip_var = tk.StringVar()
         if (
             "internal_data" in conf_dict
             and "hostname" in conf_dict["internal_data"]
         ):
             self.ip_var.set(conf_dict["internal_data"]["hostname"])
+        if hostname:
+            self.ip_var.set(hostname)
         ttk.Label(ip_frame, text="IP Address:").grid(
             row=0, column=0, sticky=tk.W, padx=PADX
         )
@@ -233,7 +280,12 @@ class EpsonPrinterUI(tk.Tk):
         self.ip_entry.bind("<F2>", self.next_ip)
         ToolTip(
             self.ip_entry,
-            "Enter the IP address, or press 'Detect Printers' (you can also enter part of the IP address to speed up the detection), or press F2 more times to get the next local IP address, which can then be edited (by removing the last part before pressing 'Detect Printers').",
+            "Enter the IP address, or press 'Detect Printers'"
+            " (you can also enter part of the IP address"
+            " to speed up the detection),"
+            " or press F2 more times to get the next local IP address,"
+            " which can then be edited"
+            " (by removing the last part before pressing 'Detect Printers').",
         )
 
         # [row 1] Container frame for the two LabelFrames Power-off timer and TI Received Time
@@ -245,7 +297,7 @@ class EpsonPrinterUI(tk.Tk):
         container_frame.columnconfigure(0, weight=1)  # Allow column to expand
         container_frame.columnconfigure(1, weight=1)  # Allow column to expand
 
-        # Power-off timer
+        # BOX Power-off timer (minutes)
         po_timer_frame = ttk.LabelFrame(
             container_frame, text="Power-off timer (minutes)", padding=PAD
         )
@@ -259,6 +311,19 @@ class EpsonPrinterUI(tk.Tk):
         # Configure validation command for numeric entry
         validate_cmd = self.register(self.validate_number_input)
 
+        # Power-off timer (minutes) - Get Button
+        button_width = 7
+        self.get_po_minutes = ttk.Button(
+            po_timer_frame,
+            text="Get",
+            width=button_width,
+            command=self.get_po_mins,
+        )
+        self.get_po_minutes.grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W
+        )
+
+        # Power-off timer (minutes) - minutes Entry
         self.po_timer_var = tk.StringVar()
         self.po_timer_entry = ttk.Entry(
             po_timer_frame,
@@ -271,26 +336,24 @@ class EpsonPrinterUI(tk.Tk):
         self.po_timer_entry.grid(
             row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
         )
-        ToolTip(self.po_timer_entry, "Enter a number of minutes.")
-
-        button_width = 7
-        get_po_minutes = ttk.Button(
-            po_timer_frame,
-            text="Get",
-            width=button_width,
-            command=self.get_po_mins,
+        ToolTip(
+            self.po_timer_entry,
+            "Enter a number of minutes.",
+            destroy=False
         )
-        get_po_minutes.grid(row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W)
 
-        set_po_minutes = ttk.Button(
+        # Power-off timer (minutes) - Set Button
+        self.set_po_minutes = ttk.Button(
             po_timer_frame,
             text="Set",
             width=button_width,
             command=self.set_po_mins,
         )
-        set_po_minutes.grid(row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E)
+        self.set_po_minutes.grid(
+            row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E
+        )
 
-        # TI Received Time
+        # BOX TI Received Time (date)
         ti_received_frame = ttk.LabelFrame(
             container_frame, text="TI Received Time (date)", padding=PAD
         )
@@ -301,7 +364,18 @@ class EpsonPrinterUI(tk.Tk):
         ti_received_frame.columnconfigure(1, weight=1)  # Calendar column
         ti_received_frame.columnconfigure(2, weight=0)  # Button column on the right
 
-        # TI Received Time Calendar Widget
+        # TI Received Time - Get Button
+        self.get_ti_received = ttk.Button(
+            ti_received_frame,
+            text="Get",
+            width=button_width,
+            command=self.get_ti_date,
+        )
+        self.get_ti_received.grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W
+        )
+
+        # TI Received Time - Calendar Widget
         self.date_entry = BugFixedDateEntry(
             ti_received_frame, date_pattern="yyyy-mm-dd"
         )
@@ -309,24 +383,22 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=1, padx=PADX, pady=PADY, sticky=(tk.W, tk.E)
         )
         self.date_entry.delete(0, "end")  # blank the field removing the current date
-        ToolTip(self.date_entry, "Enter a valid date with format YYYY-MM-DD.")
-
-        # TI Received Time Buttons
-        get_ti_received = ttk.Button(
-            ti_received_frame,
-            text="Get",
-            width=button_width,
-            command=self.get_ti_date,
+        ToolTip(
+            self.date_entry,
+            "Enter a valid date with format YYYY-MM-DD.",
+            destroy=False
         )
-        get_ti_received.grid(row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W)
 
-        set_ti_received = ttk.Button(
+        # TI Received Time - Set Button
+        self.set_ti_received = ttk.Button(
             ti_received_frame,
             text="Set",
             width=button_width,
             command=self.set_ti_date,
         )
-        set_ti_received.grid(row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E)
+        self.set_ti_received.grid(
+            row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E
+        )
 
         # [row 2] Buttons
         row_n += 1
@@ -334,6 +406,7 @@ class EpsonPrinterUI(tk.Tk):
         button_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
         button_frame.columnconfigure((0, 1, 2), weight=1)
 
+        # Detect Printers
         self.detect_button = ttk.Button(
             button_frame,
             text="Detect Printers",
@@ -343,6 +416,7 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=0, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
+        # Printer Status
         self.status_button = ttk.Button(
             button_frame, text="Printer Status", command=self.printer_status
         )
@@ -350,6 +424,7 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=1, padx=PADX, pady=PADY, sticky=(tk.W, tk.E)
         )
 
+        # Reset Waste Ink Levels
         self.reset_button = ttk.Button(
             button_frame,
             text="Reset Waste Ink Levels",
@@ -359,7 +434,7 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
-        # [row 3] Status display
+        # [row 3] Status display (including ScrolledText and Treeview)
         row_n += 1
         status_frame = ttk.LabelFrame(main_frame, text="Status", padding=PAD)
         status_frame.grid(
@@ -379,6 +454,7 @@ class EpsonPrinterUI(tk.Tk):
             padx=PADY,
             sticky=(tk.W, tk.E, tk.N, tk.S),
         )
+        self.status_text.bind("<Tab>", self.focus_next)
         self.status_text.bind("<Key>", lambda e: "break")  # disable editing text
         self.status_text.bind(
             "<Control-c>",
@@ -430,7 +506,13 @@ class EpsonPrinterUI(tk.Tk):
         # Create a context menu
         self.context_menu = Menu(self, tearoff=0)
         self.context_menu.add_command(
-            label="Copy", command=self.copy_selected_item
+            label="Copy this item", command=self.copy_selected_item
+        )
+        self.context_menu.add_command(
+            label="Copy all items", command=self.copy_all_items
+        )
+        self.context_menu.add_command(
+            label="Print all items", command=self.print_items
         )
 
         # Bind the right-click event to the Treeview
@@ -438,6 +520,82 @@ class EpsonPrinterUI(tk.Tk):
 
         # Hide the Treeview initially
         self.tree_frame.grid_remove()
+
+        self.model_var.trace('w', self.change_widget_states)
+        self.ip_var.trace('w', self.change_widget_states)
+        self.change_widget_states()
+
+    def focus_next(self, event):
+        event.widget.tk_focusNext().focus()
+        return("break")
+
+    def change_widget_states(self, index=None, value=None, op=None):
+        if self.ip_var.get():
+            self.status_button.state(["!disabled"])
+            self.printer = None
+        else:
+            self.status_button.state(["disabled"])
+        if self.ip_var.get() and self.model_var.get():
+            self.printer = EpsonPrinter(
+                conf_dict=self.conf_dict,
+                replace_conf=self.replace_conf,
+                model=self.model_var.get(),
+                hostname=self.ip_var.get()
+            )
+            if not self.printer:
+                return
+            if not self.printer.parm:
+                self.reset_printer_model()
+                return
+            if self.printer.parm.get("stats", {}).get("Power off timer"):
+                self.po_timer_entry.state(["!disabled"])
+                self.get_po_minutes.state(["!disabled"])
+                self.set_po_minutes.state(["!disabled"])
+                ToolTip(self.get_po_minutes, "")
+            else:
+                self.po_timer_entry.state(["disabled"])
+                self.get_po_minutes.state(["disabled"])
+                self.set_po_minutes.state(["disabled"])
+                ToolTip(
+                    self.get_po_minutes,
+                    "Feature not defined in the printer configuration."
+                )
+            if self.printer.parm.get("stats", {}).get("First TI received time"):
+                self.date_entry.state(["!disabled"])
+                self.get_ti_received.state(["!disabled"])
+                self.set_ti_received.state(["!disabled"])
+                ToolTip(self.get_ti_received, "")
+            else:
+                self.date_entry.state(["disabled"])
+                self.get_ti_received.state(["disabled"])
+                self.set_ti_received.state(["disabled"])
+                ToolTip(
+                    self.get_ti_received,
+                    "Feature not defined in the printer configuration."
+                )
+            if self.printer.reset_waste_ink_levels(dry_run=True):
+                self.reset_button.state(["!disabled"])
+                ToolTip(
+                    self.reset_button,
+                    "Ensure you really want this before pressing this key."
+                )
+            else:
+                self.reset_button.state(["disabled"])
+                ToolTip(
+                    self.reset_button,
+                    "Feature not defined in the printer configuration."
+                )
+        else:
+            self.po_timer_entry.state(["disabled"])
+            self.get_po_minutes.state(["disabled"])
+            self.set_po_minutes.state(["disabled"])
+
+            self.date_entry.state(["disabled"])
+            self.get_ti_received.state(["disabled"])
+            self.set_ti_received.state(["disabled"])
+
+            self.reset_button.state(["disabled"])
+        self.update_idletasks()
 
     def next_ip(self, event):
         ip = self.ip_var.get()
@@ -468,20 +626,15 @@ class EpsonPrinterUI(tk.Tk):
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
-        model = self.model_var.get()
         ip_address = self.ip_var.get()
-        if not model or not self._is_valid_ip(ip_address):
+        if not self._is_valid_ip(ip_address):
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update()
             return
-        printer = EpsonPrinter(
-            conf_dict=self.conf_dict,
-            replace_conf=self.replace_conf,
-            model=model,
-            hostname=ip_address
-        )
-        if not printer.parm.get("stats", {}).get("Power off timer"):
+        if not self.printer:
+            return
+        if not self.printer.parm.get("stats", {}).get("Power off timer"):
             self.status_text.insert(
                 tk.END,
                 f"[ERROR]: Missing 'Power off timer' in configuration\n",
@@ -490,7 +643,7 @@ class EpsonPrinterUI(tk.Tk):
             self.update_idletasks()
             return
         try:
-            po_timer = printer.stats()["stats"]["Power off timer"]
+            po_timer = self.printer.stats()["stats"]["Power off timer"]
             self.status_text.insert(
                 tk.END, f"[INFO] Power off timer: {po_timer} minutes.\n"
             )
@@ -510,20 +663,15 @@ class EpsonPrinterUI(tk.Tk):
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
-        model = self.model_var.get()
         ip_address = self.ip_var.get()
-        if not model or not self._is_valid_ip(ip_address):
+        if not self._is_valid_ip(ip_address):
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(
-            conf_dict=self.conf_dict,
-            replace_conf=self.replace_conf,
-            model=model,
-            hostname=ip_address
-        )
-        if not printer.parm.get("stats", {}).get("Power off timer"):
+        if not self.printer:
+            return
+        if not self.printer.parm.get("stats", {}).get("Power off timer"):
             self.status_text.insert(
                 tk.END,
                 f"[ERROR]: Missing 'Power off timer' in configuration\n",
@@ -547,7 +695,7 @@ class EpsonPrinterUI(tk.Tk):
         )
         if response:
             try:
-                printer.write_poweroff_timer(int(po_timer))
+                self.printer.write_poweroff_timer(int(po_timer))
             except Exception as e:
                 self.status_text.insert(tk.END, f"[ERROR] {e}\n")
         else:
@@ -566,20 +714,15 @@ class EpsonPrinterUI(tk.Tk):
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
-        model = self.model_var.get()
         ip_address = self.ip_var.get()
-        if not model or not self._is_valid_ip(ip_address):
+        if not self._is_valid_ip(ip_address):
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(
-            conf_dict=self.conf_dict,
-            replace_conf=self.replace_conf,
-            model=model,
-            hostname=ip_address
-        )
-        if not printer.parm.get("stats", {}).get("First TI received time"):
+        if not self.printer:
+            return
+        if not self.printer.parm.get("stats", {}).get("First TI received time"):
             self.status_text.insert(
                 tk.END,
                 f"[ERROR]: Missing 'First TI received time' in configuration\n",
@@ -589,7 +732,8 @@ class EpsonPrinterUI(tk.Tk):
             return
         try:
             date_string = datetime.strptime(
-                printer.stats()["stats"]["First TI received time"], "%d %b %Y"
+                self.printer.stats(
+                )["stats"]["First TI received time"], "%d %b %Y"
             ).strftime("%Y-%m-%d")
             self.status_text.insert(
                 tk.END,
@@ -611,20 +755,15 @@ class EpsonPrinterUI(tk.Tk):
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
-        model = self.model_var.get()
         ip_address = self.ip_var.get()
-        if not model or not self._is_valid_ip(ip_address):
+        if not self._is_valid_ip(ip_address):
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(
-            conf_dict=self.conf_dict,
-            replace_conf=self.replace_conf,
-            model=model,
-            hostname=ip_address
-        )
-        if not printer.parm.get("stats", {}).get("First TI received time"):
+        if not self.printer:
+            return
+        if not self.printer.parm.get("stats", {}).get("First TI received time"):
             self.status_text.insert(
                 tk.END,
                 f"[ERROR]: Missing 'First TI received time' in configuration\n",
@@ -635,14 +774,15 @@ class EpsonPrinterUI(tk.Tk):
         date_string = self.date_entry.get_date()
         self.status_text.insert(
             tk.END,
-            f"[INFO] Set 'First TI received time' (YYYY-MM-DD) to: {date_string.strftime('%Y-%m-%d')}.\n",
+            f"[INFO] Set 'First TI received time' (YYYY-MM-DD) to: "
+            f"{date_string.strftime('%Y-%m-%d')}.\n",
         )
         response = messagebox.askyesno(
             "Confirm Action", "Are you sure you want to proceed?"
         )
         if response:
             try:
-                printer.write_first_ti_received_time(
+                self.printer.write_first_ti_received_time(
                     date_string.year, date_string.month, date_string.day
                 )
             except Exception as e:
@@ -686,7 +826,8 @@ class EpsonPrinterUI(tk.Tk):
         if not self._is_valid_ip(ip_address):
             self.status_text.insert(
                 tk.END,
-                "[ERROR] Please enter a valid IP address, or press 'Detect Printers'.\n"
+                "[ERROR] Please enter a valid IP address, or "
+                "press 'Detect Printers'.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -697,8 +838,12 @@ class EpsonPrinterUI(tk.Tk):
             model=model,
             hostname=ip_address
         )
-
+        if not printer:
+            return
         try:
+            self.text_dump = black.format_str(
+                f'"{printer.model}": ' + repr(printer.stats()), mode=self.mode
+            )
             self.show_treeview()
 
             # Configure tags
@@ -720,14 +865,43 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
 
+    def reset_printer_model(self):
+        self.show_status_text_view()
+        if self.model_var.get():
+            self.status_text.insert(
+                tk.END,
+                '[ERROR]: Unknown printer model '
+                f'"{self.model_var.get()}"\n',
+            )
+        else:
+            self.status_text.insert(
+                tk.END,
+                '[ERROR]: Select a valid printer model.\n'
+            )
+        self.config(cursor="")
+        self.update()
+        self.model_var.set("")
+    
     def printer_config(self, cursor=True):
+        """
+        Pressing F2 dumps the printer configuration
+        """
         model = self.model_var.get()
         printer = EpsonPrinter(
             conf_dict=self.conf_dict,
             replace_conf=self.replace_conf,
             model=model
         )
+        if not printer:
+            return
+        if not printer.parm:
+            self.reset_printer_model()
+            return
         try:
+            self.text_dump = black.format_str(
+                f'"{printer.model}": ' + repr(printer.parm),
+                mode=self.mode
+            )
             self.show_treeview()
 
             # Configure tags
@@ -757,25 +931,20 @@ class EpsonPrinterUI(tk.Tk):
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
-        model = self.model_var.get()
         ip_address = self.ip_var.get()
-        if not model or not self._is_valid_ip(ip_address):
+        if not self._is_valid_ip(ip_address):
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(
-            conf_dict=self.conf_dict,
-            replace_conf=self.replace_conf,
-            model=model,
-            hostname=ip_address
-        )
         response = messagebox.askyesno(
             "Confirm Action", "Are you sure you want to proceed?"
         )
+        if not self.printer:
+            return
         if response:
             try:
-                printer.reset_waste_ink_levels()
+                self.printer.reset_waste_ink_levels()
                 self.status_text.insert(
                     tk.END,
                     "[INFO] Waste ink levels have been reset."
@@ -817,7 +986,9 @@ class EpsonPrinterUI(tk.Tk):
                 if len(printers) == 1:
                     self.status_text.insert(
                         tk.END,
-                        f"[INFO] Found printer '{printers[0]['name']}' at {printers[0]['ip']} (hostname: {printers[0]['hostname']})\n",
+                        f"[INFO] Found printer '{printers[0]['name']}' "
+                        f"at {printers[0]['ip']} "
+                        f"(hostname: {printers[0]['hostname']})\n",
                     )
                     self.ip_var.set(printers[0]["ip"])
                     for model in get_printer_models(printers[0]["name"]):
@@ -834,7 +1005,8 @@ class EpsonPrinterUI(tk.Tk):
                     for printer in printers:
                         self.status_text.insert(
                             tk.END,
-                            f"[INFO] {printer['name']} found at {printer['ip']} (hostname: {printer['hostname']})\n",
+                            f"[INFO] {printer['name']} found at {printer['ip']}"
+                            f" (hostname: {printer['hostname']})\n",
                         )
             else:
                 self.status_text.insert(tk.END, "[WARN] No printers found.\n")
@@ -943,6 +1115,27 @@ class EpsonPrinterUI(tk.Tk):
             self.clipboard_clear()
             self.clipboard_append(item_text)
 
+    def copy_all_items(self):
+        """Copy all items to the clipboard."""
+        self.clipboard_clear()
+        self.clipboard_append(self.text_dump)
+
+    def print_items(self):
+        """Print items."""
+        self.clipboard_append(self.text_dump)
+        message = (
+            "\x1B\x40"  # Initialize printer
+            "Printer configuration\n"
+            + self.text_dump
+        )
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            return
+        # Send the message to the printer
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect((ip_address, 9100))
+            sock.sendall(message.encode('utf-8') + b"\f")
+
 
 def main():
     import argparse
@@ -950,6 +1143,22 @@ def main():
 
     parser = argparse.ArgumentParser(
         epilog='epson_print_conf GUI'
+    )
+    parser.add_argument(
+        '-m',
+        '--model',
+        dest='model',
+        action="store",
+        help='Printer model. Example: -m XP-205',
+        default=None
+    )
+    parser.add_argument(
+        '-a',
+        '--address',
+        dest='hostname',
+        action="store",
+        help='Printer host name or IP address. (Example: -a 192.168.1.87)',
+        default=None
     )
     parser.add_argument(
         '-P',
@@ -974,12 +1183,17 @@ def main():
     if args.pickle:
         conf_dict = pickle.load(args.pickle[0])
 
-    return EpsonPrinterUI(conf_dict=conf_dict, replace_conf=args.override)
+    return EpsonPrinterUI(
+        model=args.model,
+        hostname=args.hostname,        
+        conf_dict=conf_dict,
+        replace_conf=args.override
+    )
 
 
 if __name__ == "__main__":
     try:
         main().mainloop()
-    except:
+    except KeyboardInterrupt:
         print("\nInterrupted.")
         sys.exit(0)
