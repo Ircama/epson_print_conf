@@ -998,6 +998,12 @@ class EpsonPrinterUI(tk.Tk):
                         ).valid_printers:
                             self.model_var.set(model)
                             break
+                    if self.model_var.get() == "":
+                        self.status_text.insert(
+                            tk.END,
+                            f'[ERROR] Printer model unknown.\n'
+                        )
+                        self.model_var.set("")
                 else:
                     self.status_text.insert(
                         tk.END, f"[INFO] Found {len(printers)} printers:\n"
@@ -1121,20 +1127,25 @@ class EpsonPrinterUI(tk.Tk):
         self.clipboard_append(self.text_dump)
 
     def print_items(self):
+        exit_packet_mode = bytes([
+            0x00, 0x00, 0x00, 0x1B, 0x01, 0x40, 0x45, 0x4A, 0x4C, 0x20,
+            0x31, 0x32, 0x38, 0x34, 0x2E, 0x34, 0x0A, 0x40, 0x45, 0x4A,
+            0x4C, 0x20, 0x20, 0x20, 0x20, 0x20, 0x0A, 0x00, 0x00, 0x00,
+        ])
         """Print items."""
         self.clipboard_append(self.text_dump)
-        message = (
-            "\x1B\x40"  # Initialize printer
-            "Printer configuration\n"
-            + self.text_dump
-        )
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
             return
         # Send the message to the printer
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.connect((ip_address, 9100))
-            sock.sendall(message.encode('utf-8') + b"\f")
+            sock.sendall(
+                exit_packet_mode + b"\x1B\x40"  # Initialize printer
+                + b"Printer configuration\n"
+                + self.text_dump.encode('utf-8')
+                + b"\f"  # Form feed
+            )
 
 
 def main():

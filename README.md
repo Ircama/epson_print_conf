@@ -287,8 +287,6 @@ optional arguments:
 Generate printer configuration from devices.xml
 ```
 
-The output is better formatted when also installing [black](https://pypi.org/project/black/).
-
 The program does not provide *printer_head_id* and *Power off timer*.
 
 #### Example to integrate new printers
@@ -493,7 +491,7 @@ from pprint import pprint
 pprint(printer.parm)
 ```
 
-"black" way to dump all printer parameters:
+[black](https://pypi.org/project/black/) way to dump all printer parameters:
 
 ```python
 import textwrap, black
