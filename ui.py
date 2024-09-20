@@ -622,11 +622,11 @@ class EpsonPrinterUI(tk.Tk):
         self.show_status_text_view()
         if isinstance(e, TimeoutError):
             self.status_text.insert(
-                tk.END, f"[ERROR] printer is unreachable or offline."
+                tk.END, f"[ERROR] printer is unreachable or offline.\n"
             )
         else:
             self.status_text.insert(
-                tk.END, f"[ERROR] {e}\n{traceback.format_exc()}"
+                tk.END, f"[ERROR] {e}\n{traceback.format_exc()}\n"
             )
 
     def get_po_mins(self, cursor=True):
@@ -660,10 +660,6 @@ class EpsonPrinterUI(tk.Tk):
                 tk.END, f"[INFO] Power off timer: {po_timer} minutes.\n"
             )
             self.po_timer_var.set(po_timer)
-        except TimeoutError:
-            self.status_text.insert(
-                tk.END, f"[ERROR] printer is unreachable or offline"
-            )
         except Exception as e:
             self.handle_printer_error(e)
         finally:
