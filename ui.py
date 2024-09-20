@@ -12,6 +12,7 @@ import ipaddress
 import inspect
 from datetime import datetime
 import socket
+import traceback
 
 import black
 import tkinter as tk
@@ -617,6 +618,17 @@ class EpsonPrinterUI(tk.Tk):
             pass
         return "break"
 
+    def handle_printer_error(self, e):
+        self.show_status_text_view()
+        if isinstance(e, TimeoutError):
+            self.status_text.insert(
+                tk.END, f"[ERROR] printer is unreachable or offline."
+            )
+        else:
+            self.status_text.insert(
+                tk.END, f"[ERROR] {e}\n{traceback.format_exc()}"
+            )
+
     def get_po_mins(self, cursor=True):
         if cursor:
             self.config(cursor="watch")
@@ -648,8 +660,12 @@ class EpsonPrinterUI(tk.Tk):
                 tk.END, f"[INFO] Power off timer: {po_timer} minutes.\n"
             )
             self.po_timer_var.set(po_timer)
+        except TimeoutError:
+            self.status_text.insert(
+                tk.END, f"[ERROR] printer is unreachable or offline"
+            )
         except Exception as e:
-            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+            self.handle_printer_error(e)
         finally:
             self.config(cursor="")
             self.update_idletasks()
@@ -697,7 +713,7 @@ class EpsonPrinterUI(tk.Tk):
             try:
                 self.printer.write_poweroff_timer(int(po_timer))
             except Exception as e:
-                self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+                self.handle_printer_error(e)
         else:
             self.status_text.insert(
                 tk.END, f"[WARNING] Set Power off timer aborted.\n"
@@ -741,7 +757,7 @@ class EpsonPrinterUI(tk.Tk):
             )
             self.date_entry.set_date(date_string)
         except Exception as e:
-            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+            self.handle_printer_error(e)
         finally:
             self.config(cursor="")
             self.update_idletasks()
@@ -786,7 +802,7 @@ class EpsonPrinterUI(tk.Tk):
                     date_string.year, date_string.month, date_string.day
                 )
             except Exception as e:
-                self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+                self.handle_printer_error(e)
         else:
             self.status_text.insert(
                 tk.END,
@@ -859,8 +875,7 @@ class EpsonPrinterUI(tk.Tk):
             # Expand all nodes
             self.expand_all(self.tree)
         except Exception as e:
-            self.show_status_text_view()
-            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+            self.handle_printer_error(e)
         finally:
             self.config(cursor="")
             self.update_idletasks()
@@ -917,8 +932,7 @@ class EpsonPrinterUI(tk.Tk):
             # Expand all nodes
             self.expand_all(self.tree)
         except Exception as e:
-            self.show_status_text_view()
-            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+            self.handle_printer_error(e)
         finally:
             self.update_idletasks()
 
@@ -951,7 +965,7 @@ class EpsonPrinterUI(tk.Tk):
                     " Perform a power cycle of the printer now.\n"
                 )
             except Exception as e:
-                self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+                self.handle_printer_error(e)
         else:
             self.status_text.insert(
                 tk.END, f"[WARNING] Waste ink levels reset aborted.\n"
@@ -1017,7 +1031,7 @@ class EpsonPrinterUI(tk.Tk):
             else:
                 self.status_text.insert(tk.END, "[WARN] No printers found.\n")
         except Exception as e:
-            self.status_text.insert(tk.END, f"[ERROR] {e}\n")
+            self.handle_printer_error(e)
         finally:
             self.detect_button.config(state=tk.NORMAL)  # enable button after processing
             self.config(cursor="")

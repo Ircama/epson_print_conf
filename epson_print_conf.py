@@ -2636,7 +2636,7 @@ if __name__ == "__main__":
                     )
         if args.read_eeprom:
             print_opt = True
-            read_list = re.split(',\s*', args.read_eeprom[0])
+            read_list = re.split(r',\s*', args.read_eeprom[0])
             for value in read_list:
                 try:
                     addr = int(ast.literal_eval(value))
@@ -2654,7 +2654,7 @@ if __name__ == "__main__":
                     quit(1)
         if args.write_eeprom:
             print_opt = True
-            read_list = re.split(',\s*|;\s*|\|\s*', args.write_eeprom[0])
+            read_list = re.split(r',\s*|;\s*|\|\s*', args.write_eeprom[0])
             for key_val in read_list:
                 key, val = re.split(':|=', key_val)
                 try:
