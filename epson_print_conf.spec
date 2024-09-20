@@ -4,6 +4,7 @@ import argparse
 import os
 import os.path
 from PIL import Image, ImageDraw, ImageFont
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 
 def create_image(png_file, text):
@@ -76,12 +77,25 @@ app.mainloop()
 with open(PROGRAM[0], 'w') as file:
     file.write(gui_wrapper)
 
+# black submodules: https://github.com/pyinstaller/pyinstaller/issues/8270
+black_submodules = collect_submodules('black')
+blib2to3_submodules = collect_submodules('blib2to3')
+
+# "black" data files: https://github.com/pyinstaller/pyinstaller/issues/8270
+blib2to3_data = collect_data_files('blib2to3')
+
 a = Analysis(
     PROGRAM,
     pathex=[],
     binaries=[],
-    datas=DATAS,
-    hiddenimports=['babel.numbers'],
+    datas=DATAS + blib2to3_data,  # the latter required by black
+    hiddenimports=[
+        'babel.numbers',
+        # The following modules are needed by "black": https://github.com/pyinstaller/pyinstaller/issues/8270
+        '30fcd23745efe32ce681__mypyc',
+        '6b397dd64e00b5aff23d__mypyc', 'click', 'json', 'platform',
+        'mypy_extensions', 'pathspec', '_black_version', 'platformdirs'
+    ] + black_submodules + blib2to3_submodules,  # the last two required by black
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
