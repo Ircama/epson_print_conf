@@ -216,7 +216,7 @@ class EpsonPrinter:
         },
         "L366": {
             "read_key": [130, 2],
-            "write_key": 'Gerbera*',
+            "write_key": b'Gerbera*',
             "main_waste": {"oids": [24, 25, 30], "divider": 62.0625},
             "borderless_waste": {"oids": [26, 27, 34], "divider": 24.20},
             "stats": {
