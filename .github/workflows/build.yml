@@ -51,3 +51,12 @@ jobs:
           files: dist/epson_print_conf.zip
           append_body: true
           generate_release_notes: true
+
+      - name: Remove old releases
+        uses: Nats-ji/delete-old-releases@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          keep-count: 1
+          keep-old-minor-releases: false
+          keep-old-minor-releases-count: 1
+          remove-tags: true

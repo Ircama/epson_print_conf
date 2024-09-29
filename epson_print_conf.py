@@ -133,7 +133,7 @@ class EpsonPrinter:
         },
         "Stylus Photo PX730WD": {
             "alias": ["TX730WD", "PX730WD", "Stylus Photo PX730", "Artisan 730"],
-            "read_key": [119, 8],  # "read_key": [0x8, 0x77], (I'm afraid this is 0x8, 0x77 is wrong)
+            "read_key": [119, 8],  # "read_key": [0x8, 0x77], (I'm afraid 0x8, 0x77 is wrong)
             "write_key": b'Cattleya',
             "main_waste": {"oids": [0xe, 0xf, 60], "divider": 81.82},
             "borderless_waste": {"oids": [0x10, 0x11, 60], "divider": 122.88},
@@ -513,9 +513,9 @@ class EpsonPrinter:
             "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
         },
         "XP-422": {
+            "alias": ["XP-423", "XP-425"],
             "read_key": [85, 5],
             "write_key": b'Muscari.',
-            # uncompleted
             "main_waste": {"oids": [24, 25, 30], "divider": 196.5},
             "borderless_waste": {"oids": [26, 27, 34], "divider": 52.05},
             "stats": {
@@ -525,39 +525,68 @@ class EpsonPrinter:
             "raw_waste_reset": {
                 24: 0, 25: 0, 26: 0, 27: 0, 28: 0,
                 29: 0, 30: 0, 34: 0, 46: 94, 47: 94, 49: 0
-            }
+            },
+            "serial_number": range(192, 202),
         },
-        "XP-435": {
+        "XP-432": {
             "read_key": [133, 5],
-            "write_key": b'Polyxena',
-            "alias": ["XP-235"],
-            # uncompleted
-        },
-        "SX400": {
-            "read_key": [73, 6],
-            # uncompleted
+            "write_key": b"Polyxena",
+            "main_waste": {"oids": [24, 25, 30], "divider": 39.9},
+            "borderless_waste": {"oids": [26, 27, 34], "divider": 32.55},
+            "raw_waste_reset": {
+                24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94, 26: 0, 27: 0,
+                34: 0, 47: 94, 49: 0
+            },
+            "stats": {
+                "Maintenance required level of 1st waste ink counter": [46],
+                "Maintenance required level of 2nd waste ink counter": [47]
+            },
+            "alias": ["XP-235", "XP-433", "XP-435"],
         },
         "XP-540": {
             "read_key": [20, 4],
-            "write_key": b'Firmiana',
-            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # Incorrect
-            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # Incorrect
-            # uncompleted
+            "write_key": b"Firmiana",
+            "main_waste": {"oids": [16, 17, 6], "divider": 48.06},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 20.82},
+            "raw_waste_reset": {16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0, 53: 94, 493: 0},
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total scan counter": [453, 452, 451, 450],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
         },
         "XP-610": {
             "alias": ["XP-611", "XP-615", "XP-510", "XP-55"],
             "read_key": [121, 4],
-            "write_key": b'Gossypiu',
-            "main_waste": {"oids": [16, 17], "divider": 84.5},  # incorrect divider
-            "borderless_waste": {"oids": [18, 19], "divider": 33.7},  # incorrect divider
-            # uncompleted
+            "write_key": b"Gossypiu",
+            "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 29.03},
+            "raw_waste_reset": {
+                16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0,
+                53: 94, 493: 0
+            },
+            "stats": {
+                "Timer cleaning counter": [245],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print CD-R counter": [255, 254],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
+            "alias": ["XP-611", "XP-615"],
         },
         "XP-620": {
             "read_key": [87, 5],
             "write_key": b"Althaea.",
             "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
             "borderless_waste": {"oids": [18, 19, 6], "divider": 33.7},
-            "raw_waste_reset": {16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0, 53: 94, 493: 0},
+            "raw_waste_reset": {
+                16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0, 19: 0,
+                53: 94, 493: 0
+            },
             "stats": {
                 "Timer cleaning counter": [245],
                 "Total print pass counter": [99, 98, 97, 96],
@@ -663,33 +692,66 @@ class EpsonPrinter:
         },
         "XP-7100": {
             "read_key": [40, 5],
-            "write_key": b'Leucojum',
-            "main_waste": {"oids": [0x10, 0x11], "divider": 84.5},  # Incorrect
-            "borderless_waste": {"oids": [0x12, 0x13], "divider": 33.7},  # Incorrect
-            # uncompleted
+            "write_key": b"Leucojum",
+            "main_waste": {"oids": [16, 17, 6], "divider": 84.5},
+            "borderless_waste": {"oids": [18, 19, 6], "divider": 33.7},
+            "raw_waste_reset": {
+                16: 0, 17: 0, 6: 0, 52: 94, 20: 0, 21: 0, 18: 0,
+                19: 0, 53: 94, 493: 0
+            },
+            "stats": {
+                "First TI received time": [9, 8],
+                "Total print pass counter": [99, 98, 97, 96],
+                "Total print page counter - front feed lower": [696, 695, 694, 693],
+                "Total print page counter - front feed upper": [744, 743, 742, 741],
+                "Total print page counter - rear": [748, 747, 746, 745],
+                "Total print page counter - duplex": [752, 751, 750, 749],
+                "Total print CD-R counter": [255, 254],
+                "Total scan counter": [453, 452, 451, 450],
+                "Total scan counter (ADF)": [457, 456, 455, 454],
+                "Ink replacement counter - Black": [701],
+                "Ink replacement counter % PB": [705],
+                "Ink replacement counter - Cyan": [702],
+                "Ink replacement counter - Magenta": [703],
+                "Ink replacement counter - Yellow": [704],
+                "Maintenance required level of 1st waste ink counter": [52],
+                "Maintenance required level of 2nd waste ink counter": [53],
+            },
+            "serial_number": range(216, 226),
         },
         "XP-2150": {
-            "alias": ["XP-2100"],
             "read_key": [80, 9],
-            "write_key": b'Bidadari',
-            "stats": {
-                "Maintenance required level of 1st waste ink counter": [0x157],
-                "Maintenance required level of 2nd waste ink counter": [0x158],
-            },
+            "write_key": b"Bidadari",
+            "main_waste": {"oids": [337, 338, 336], "divider": 69.0},
+            "borderless_waste": {"oids": [339, 340, 336], "divider": 30.49},
             "raw_waste_reset": {
-                0x150: 0, 0x151: 0, 0x152: 0, 0x153: 0, 0x154: 0, 0x155: 0,
-                0x156: 0, 0x157: 94, 0x158: 94
-            }  # to be checked, not tested!
-            # uncompleted
+                336: 0, 337: 0, 338: 0, 339: 0, 340: 0, 341: 0, 343: 94,
+                342: 0, 344: 94, 28: 0
+            },
+            "stats": {
+                "First TI received time": [9, 8],
+                "Manual cleaning counter": [203],
+                "Timer cleaning counter": [205],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+                "Total print page counter": [792, 791, 790, 789],
+                "Ink replacement counter - Black": [554],
+                "Ink replacement counter - Cyan": [555],
+                "Ink replacement counter - Magenta": [556],
+                "Ink replacement counter - Yellow": [557],
+                "Maintenance required level of 1st waste ink counter": [343],
+                "Maintenance required level of 2nd waste ink counter": [344],
+            },
+            "serial_number": range(1604, 1614),
+            "alias": ["XP-2100", "XP-2151", "XP-2155"],
         },
         "ET-2500": {
             "read_key": [68, 1],
-            "write_key": b'Gerbera*',
-            "stats": {
-                "Maintenance required level of waste ink counter": [46],
-            },
-            "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94}
-            # uncompleted
+            "write_key": b"Gerbera*",
+            "main_waste": {"oids": [24, 25, 30], "divider": 62.07},
+            "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94},
+            "stats": {"Maintenance required level of 1st waste ink counter": [46]},
+            "serial_number": range(192, 202),
         },
         "XP-3150": {
             "alias": ["XP-3151", "XP-3155"],
@@ -716,26 +778,6 @@ class EpsonPrinter:
                 range(0x120, 0x12a), range(0x727, 0x72c), range(0x7f4, 0x7fe)
             ),
         },
-        "Artisan 800": {
-            "read_key": [0x53, 0x09],
-            # uncompleted
-        },
-        "L360": {
-            "read_key": [0x82, 0x02],
-            # uncompleted
-        },
-        "R220": {
-            "read_key": [0x10, 0x3B],
-            # uncompleted
-        },
-        "Artisan 1430": {
-            "read_key": [0x08, 0x32],
-            # uncompleted
-        },
-        "Artisan 1430": {
-            "read_key": [0x08, 0x32],
-            # uncompleted
-        },
         "ET-2550": {  # Epson EcoTank ET-2550
             "read_key": [0x44, 0x01],
             "write_key": b'Gazania*',
@@ -749,7 +791,6 @@ class EpsonPrinter:
                 28: 0, 29: 0,  # another store of the waste ink counter
                 46: 94,  # Maintenance required level of the waste ink counter
             }
-            # uncompleted
         },
         "ET-2700": {  # Epson EcoTank ET-2700 Series
             "alias": ["ET-2701", "ET-2703", "ET-2705"],
@@ -778,7 +819,6 @@ class EpsonPrinter:
                 55: 94,  # Maintenance required level of 2st counter
                 28: 0  # ?
             }
-            # uncompleted
         },
     }
 
