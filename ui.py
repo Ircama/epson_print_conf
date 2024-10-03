@@ -34,6 +34,13 @@ NO_CONF_ERROR = (
     " or press 'Detect Printers'.\n"
 )
 
+CONFIRM_MESSAGE = (
+            "Confirm Action",
+            "Please copy and save the codes in the [NOTE] shown on the screen."
+            " They can be used to restore the initial configuration"
+            " in case of problems.\n\n"
+            "Are you sure you want to proceed?"
+)
 
 def get_printer_models(input_string):
     # Tokenize the string
@@ -666,6 +673,24 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
 
+    def get_current_eeprom_values(self, values, label):
+        try:
+            org_values = ', '.join(
+                f"{k}: {int(v, 16)}" for k, v in zip(
+                    values, self.printer.read_eeprom_many(values, label=label)
+                )
+            )
+            self.status_text.insert(
+                tk.END,
+                f"[NOTE] Current EEPROM values for {label}: {org_values}.\n"
+            )
+            return True
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return False
+
     def set_po_mins(self, cursor=True):
         if cursor:
             self.config(cursor="watch")
@@ -699,12 +724,21 @@ class EpsonPrinterUI(tk.Tk):
                 tk.END, "[ERROR] Please Use a valid value for minutes.\n"
             )
             return
+        try:
+            if not self.get_current_eeprom_values(
+                self.printer.parm["stats"]["Power off timer"],
+                "Power off timer"
+            ):
+                return
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         self.status_text.insert(
             tk.END, f"[INFO] Set Power off timer: {po_timer} minutes.\n"
         )
-        response = messagebox.askyesno(
-            "Confirm Action", "Are you sure you want to proceed?"
-        )
+        response = messagebox.askyesno(*CONFIRM_MESSAGE)
         if response:
             try:
                 self.printer.write_poweroff_timer(int(po_timer))
@@ -784,14 +818,23 @@ class EpsonPrinterUI(tk.Tk):
             self.update_idletasks()
             return
         date_string = self.date_entry.get_date()
+        try:
+            if not self.get_current_eeprom_values(
+                self.printer.parm["stats"]["First TI received time"],
+                "First TI received time"
+            ):
+                return
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         self.status_text.insert(
             tk.END,
             f"[INFO] Set 'First TI received time' (YYYY-MM-DD) to: "
             f"{date_string.strftime('%Y-%m-%d')}.\n",
         )
-        response = messagebox.askyesno(
-            "Confirm Action", "Are you sure you want to proceed?"
-        )
+        response = messagebox.askyesno(*CONFIRM_MESSAGE)
         if response:
             try:
                 self.printer.write_first_ti_received_time(
@@ -947,9 +990,31 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             return
-        response = messagebox.askyesno(
-            "Confirm Action", "Are you sure you want to proceed?"
-        )
+        try:
+            if "raw_waste_reset" in self.printer.parm:
+                if not self.get_current_eeprom_values(
+                    self.printer.parm["raw_waste_reset"],
+                    "raw_waste_reset"
+                ):
+                    return
+            if "main_waste" in self.printer.parm:
+                if not self.get_current_eeprom_values(
+                    self.printer.parm["main_waste"]["oids"],
+                    "main_waste"
+                ):
+                    return
+            if "borderless_waste" in self.printer.parm:
+                if not self.get_current_eeprom_values(
+                    self.printer.parm["borderless_waste"]["oids"],
+                    "borderless_waste"
+                ):
+                    return
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        response = messagebox.askyesno(*CONFIRM_MESSAGE)
         if not self.printer:
             return
         if response:
