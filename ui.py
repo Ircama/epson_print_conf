@@ -994,19 +994,19 @@ class EpsonPrinterUI(tk.Tk):
             if "raw_waste_reset" in self.printer.parm:
                 if not self.get_current_eeprom_values(
                     self.printer.parm["raw_waste_reset"],
-                    "raw_waste_reset"
+                    "Raw waste reset"
                 ):
                     return
             if "main_waste" in self.printer.parm:
                 if not self.get_current_eeprom_values(
                     self.printer.parm["main_waste"]["oids"],
-                    "main_waste"
+                    "Main waste reset"
                 ):
                     return
             if "borderless_waste" in self.printer.parm:
                 if not self.get_current_eeprom_values(
                     self.printer.parm["borderless_waste"]["oids"],
-                    "borderless_waste"
+                    "Borderless waste reset"
                 ):
                     return
         except Exception as e:
