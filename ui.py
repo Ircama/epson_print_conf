@@ -482,21 +482,19 @@ class EpsonPrinterUI(tk.Tk):
         self.read_eeprom_button.grid(
             row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
+        self.read_eeprom_button.state(["disabled"])
 
-        # Read EEPROM
+        # Write EEPROM
         self.write_eeprom_button = ttk.Button(
             button_frame,
             text="Write\nEEPROM",
             command=self.write_eeprom,
             style="Centered.TButton"
         )
-        ToolTip(
-            self.write_eeprom_button,
-            "Ensure you really want this before pressing this key."
-        )
         self.write_eeprom_button.grid(
             row=0, column=4, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
+        self.write_eeprom_button.state(["disabled"])
 
         # [row 3] Status display (including ScrolledText and Treeview)
         row_n += 1
@@ -647,6 +645,30 @@ class EpsonPrinterUI(tk.Tk):
                 self.reset_button.state(["disabled"])
                 ToolTip(
                     self.reset_button,
+                    "Feature not defined in the printer configuration."
+                )
+            if "read_key" in self.printer.parm:
+                self.read_eeprom_button.state(["!disabled"])
+                ToolTip(
+                    self.read_eeprom_button,
+                    ""
+                )
+            else:
+                self.read_eeprom_button.state(["disabled"])
+                ToolTip(
+                    self.read_eeprom_button,
+                    "Feature not defined in the printer configuration."
+                )
+            if "write_key" in self.printer.parm:
+                self.write_eeprom_button.state(["!disabled"])
+                ToolTip(
+                    self.write_eeprom_button,
+                    "Ensure you really want this before pressing this key."
+                )
+            else:
+                self.write_eeprom_button.state(["disabled"])
+                ToolTip(
+                    self.write_eeprom_button,
                     "Feature not defined in the printer configuration."
                 )
         else:
