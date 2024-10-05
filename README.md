@@ -116,6 +116,12 @@ optional arguments:
 epson_print_conf GUI
 ```
 
+### How to revert a change performed through the GUI
+
+The GUI displays a `[NOTE]` in the status box before performing any change, specifying the current EEPROM values before the rewrite operation. This line can be copied and pasted as is into the text box that appears when the "Write EEPROM" button is pressed; the execution of the related action reverts the changes to their original values.
+
+It is recommended to copy the status history and keep it in a safe place after making changes, so that a reverse operation can be performed when needed.
+
 ### Using the command-line tool
 
 ```

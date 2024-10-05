@@ -28,7 +28,7 @@ from epson_print_conf import EpsonPrinter
 from find_printers import PrinterScanner
 
 
-VERSION = "2.2"
+VERSION = "2.3"
 
 NO_CONF_ERROR = (
     "[ERROR] Please select a printer model and a valid IP address,"
@@ -1232,7 +1232,7 @@ class EpsonPrinterUI(tk.Tk):
             except Exception as e:
                 self.handle_printer_error(e)
             self.status_text.insert(
-                tk.END, f"[WARNING] Write EEPROM completed.\n"
+                tk.END, f"[INFO] Write EEPROM completed.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
