@@ -13,6 +13,7 @@ import inspect
 from datetime import datetime
 import socket
 import traceback
+import logging
 
 import black
 import tkinter as tk
@@ -20,7 +21,7 @@ from tkinter import ttk, Menu
 from tkinter.scrolledtext import ScrolledText
 import tkinter.font as tkfont
 from tkcalendar import DateEntry  # Ensure you have: pip install tkcalendar
-from tkinter import messagebox
+from tkinter import simpledialog, messagebox
 
 import pyperclip
 from epson_print_conf import EpsonPrinter
@@ -75,6 +76,27 @@ def get_printer_models(input_string):
     if not processed_tokens and pre_model:
         processed_tokens.append(pre_model.strip())
     return processed_tokens
+
+
+class MultiLineInputDialog(simpledialog.Dialog):
+    def __init__(self, parent, title=None, text=""):
+        self.text=text
+        super().__init__(parent, title)
+
+    def body(self, frame):
+        # Add a label with instructions
+        self.label = tk.Label(frame, text=self.text)
+        self.label.pack(pady=5)
+
+        # Create a Text widget for multiline input
+        self.textbox = tk.Text(frame, height=5, width=50)
+        self.textbox.configure(font=("TkDefaultFont"))
+        self.textbox.pack()
+        return self.textbox
+
+    def apply(self):
+        # Get the input from the Text widget
+        self.result = self.textbox.get("1.0", tk.END).strip()
 
 
 class ToolTip:
@@ -296,6 +318,10 @@ class EpsonPrinterUI(tk.Tk):
             " (by removing the last part before pressing 'Detect Printers').",
         )
 
+        # Create a custom style for the button to center the text
+        style = ttk.Style()
+        style.configure("Centered.TButton", justify='center', anchor="center")
+
         # [row 1] Container frame for the two LabelFrames Power-off timer and TI Received Time
         row_n += 1
         container_frame = ttk.Frame(main_frame, padding=PAD)
@@ -417,8 +443,9 @@ class EpsonPrinterUI(tk.Tk):
         # Detect Printers
         self.detect_button = ttk.Button(
             button_frame,
-            text="Detect Printers",
+            text="Detect\nPrinters",
             command=self.start_detect_printers,
+            style="Centered.TButton"
         )
         self.detect_button.grid(
             row=0, column=0, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
@@ -426,7 +453,9 @@ class EpsonPrinterUI(tk.Tk):
 
         # Printer Status
         self.status_button = ttk.Button(
-            button_frame, text="Printer Status", command=self.printer_status
+            button_frame, text="Printer\nStatus",
+            command=self.printer_status,
+            style="Centered.TButton"
         )
         self.status_button.grid(
             row=0, column=1, padx=PADX, pady=PADY, sticky=(tk.W, tk.E)
@@ -435,11 +464,38 @@ class EpsonPrinterUI(tk.Tk):
         # Reset Waste Ink Levels
         self.reset_button = ttk.Button(
             button_frame,
-            text="Reset Waste Ink Levels",
+            text="Reset Waste\nInk Levels",
             command=self.reset_waste_ink,
+            style="Centered.TButton"
         )
         self.reset_button.grid(
             row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # Read EEPROM
+        self.read_eeprom_button = ttk.Button(
+            button_frame,
+            text="Read\nEEPROM",
+            command=self.read_eeprom,
+            style="Centered.TButton"
+        )
+        self.read_eeprom_button.grid(
+            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # Read EEPROM
+        self.write_eeprom_button = ttk.Button(
+            button_frame,
+            text="Write\nEEPROM",
+            command=self.write_eeprom,
+            style="Centered.TButton"
+        )
+        ToolTip(
+            self.write_eeprom_button,
+            "Ensure you really want this before pressing this key."
+        )
+        self.write_eeprom_button.grid(
+            row=0, column=4, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # [row 3] Status display (including ScrolledText and Treeview)
@@ -676,14 +732,26 @@ class EpsonPrinterUI(tk.Tk):
     def get_current_eeprom_values(self, values, label):
         try:
             org_values = ', '.join(
-                f"{k}: {int(v, 16)}" for k, v in zip(
+                "" if v is None else f"{k}: {int(v, 16)}" for k, v in zip(
                     values, self.printer.read_eeprom_many(values, label=label)
                 )
             )
-            self.status_text.insert(
-                tk.END,
-                f"[NOTE] Current EEPROM values for {label}: {org_values}.\n"
-            )
+            if org_values:
+                self.status_text.insert(
+                    tk.END,
+                    f"[NOTE] Current EEPROM values for {label}: {org_values}.\n"
+                )
+            else:
+                self.status_text.insert(
+                    tk.END,
+                    f'[ERROR] Cannot read EEPROM values for "{label}"'
+                    ': invalid printer model selected.\n'
+                )
+                self.config(cursor="")
+                self.update_idletasks()
+                return False
+            self.config(cursor="")
+            self.update_idletasks()
             return True
         except Exception as e:
             self.handle_printer_error(e)
@@ -723,12 +791,16 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(
                 tk.END, "[ERROR] Please Use a valid value for minutes.\n"
             )
+            self.config(cursor="")
+            self.update_idletasks()
             return
         try:
             if not self.get_current_eeprom_values(
                 self.printer.parm["stats"]["Power off timer"],
                 "Power off timer"
             ):
+                self.config(cursor="")
+                self.update_idletasks()
                 return
         except Exception as e:
             self.handle_printer_error(e)
@@ -823,6 +895,8 @@ class EpsonPrinterUI(tk.Tk):
                 self.printer.parm["stats"]["First TI received time"],
                 "First TI received time"
             ):
+                self.config(cursor="")
+                self.update_idletasks()
                 return
         except Exception as e:
             self.handle_printer_error(e)
@@ -975,6 +1049,208 @@ class EpsonPrinterUI(tk.Tk):
         finally:
             self.update_idletasks()
 
+    def read_eeprom(self):
+        def parse_list_input(input_str):
+            try:
+                # Remove any character before ":" if not including digits
+                colon_index = input_str.find(':')
+                if colon_index != -1 and not any(
+                    char.isdigit() for char in input_str[:colon_index]
+                ):
+                    input_str = input_str[colon_index + 1:]
+
+                # Remove any unwanted characters like brackets, if present
+                input_str = input_str.strip('{}[]()')
+
+                # Remove trailing ".", if present
+                input_str = input_str.rstrip('.')
+
+                parts = input_str.split(',')
+                addresses = []
+                for part in parts:
+                    part = part.strip()
+                    if '-' in part:
+                        # Handle range like '2-10'
+                        start, end = map(int, part.split('-'))
+                        addresses.extend(range(start, end + 1))  # Generate sequence between start and end
+                    else:
+                        # Handle individual addresses
+                        addresses.append(int(part))
+                return addresses
+            except ValueError:
+                # Show an error if the input is not valid
+                messagebox.showerror(
+                    "Invalid Input for Read EEPROM",
+                    "Please enter a valid list of integers."
+                )
+                return None
+
+        def get_input():
+            # Create a popup to accept the list input
+            dialog = MultiLineInputDialog(
+                self,
+                "Read EEPROM values",
+                "Enter a comma-separated list of addresses to\n"
+                "be read (e.g. 22, 23, 59 or [171, 170, 169, 168]).\n"
+                "Use hyphen to represent a range (e.g., 1, 3-10, 13):"
+            )
+            if dialog.result:
+                addresses = parse_list_input(dialog.result)
+                if addresses:
+                    return addresses
+            return None
+
+        def get_values(addresses):
+            try:
+                values = ', '.join(
+                    "" if v is None else f"{k}: {int(v, 16)}" for k, v in zip(
+                        addresses,
+                        self.printer.read_eeprom_many(
+                            addresses,
+                            label="read_EEPROM"
+                        )
+                    )
+                )
+            except Exception as e:
+                self.handle_printer_error(e)
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+            if values:
+                self.status_text.insert(
+                    tk.END,
+                    f"[INFO] EEPROM values: {values}.\n"
+                )
+            else:
+                self.status_text.insert(
+                    tk.END,
+                    f'[ERROR] Cannot read EEPROM values'
+                    ': invalid printer model selected.\n'
+                )
+            self.config(cursor="")
+            self.update_idletasks()
+
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        addresses = get_input()
+        if addresses is not None:
+            self.config(cursor="watch")
+            self.update()
+            self.after(100, lambda: get_values(addresses))
+
+    def write_eeprom(self):
+        def parse_dict_input(input_str):
+            try:
+                # Remove any character before ":" if not including digits
+                colon_index = input_str.find(':')
+                if colon_index != -1 and not any(
+                    char.isdigit() for char in input_str[:colon_index]
+                ):
+                    input_str = input_str[colon_index + 1:]
+
+                # Remove any unwanted characters like brackets, if present
+                input_str = input_str.strip('{}[]()')
+
+                # Remove trailing ".", if present
+                input_str = input_str.rstrip('.')
+
+                parts = input_str.split(',')
+                result_dict = {}
+                for part in parts:
+                    part = part.strip()
+                    if ':' not in part:
+                        raise ValueError()
+                    # Handle key: value pairs
+                    key, value = map(str.strip, part.split(':', 1))
+                    result_dict[int(key)] = int(value)
+                return result_dict
+            except ValueError:
+                messagebox.showerror(
+                    "Invalid input for Write EEPROM",
+                    "Please enter a valid comma-separated sequence "
+                    "of 'address: value', like 24: 0, 25: 0, 30: 0 "
+                    "using decimal numbers."
+                )
+                return {}
+
+        def get_input():
+            # Create a popup to accept the dictionary input
+            dialog = MultiLineInputDialog(
+                self,
+                "Write EEPROM values",
+                "Warning: this is a dangerous operation.\nContinue only "
+                "if you are very sure of what you do.\n\n"
+                "Enter a comma-separated sequence of 'address: value'\n"
+                "(like 24: 0, 25: 0, 30: 0) using decimal numbers:"
+            )
+            if dialog.result:
+                dict_addr_val = parse_dict_input(dialog.result)
+                if dict_addr_val:
+                    return dict_addr_val
+            return None
+
+        def dialog_write_values(dict_addr_val):
+            try:
+                if not self.get_current_eeprom_values(
+                    dict_addr_val.keys(),
+                    "the entered addresses"
+                ):
+                    self.config(cursor="")
+                    self.update_idletasks()
+                    return
+            except Exception as e:
+                self.handle_printer_error(e)
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+            self.config(cursor="")
+            self.update_idletasks()
+            response = messagebox.askyesno(*CONFIRM_MESSAGE)
+            if response:
+                self.config(cursor="watch")
+                self.update()
+                self.after(200, lambda: write_eeprom_values(dict_addr_val))
+            else:
+                self.status_text.insert(
+                    tk.END, f"[WARNING] Write EEPROM aborted.\n"
+                )
+                self.config(cursor="")
+                self.update_idletasks()
+
+        def write_eeprom_values(dict_addr_val):
+            try:
+                for oid, value in dict_addr_val.items():
+                    if not self.printer.write_eeprom(
+                        oid, value, label="write_eeprom"
+                    ):
+                        return False
+            except Exception as e:
+                self.handle_printer_error(e)
+            self.status_text.insert(
+                tk.END, f"[WARNING] Write EEPROM completed.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            return
+        dict_addr_val = get_input()
+        if dict_addr_val is not None:
+            self.config(cursor="watch")
+            self.update()
+            self.status_text.insert(
+                tk.END, f"[INFO] Going to write EEPROM: {dict_addr_val}.\n"
+            )
+            self.after(200, lambda: dialog_write_values(dict_addr_val))
+
     def reset_waste_ink(self, cursor=True):
         if cursor:
             self.config(cursor="watch")
@@ -993,22 +1269,21 @@ class EpsonPrinterUI(tk.Tk):
         try:
             if "raw_waste_reset" in self.printer.parm:
                 if not self.get_current_eeprom_values(
-                    self.printer.parm["raw_waste_reset"],
+                    self.printer.parm["raw_waste_reset"].keys(),
                     "Raw waste reset"
                 ):
+                    self.config(cursor="")
+                    self.update_idletasks()
                     return
-            if "main_waste" in self.printer.parm:
-                if not self.get_current_eeprom_values(
-                    self.printer.parm["main_waste"]["oids"],
-                    "Main waste reset"
-                ):
-                    return
-            if "borderless_waste" in self.printer.parm:
-                if not self.get_current_eeprom_values(
-                    self.printer.parm["borderless_waste"]["oids"],
-                    "Borderless waste reset"
-                ):
-                    return
+            for i in self.printer.parm:
+                if i.endswith("_waste") and "oids" in self.printer.parm[i]:
+                    if not self.get_current_eeprom_values(
+                        self.printer.parm[i]["oids"],
+                        i.replace("_", " ").capitalize()
+                    ):
+                        self.config(cursor="")
+                        self.update_idletasks()
+                        return
         except Exception as e:
             self.handle_printer_error(e)
             self.config(cursor="")
@@ -1266,7 +1541,16 @@ def main():
         help="Replace the default configuration with the one in the pickle "
             "file instead of merging (default is to merge)",
     )
+    parser.add_argument(
+        '-d',
+        '--debug',
+        dest='debug',
+        action='store_true',
+        help='Print debug information'
+    )
     args = parser.parse_args()
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
     conf_dict = {}
     if args.pickle:
         conf_dict = pickle.load(args.pickle[0])

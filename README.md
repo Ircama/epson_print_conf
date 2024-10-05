@@ -39,6 +39,7 @@ The GUI can automatically find and display printer IP addresses and model names,
 - Set the power-off timer.
 - Reset the ink waste counter.
 - Configure the _First TI Received Time_.
+- read and write the EEPROM
 
   The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
 
@@ -99,7 +100,7 @@ This GUI runs on any Operating Systems supported by Python (not just Windows), b
 GUI usage:
 
 ```
-python ui.py [-h] [-m MODEL] [-a HOSTNAME] [-P PICKLE_FILE] [-O]
+usage: ui.py [-h] [-m MODEL] [-a HOSTNAME] [-P PICKLE_FILE] [-O] [-d]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -109,8 +110,8 @@ optional arguments:
                         Printer host name or IP address. (Example: -a 192.168.1.87)
   -P PICKLE_FILE, --pickle PICKLE_FILE
                         Load a pickle configuration archive saved by parse_devices.py
-  -O, --override        Replace the default configuration with the one in the pickle file instead of merging (default
-                        is to merge)
+  -O, --override        Replace the default configuration with the one in the pickle file instead of merging (default is to merge)
+  -d, --debug           Print debug information
 
 epson_print_conf GUI
 ```
