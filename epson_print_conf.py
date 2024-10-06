@@ -837,9 +837,11 @@ class EpsonPrinter:
 
     MIB_INFO = {
         "Model": f"{MIB_MGMT}.1.25.3.2.1.3.1",
-        "Epson Model": f"{MIB_EPSON}.1.2.2.1.1.1.2.1",
+        "Epson Printer Name": f"{MIB_EPSON}.1.2.2.1.1.1.2.1",
         "Model short": f"{MIB_EPSON}.1.1.3.1.3.8.0",
+        "Epson Personal Name": f"{MIB_EPSON}.1.2.2.1.1.1.3.1",
         "EEPS2 firmware version": f"{MIB_MGMT}.1.2.2.1.2.1",
+        "Epson Version number": f"{MIB_EPSON}.1.2.2.2.1.1.2.1.4",
         "Descr": f"{MIB_MGMT}.1.1.1.0",
         "UpTime": f"{MIB_MGMT}.1.1.3.0",
         "Name": f"{MIB_MGMT}.1.1.5.0",
@@ -864,6 +866,7 @@ class EpsonPrinter:
         "WiFi": f"{MIB_EPSON}.1.1.3.1.29.2.1.9.0",
         "MAC Addr": f"{MIB_EPSON}.1.1.3.1.1.5.0",
         "device_id": f"{MIB_OID_ENTERPRISE}.11.2.3.9.1.1.7.0",
+        "Epson device id": f"{MIB_EPSON}.1.2.2.1.1.1.1.1",
         "Power Off Timer": f"{EEPROM_LINK}.111.116.2.0.1.1"
     }
 
@@ -1769,7 +1772,10 @@ class EpsonPrinter:
         return(f'{"".join(a)} - {"".join(b)}')
 
     def get_firmware_version(self) -> str:
-        """Return firmware version."""
+        """
+        Return firmware version.
+        Query firmware version: 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.118.105.1.0.0
+        """
         oid = f"{self.EEPROM_LINK}.118.105.1.0.0"  # 76 69 01 00 00
         label = "get_firmware_version"
         logging.debug(
@@ -1841,7 +1847,11 @@ class EpsonPrinter:
         return irc
 
     def get_printer_status(self):
-        """Return printer status and ink levels."""
+        """
+        Return printer status and ink levels.
+        Query printer status: 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.115.116.1.0.1
+        or 1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1
+        """
         address = f"{self.EEPROM_LINK}.115.116.1.0.1"  # 73 74 01 00 01
         logging.debug(f"PRINTER_STATUS:\n  ADDRESS: {address}")
         tag, result = self.snmp_mib(address, label="get_printer_status")

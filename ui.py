@@ -14,6 +14,7 @@ from datetime import datetime
 import socket
 import traceback
 import logging
+import webbrowser
 
 import black
 import tkinter as tk
@@ -28,7 +29,7 @@ from epson_print_conf import EpsonPrinter
 from find_printers import PrinterScanner
 
 
-VERSION = "2.3"
+VERSION = "2.4"
 
 NO_CONF_ERROR = (
     "[ERROR] Please select a printer model and a valid IP address,"
@@ -434,16 +435,54 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E
         )
 
-        # [row 2] Buttons
+        # [row 2] Query Buttons
         row_n += 1
         button_frame = ttk.Frame(main_frame, padding=PAD)
         button_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
         button_frame.columnconfigure((0, 1, 2), weight=1)
 
+        # Query Printer Status
+        self.status_button = ttk.Button(
+            button_frame, text="Printer Status",
+            command=self.printer_status,
+            style="Centered.TButton"
+        )
+        self.status_button.grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky=(tk.W, tk.E)
+        )
+
+        # Query list of cartridge types
+        self.web_interface_button = ttk.Button(
+            button_frame,
+            text="Printer Web interface",
+            command=self.web_interface,
+            style="Centered.TButton"
+        )
+        self.web_interface_button.grid(
+            row=0, column=1, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # Query firmware version
+        self.firmware_version_button = ttk.Button(
+            button_frame,
+            text="Firmware version",
+            command=self.firmware_version,
+            style="Centered.TButton"
+        )
+        self.firmware_version_button.grid(
+            row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # [row 3] Tweak Buttons
+        row_n += 1
+        tweak_frame = ttk.Frame(main_frame, padding=PAD)
+        tweak_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
+        tweak_frame.columnconfigure((0, 1, 2), weight=1)
+
         # Detect Printers
         self.detect_button = ttk.Button(
-            button_frame,
-            text="Detect Printers",
+            tweak_frame,
+            text="Detect\nPrinters",
             command=self.start_detect_printers,
             style="Centered.TButton"
         )
@@ -451,66 +490,48 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=0, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
-        # Printer Status
-        self.status_button = ttk.Button(
-            button_frame, text="Printer Status",
-            command=self.printer_status,
-            style="Centered.TButton"
-        )
-        self.status_button.grid(
-            row=0, column=1, padx=PADX, pady=PADY, sticky=(tk.W, tk.E)
-        )
-
-        # Reset Waste Ink Levels
-        self.reset_button = ttk.Button(
-            button_frame,
-            text="Reset Waste Ink Levels",
-            command=self.reset_waste_ink,
-            style="Centered.TButton"
-        )
-        self.reset_button.grid(
-            row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
-        )
-
-        # [row 3] EEPROM Buttons
-        row_n += 1
-        tweak_frame = ttk.Frame(main_frame, padding=PAD)
-        tweak_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
-        tweak_frame.columnconfigure((0, 1, 2), weight=1)
-
-        # Read EEPROM
-        self.read_eeprom_button = ttk.Button(
-            tweak_frame,
-            text="Read EEPROM",
-            command=self.read_eeprom,
-            style="Centered.TButton"
-        )
-        self.read_eeprom_button.grid(
-            row=0, column=0, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
-        )
-        self.read_eeprom_button.state(["disabled"])
-
-        # Write EEPROM
-        self.write_eeprom_button = ttk.Button(
-            tweak_frame,
-            text="Write EEPROM",
-            command=self.write_eeprom,
-            style="Centered.TButton"
-        )
-        self.write_eeprom_button.grid(
-            row=0, column=1, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
-        )
-        self.write_eeprom_button.state(["disabled"])
-
         # Detect Access Key
         self.detect_access_key_button = ttk.Button(
             tweak_frame,
-            text="Detect Access Key",
+            text="Detect\nAccess Key",
             command=self.detect_access_key,
             style="Centered.TButton"
         )
         self.detect_access_key_button.grid(
+            row=0, column=1, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # Read EEPROM
+        self.read_eeprom_button = ttk.Button(
+            tweak_frame,
+            text="Read\nEEPROM",
+            command=self.read_eeprom,
+            style="Centered.TButton"
+        )
+        self.read_eeprom_button.grid(
             row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # Write EEPROM
+        self.write_eeprom_button = ttk.Button(
+            tweak_frame,
+            text="Write\nEEPROM",
+            command=self.write_eeprom,
+            style="Centered.TButton"
+        )
+        self.write_eeprom_button.grid(
+            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # Reset Waste Ink Levels
+        self.reset_button = ttk.Button(
+            tweak_frame,
+            text="Reset Waste\nInk Levels",
+            command=self.reset_waste_ink,
+            style="Centered.TButton"
+        )
+        self.reset_button.grid(
+            row=0, column=4, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # [row 4] Status display (including ScrolledText and Treeview)
@@ -534,6 +555,7 @@ class EpsonPrinterUI(tk.Tk):
             sticky=(tk.W, tk.E, tk.N, tk.S),
         )
         self.status_text.bind("<Tab>", self.focus_next)
+        self.status_text.bind("<Shift-Tab>", self.focus_previous)
         self.status_text.bind("<Key>", lambda e: "break")  # disable editing text
         self.status_text.bind(
             "<Control-c>",
@@ -608,12 +630,33 @@ class EpsonPrinterUI(tk.Tk):
         event.widget.tk_focusNext().focus()
         return("break")
 
+    def focus_previous(self, event):
+        event.widget.tk_focusPrev().focus()
+        return("break")
+
     def change_widget_states(self, index=None, value=None, op=None):
+        """
+        Enable or disable buttons when IP address and printer model change
+        """
+        ToolTip(self.get_ti_received, "")
+        ToolTip(self.get_po_minutes, "")
+        ToolTip(self.read_eeprom_button, "")
+        ToolTip(self.write_eeprom_button, "")
+        ToolTip(self.reset_button, "")
         if self.ip_var.get():
             self.status_button.state(["!disabled"])
+            self.firmware_version_button.state(["!disabled"])
+            self.web_interface_button.state(["!disabled"])
+            self.detect_access_key_button.state(["!disabled"])
             self.printer = None
         else:
+            self.reset_button.state(["disabled"])
             self.status_button.state(["disabled"])
+            self.read_eeprom_button.state(["disabled"])
+            self.write_eeprom_button.state(["disabled"])
+            self.firmware_version_button.state(["disabled"])
+            self.web_interface_button.state(["disabled"])
+            self.detect_access_key_button.state(["disabled"])
         if self.ip_var.get() and self.model_var.get():
             self.printer = EpsonPrinter(
                 conf_dict=self.conf_dict,
@@ -626,6 +669,28 @@ class EpsonPrinterUI(tk.Tk):
             if not self.printer.parm:
                 self.reset_printer_model()
                 return
+
+            self.read_eeprom_button.state(["disabled"])
+            ToolTip(
+                self.read_eeprom_button,
+                "Feature not defined in the printer configuration."
+            )
+            self.write_eeprom_button.state(["disabled"])
+            ToolTip(
+                self.write_eeprom_button,
+                "Feature not defined in the printer configuration."
+            )
+            if self.printer and self.printer.parm:
+                if "read_key" in self.printer.parm:
+                    self.read_eeprom_button.state(["!disabled"])
+                    ToolTip(self.read_eeprom_button, "")
+                if "write_key" in self.printer.parm:
+                    self.write_eeprom_button.state(["!disabled"])
+                    ToolTip(
+                        self.write_eeprom_button,
+                        "Ensure you really want this before pressing this key."
+                    )
+
             if self.printer.parm.get("stats", {}).get("Power off timer"):
                 self.po_timer_entry.state(["!disabled"])
                 self.get_po_minutes.state(["!disabled"])
@@ -639,6 +704,7 @@ class EpsonPrinterUI(tk.Tk):
                     self.get_po_minutes,
                     "Feature not defined in the printer configuration."
                 )
+
             if self.printer.parm.get("stats", {}).get("First TI received time"):
                 self.date_entry.state(["!disabled"])
                 self.get_ti_received.state(["!disabled"])
@@ -652,6 +718,7 @@ class EpsonPrinterUI(tk.Tk):
                     self.get_ti_received,
                     "Feature not defined in the printer configuration."
                 )
+
             if self.printer.reset_waste_ink_levels(dry_run=True):
                 self.reset_button.state(["!disabled"])
                 ToolTip(
@@ -664,31 +731,11 @@ class EpsonPrinterUI(tk.Tk):
                     self.reset_button,
                     "Feature not defined in the printer configuration."
                 )
-            if "read_key" in self.printer.parm:
-                self.read_eeprom_button.state(["!disabled"])
-                ToolTip(
-                    self.read_eeprom_button,
-                    ""
-                )
-            else:
-                self.read_eeprom_button.state(["disabled"])
-                ToolTip(
-                    self.read_eeprom_button,
-                    "Feature not defined in the printer configuration."
-                )
-            if "write_key" in self.printer.parm:
-                self.write_eeprom_button.state(["!disabled"])
-                ToolTip(
-                    self.write_eeprom_button,
-                    "Ensure you really want this before pressing this key."
-                )
-            else:
-                self.write_eeprom_button.state(["disabled"])
-                ToolTip(
-                    self.write_eeprom_button,
-                    "Feature not defined in the printer configuration."
-                )
         else:
+            self.status_button.state(["disabled"])
+            self.read_eeprom_button.state(["disabled"])
+            self.write_eeprom_button.state(["disabled"])
+
             self.po_timer_entry.state(["disabled"])
             self.get_po_minutes.state(["disabled"])
             self.set_po_minutes.state(["disabled"])
@@ -697,7 +744,6 @@ class EpsonPrinterUI(tk.Tk):
             self.get_ti_received.state(["disabled"])
             self.set_ti_received.state(["disabled"])
 
-            self.reset_button.state(["disabled"])
         self.update_idletasks()
 
     def next_ip(self, event):
@@ -1221,6 +1267,61 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(
                 tk.END, f"[WARNING] Detect access key aborted.\n"
             )
+            self.config(cursor="")
+            self.update_idletasks()
+
+    def web_interface(self, cursor=True):
+        if cursor:
+            self.config(cursor="watch")
+            self.update()
+            current_function_name = inspect.stack()[0][3]
+            method_to_call = getattr(self, current_function_name)
+            self.after(100, lambda: method_to_call(cursor=False))
+            return
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update()
+            return
+        if not self.printer:
+            return
+        try:
+            webbrowser.open(ip_address)
+        except Exception as e:
+            self.status_text.insert(
+                tk.END, f"[ERROR] Cannot open web browser: {e}\n"
+            )
+        finally:
+            self.config(cursor="")
+            self.update_idletasks()
+
+    def firmware_version(self, cursor=True):
+        if cursor:
+            self.config(cursor="watch")
+            self.update()
+            current_function_name = inspect.stack()[0][3]
+            method_to_call = getattr(self, current_function_name)
+            self.after(100, lambda: method_to_call(cursor=False))
+            return
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update()
+            return
+        if not self.printer:
+            return
+        try:
+            firmware_version = self.printer.get_firmware_version()
+            self.status_text.insert(
+                tk.END, f"[INFO] Firmware version: {firmware_version}.\n"
+            )
+        except Exception as e:
+            self.handle_printer_error(e)
+        finally:
             self.config(cursor="")
             self.update_idletasks()
 
