@@ -233,7 +233,7 @@ class EpsonPrinterUI(tk.Tk):
         main_frame = ttk.Frame(self, padding=FRAME_PAD)
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(3, weight=1)  # Number of rows
+        main_frame.rowconfigure(4, weight=1)  # Number of rows
         row_n = 0
 
         # [row 0] Container frame for the two LabelFrames Power-off timer and TI Received Time
@@ -331,9 +331,9 @@ class EpsonPrinterUI(tk.Tk):
         container_frame.columnconfigure(0, weight=1)  # Allow column to expand
         container_frame.columnconfigure(1, weight=1)  # Allow column to expand
 
-        # BOX Power-off timer (minutes)
+        # BOX Power-off Timer (minutes)
         po_timer_frame = ttk.LabelFrame(
-            container_frame, text="Power-off timer (minutes)", padding=PAD
+            container_frame, text="Power-off Timer (minutes)", padding=PAD
         )
         po_timer_frame.grid(
             row=0, column=0, pady=PADY, padx=(0, PADX), sticky=(tk.W, tk.E)
@@ -443,7 +443,7 @@ class EpsonPrinterUI(tk.Tk):
         # Detect Printers
         self.detect_button = ttk.Button(
             button_frame,
-            text="Detect\nPrinters",
+            text="Detect Printers",
             command=self.start_detect_printers,
             style="Centered.TButton"
         )
@@ -453,7 +453,7 @@ class EpsonPrinterUI(tk.Tk):
 
         # Printer Status
         self.status_button = ttk.Button(
-            button_frame, text="Printer\nStatus",
+            button_frame, text="Printer Status",
             command=self.printer_status,
             style="Centered.TButton"
         )
@@ -464,7 +464,7 @@ class EpsonPrinterUI(tk.Tk):
         # Reset Waste Ink Levels
         self.reset_button = ttk.Button(
             button_frame,
-            text="Reset Waste\nInk Levels",
+            text="Reset Waste Ink Levels",
             command=self.reset_waste_ink,
             style="Centered.TButton"
         )
@@ -472,31 +472,48 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
+        # [row 3] EEPROM Buttons
+        row_n += 1
+        tweak_frame = ttk.Frame(main_frame, padding=PAD)
+        tweak_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
+        tweak_frame.columnconfigure((0, 1, 2), weight=1)
+
         # Read EEPROM
         self.read_eeprom_button = ttk.Button(
-            button_frame,
-            text="Read\nEEPROM",
+            tweak_frame,
+            text="Read EEPROM",
             command=self.read_eeprom,
             style="Centered.TButton"
         )
         self.read_eeprom_button.grid(
-            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+            row=0, column=0, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
         self.read_eeprom_button.state(["disabled"])
 
         # Write EEPROM
         self.write_eeprom_button = ttk.Button(
-            button_frame,
-            text="Write\nEEPROM",
+            tweak_frame,
+            text="Write EEPROM",
             command=self.write_eeprom,
             style="Centered.TButton"
         )
         self.write_eeprom_button.grid(
-            row=0, column=4, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+            row=0, column=1, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
         self.write_eeprom_button.state(["disabled"])
 
-        # [row 3] Status display (including ScrolledText and Treeview)
+        # Detect Access Key
+        self.detect_access_key_button = ttk.Button(
+            tweak_frame,
+            text="Detect Access Key",
+            command=self.detect_access_key,
+            style="Centered.TButton"
+        )
+        self.detect_access_key_button.grid(
+            row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # [row 4] Status display (including ScrolledText and Treeview)
         row_n += 1
         status_frame = ttk.LabelFrame(main_frame, text="Status", padding=PAD)
         status_frame.grid(
@@ -1164,6 +1181,48 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="watch")
             self.update()
             self.after(100, lambda: get_values(addresses))
+
+    def detect_access_key(self):
+        def run_detection():
+            current_log_level = logging.getLogger().getEffectiveLevel()
+            logging.getLogger().setLevel(logging.ERROR)
+            try:
+                read_key = self.printer.brute_force_read_key()
+                self.status_text.insert(
+                    tk.END, f"[INFO] Detected read_key parameter: {read_key}.\n"
+                )
+            except Exception as e:
+                self.handle_printer_error(e)
+            logging.getLogger().setLevel(current_log_level)
+            self.config(cursor="")
+            self.update_idletasks()
+
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            return
+        response = messagebox.askyesno(
+            "Confirm Action",
+            "Warning: this is a brute force operation which takes several\n"
+            "minutes to complete.\n"
+            "At the moment only the read_key parameter will be detected.\n"
+            "Results will be shown in the text box.\n\n"
+            "Are you sure you want to proceed?"
+        )
+        if response:
+            self.status_text.insert(
+                tk.END, f"[INFO] Starting the operation, please wait...\n"
+            )
+            self.config(cursor="watch")
+            self.update()
+            self.after(100, lambda: run_detection())
+        else:
+            self.status_text.insert(
+                tk.END, f"[WARNING] Detect access key aborted.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
 
     def write_eeprom(self):
         def parse_dict_input(input_str):

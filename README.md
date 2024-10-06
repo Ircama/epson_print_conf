@@ -35,11 +35,12 @@ A range of features are offered for both end-users and developers, making it eas
 
 The GUI can automatically find and display printer IP addresses and model names, allowing users to:
 
-- Check printer status.
-- Set the power-off timer.
-- Reset the ink waste counter.
-- Configure the _First TI Received Time_.
-- read and write the EEPROM
+- Check printer status
+- Set the power-off timer
+- Reset the ink waste counter
+- Configure the _First TI Received Time_
+- Read and write the EEPROM
+- Detect the access key (only the *read_key* at the moment)
 
   The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
 
@@ -664,7 +665,3 @@ emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
 
 - https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
 - https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml
-
-## Acknowledgments
-
-Thanks to [sshsphere](https://github.com/sshsphere) for the GUI and other features.
