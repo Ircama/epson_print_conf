@@ -29,7 +29,7 @@ from epson_print_conf import EpsonPrinter
 from find_printers import PrinterScanner
 
 
-VERSION = "2.4"
+VERSION = "3.0"
 
 NO_CONF_ERROR = (
     "[ERROR] Please select a printer model and a valid IP address,"
@@ -439,7 +439,7 @@ class EpsonPrinterUI(tk.Tk):
         row_n += 1
         button_frame = ttk.Frame(main_frame, padding=PAD)
         button_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
-        button_frame.columnconfigure((0, 1, 2), weight=1)
+        button_frame.columnconfigure((0, 1, 2), weight=1)  # expand columns
 
         # Query Printer Status
         self.status_button = ttk.Button(
@@ -477,7 +477,7 @@ class EpsonPrinterUI(tk.Tk):
         row_n += 1
         tweak_frame = ttk.Frame(main_frame, padding=PAD)
         tweak_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
-        tweak_frame.columnconfigure((0, 1, 2), weight=1)
+        tweak_frame.columnconfigure((0, 1, 2, 3, 4), weight=1)  # expand columns
 
         # Detect Printers
         self.detect_button = ttk.Button(
@@ -490,10 +490,10 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=0, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
-        # Detect Access Key
+        # Detect Access Keys
         self.detect_access_key_button = ttk.Button(
             tweak_frame,
-            text="Detect\nAccess Key",
+            text="Detect\nAccess Keys",
             command=self.detect_access_key,
             style="Centered.TButton"
         )
@@ -644,6 +644,8 @@ class EpsonPrinterUI(tk.Tk):
         ToolTip(self.write_eeprom_button, "")
         ToolTip(self.reset_button, "")
         if self.ip_var.get():
+            if not self.model_var.get():
+                self.reset_button.state(["disabled"])
             self.status_button.state(["!disabled"])
             self.firmware_version_button.state(["!disabled"])
             self.web_interface_button.state(["!disabled"])
@@ -895,7 +897,7 @@ class EpsonPrinterUI(tk.Tk):
         self.status_text.insert(
             tk.END, f"[INFO] Set Power off timer: {po_timer} minutes.\n"
         )
-        response = messagebox.askyesno(*CONFIRM_MESSAGE)
+        response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
                 self.printer.write_poweroff_timer(int(po_timer))
@@ -993,7 +995,7 @@ class EpsonPrinterUI(tk.Tk):
             f"[INFO] Set 'First TI received time' (YYYY-MM-DD) to: "
             f"{date_string.strftime('%Y-%m-%d')}.\n",
         )
-        response = messagebox.askyesno(*CONFIRM_MESSAGE)
+        response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
                 self.printer.write_first_ti_received_time(
@@ -1230,19 +1232,218 @@ class EpsonPrinterUI(tk.Tk):
 
     def detect_access_key(self):
         def run_detection():
+            """
+            Process:
+            - detect the read_key
+            - extract the serial number
+            - use the last character of the serial number to validate the write_key
+            - produce an ordered list of all the known write_key
+            - validate the write_key against any of the known values
+            """
             current_log_level = logging.getLogger().getEffectiveLevel()
             logging.getLogger().setLevel(logging.ERROR)
+            if not self._is_valid_ip(ip_address):
+                self.status_text.insert(tk.END, NO_CONF_ERROR)
+                logging.getLogger().setLevel(current_log_level)
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+            if not self.printer:
+                self.printer = EpsonPrinter(
+                    hostname=self.ip_var.get()
+                )
+                self.printer.parm = {'read_key': None}
+
+            # Detect the read_key
+            self.status_text.insert(
+                tk.END,
+                f"[INFO] Detecting the read_key...\n"
+            )
+            self.update_idletasks()
+            read_key = None
             try:
                 read_key = self.printer.brute_force_read_key()
                 self.status_text.insert(
-                    tk.END, f"[INFO] Detected read_key parameter: {read_key}.\n"
+                    tk.END, f"[INFO] Detected read_key: {read_key}.\n"
                 )
             except Exception as e:
                 self.handle_printer_error(e)
+                logging.getLogger().setLevel(current_log_level)
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+            if not read_key:
+                self.status_text.insert(
+                    tk.END, f"[ERROR] Could not detect read_key.\n"
+                )
+                logging.getLogger().setLevel(current_log_level)
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+
+            # Extract the serial number
+            self.status_text.insert(
+                tk.END,
+                f"[INFO] Detecting the serial number...\n"
+            )
+            self.update_idletasks()
+            last_ser_num_addr = None
+            if not self.printer.parm:
+                self.printer.parm = {'read_key': read_key}
+            if (
+                'read_key' not in self.printer.parm
+                or self.printer.parm['read_key'] is None
+            ):
+                self.printer.parm['read_key'] = read_key
+            if self.printer.parm['read_key'] != read_key:
+                self.status_text.insert(
+                    tk.END,
+                    f"[INFO] You selected a model with the wrong read_key "
+                    f"{self.printer.parm['read_key']} instead of "
+                    f"{read_key}. Using the correct one now.\n"
+                )
+                self.printer.parm['read_key'] = read_key
+            hex_bytes, matches = self.printer.find_serial_number(range(2048))
+            if not matches:
+                self.status_text.insert(
+                    tk.END,
+                    f"[ERROR] Cannot detect the serial number.\n"
+                )
+            elif len(matches) != 1:
+                self.status_text.insert(
+                    tk.END,
+                    "[ERROR] More than one pattern appears to be"
+                    " a serial number:\n"
+                )
+                for match in matches:
+                    self.status_text.insert(
+                        tk.END,
+                        f'[ERROR] - found pattern "{match.group()}"'
+                        f" at address {match.start()}\n"
+                    )
+            else:
+                serial_number = matches[0].group()
+                serial_number_address = matches[0].start()
+                self.status_text.insert(
+                    tk.END,
+                    f'[INFO] Detected serial number "{serial_number}"'
+                    f" at address {serial_number_address}.\n"
+                )
+                last_ser_num_addr = serial_number_address + 9
+                last_ser_num_value = int(hex_bytes[last_ser_num_addr], 16)
+
+            if last_ser_num_addr is None:
+                self.status_text.insert(
+                    tk.END,
+                    "[ERROR] Could not detect serial number.\n"
+                )
+                logging.getLogger().setLevel(current_log_level)
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+
+            # Produce an ordered list of all the known write_key
+            write_key_list = self.printer.write_key_list(read_key)
+
+            # Validate the write_key against any of the known values
+            old_write_key = None
+            if 'write_key' in self.printer.parm:
+                old_write_key = self.printer.parm['write_key']
+            found_write_key = None
+            valid = False
+            for write_key in write_key_list:
+                self.printer.parm['write_key'] = write_key
+                try:
+                    valid = self.printer.validate_write_key(
+                        last_ser_num_addr,
+                        last_ser_num_value,
+                        label="test_write_eeprom"
+                    )
+                    assert valid is not None
+                except AssertionError:
+                    self.status_text.insert(
+                        tk.END,
+                        "[ERROR] Write operation failed. Check whether the"
+                        " serial number is changed and restore it manually.\n"
+                    )
+                    self.config(cursor="")
+                    self.update_idletasks()
+                except Exception as e:
+                    self.handle_printer_error(e)
+                    logging.getLogger().setLevel(current_log_level)
+                    self.config(cursor="")
+                    self.update_idletasks()
+                    return
+                if valid is None:
+                    self.status_text.insert(
+                        tk.END, "[ERROR] Operation interrupted with errors.\n"
+                    )
+                    logging.getLogger().setLevel(current_log_level)
+                    self.config(cursor="")
+                    self.update_idletasks()
+                    return
+                if valid is False:
+                    continue
+
+                found_write_key = write_key
+                self.status_text.insert(
+                    tk.END, f"[INFO] Detected write_key: {found_write_key}\n"
+                )
+                if old_write_key and old_write_key != found_write_key:
+                    self.status_text.insert(
+                        tk.END,
+                        f"[INFO] Found write key is different from"
+                        f" the selected one: {old_write_key}\n"
+                    )
+                    self.printer.parm['write_key'] = old_write_key
+
+                # List conforming models
+                rk_kist = []
+                wk_kist = []
+                rwk_kist = []
+                for p, v in self.printer.PRINTER_CONFIG.items():
+                    if not v:
+                        continue
+                    if v.get("read_key") == read_key:
+                        rk_kist.append(p)
+                    if v.get("write_key") == found_write_key:
+                        wk_kist.append(p)
+                    if (
+                        v.get("read_key") == read_key
+                        and v.get("write_key") == found_write_key
+                    ):
+                        rwk_kist.append(p)
+                if rk_kist:
+                    self.status_text.insert(
+                        tk.END,
+                        f"[INFO] Models with same read_key: {rk_kist}\n"
+                    )
+                if wk_kist:
+                    self.status_text.insert(
+                        tk.END,
+                        f"[INFO] Models with same write_key: {wk_kist}\n"
+                    )
+                if rwk_kist:
+                    self.status_text.insert(
+                        tk.END,
+                        f"[INFO] Models with same access keys: {rwk_kist}\n"
+                    )
+
+                self.status_text.insert(
+                    tk.END, "[INFO] Detect operation completed.\n"
+                )
+                break
+            if not found_write_key:
+                self.status_text.insert(
+                    tk.END,
+                    "[ERROR] Unable to detect the write key by validating"
+                    " against any of the known ones.\n"
+                )
             logging.getLogger().setLevel(current_log_level)
             self.config(cursor="")
             self.update_idletasks()
 
+        # Confirmation message
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
@@ -1250,11 +1451,13 @@ class EpsonPrinterUI(tk.Tk):
             return
         response = messagebox.askyesno(
             "Confirm Action",
-            "Warning: this is a brute force operation which takes several\n"
-            "minutes to complete.\n"
-            "At the moment only the read_key parameter will be detected.\n"
-            "Results will be shown in the text box.\n\n"
-            "Are you sure you want to proceed?"
+            "Warning: this is a brute force operation, which takes several\n"
+            "minutes to complete.\n\n"
+            "Results will be shown in the status box.\n\n"
+            "Make sure not to switch off the printer while the process"
+            " is running and disable the auto power-off timer.\n\n"
+            "Are you sure you want to proceed?",
+            default='no'
         )
         if response:
             self.status_text.insert(
@@ -1288,7 +1491,15 @@ class EpsonPrinterUI(tk.Tk):
         if not self.printer:
             return
         try:
-            webbrowser.open(ip_address)
+            ret = webbrowser.open(ip_address)
+            if ret:
+                self.status_text.insert(
+                    tk.END, f"[INFO] The browser is being opened.\n"
+                )
+            else:
+                self.status_text.insert(
+                    tk.END, f"[ERROR] Cannot open browser.\n"
+                )
         except Exception as e:
             self.status_text.insert(
                 tk.END, f"[ERROR] Cannot open web browser: {e}\n"
@@ -1392,7 +1603,7 @@ class EpsonPrinterUI(tk.Tk):
                 return
             self.config(cursor="")
             self.update_idletasks()
-            response = messagebox.askyesno(*CONFIRM_MESSAGE)
+            response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
             if response:
                 self.config(cursor="watch")
                 self.update()
@@ -1443,7 +1654,13 @@ class EpsonPrinterUI(tk.Tk):
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if (
+            not self._is_valid_ip(ip_address)
+            or not self.printer
+            or not self.printer.parm
+            or "read_key" not in self.printer.parm
+            or "write_key" not in self.printer.parm
+        ):
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -1471,7 +1688,7 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             return
-        response = messagebox.askyesno(*CONFIRM_MESSAGE)
+        response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if not self.printer:
             return
         if response:

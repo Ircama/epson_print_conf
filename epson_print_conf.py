@@ -2130,6 +2130,49 @@ class EpsonPrinter:
             return self.parm['read_key']
         return None
 
+    def find_serial_number(self, eeprom_range):
+        """ Detect serial number analyzing eeprom_range addresses """
+        # Read the EEPROM data
+        hex_bytes = self.read_eeprom_many(
+            eeprom_range, label="detect_serial_number"
+        )
+        # Convert the hex bytes to characters
+        sequence = ''.join(chr(int(byte, 16)) for byte in hex_bytes)
+        # Serial number pattern (10 consecutive uppercase letters or digits)
+        serial_number_pattern = r'[A-Z0-9]{10}'
+        # Find all matches
+        return hex_bytes, list(re.finditer(serial_number_pattern, sequence))
+
+    def write_key_list(self, read_key):
+        """ Produce a list of distinct write_key prioritizing ones with same read_key """
+        write_key_list = []
+        for p, v in self.PRINTER_CONFIG.items():
+            if (
+                'read_key' in v
+                and v['read_key'] == read_key
+                and 'write_key' in v
+                and v['write_key'] not in write_key_list
+            ):
+                write_key_list.append(v['write_key'])
+        for p, v in self.PRINTER_CONFIG.items():
+            if (
+                'write_key' in v
+                and v['write_key'] not in write_key_list
+            ):
+                write_key_list.append(v['write_key'])
+        return write_key_list
+
+    def validate_write_key(self, addr, value, label):
+        """ Validate write_key by writing values to the EEPROM """
+        if not self.write_eeprom(addr, value + 1, label=label):  # test write
+            return None
+        ret_value = int(self.read_eeprom(addr), 16)
+        if not self.write_eeprom(addr, value, label=label):  # restore previous value
+            return None
+        if int(self.read_eeprom(addr), 16) != value:
+            return None
+        return ret_value == value + 1
+
     def write_sequence_to_string(self, write_sequence):
         """ Convert write key sequence to string """
         try:
