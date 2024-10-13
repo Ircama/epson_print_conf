@@ -2131,7 +2131,10 @@ class EpsonPrinter:
         return None
 
     def find_serial_number(self, eeprom_range):
-        """ Detect serial number analyzing eeprom_range addresses """
+        """
+        Detect serial number analyzing eeprom_range addresses
+        A valid value for eeprom_range is range(2048)
+        """
         # Read the EEPROM data
         hex_bytes = self.read_eeprom_many(
             eeprom_range, label="detect_serial_number"
