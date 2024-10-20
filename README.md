@@ -39,10 +39,9 @@ The GUI can automatically find and display printer IP addresses and model names,
 
 - Check printer status
 - Open the printer web interface
-- Detect the printer configuration
 - Change the printer power-off timer, the _First TI Received Time_, the printer WiFi MAC address, and the printer serial number
 - Read and write the EEPROM
-- Detect the access key (*read_key* and *write_key*)
+- Detect the access key (*read_key* and *write_key*) and some attributes of the printer configuration
 - Reset the ink waste counter
 
 Special features allow showing the internal configuration settings.
@@ -51,7 +50,9 @@ The *First TI Received Time* in Epson printers typically refers to the timestamp
 
 The software provides a configurable printer dictionary, which can be easily extended. In addition, a tool allows importing and converting an extensive Epson printer configuration DB.
 
-Note: resetting the ink waste counter is just removing a lock; not replacing the tank will reduce the print quality and make the ink spill.
+The GUI includes some features that attempt to detect the attributes of an Epson printer whose model is not included in the configuration. First press "Detect Printers". If the printer is not in the configuration, press "Detect Access Keys". If the output does not show errors, press "Detect Configuration". These commands produce a tree view and a text view, which are useful to analyze whether there is a configured model that might be close or possibly same to target one. Notice that these operations take many minutes to complete and the printer shall be kept switched on for the whole period. Temporarily disabling the auto power-off timer is suggested.
+
+Note on the ink waste counter reset feature: resetting the ink waste counter is just removing a lock; not replacing the tank will reduce the print quality and make the ink spill.
 
 ## Installation
 

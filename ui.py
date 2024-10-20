@@ -590,7 +590,7 @@ class EpsonPrinterUI(tk.Tk):
         # Detect configuration values
         self.detect_configuration_button = ttk.Button(
             button_frame,
-            text="Detect configuration",
+            text="Detect Configuration",
             command=self.detect_configuration,
             style="Centered.TButton"
         )
@@ -2026,6 +2026,7 @@ class EpsonPrinterUI(tk.Tk):
                         f'[INFO] Found data: '
                         f'{self.printer.PRINTER_CONFIG[DETECTED]}.\n'
                     )
+                self.detect_configuration_button.state(["!disabled"])
                 self.status_text.insert(
                     tk.END, "[INFO] Detect operation completed.\n"
                 )
@@ -2251,6 +2252,11 @@ class EpsonPrinterUI(tk.Tk):
         else:
             conf_data["wifi_mac_address"] = None
 
+        if self.printer and self.printer.parm:
+            if "read_key" in self.printer.parm:
+                conf_data["read_key"] = self.printer.parm["read_key"]
+            if "write_key" in self.printer.parm:
+                conf_data["write_key"] = self.printer.parm["write_key"]
         try:
             self.text_dump = black.format_str(  # used by Copy All
                 '"Printer configuration": ' + repr(conf_data),
