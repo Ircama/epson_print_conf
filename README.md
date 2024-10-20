@@ -36,11 +36,13 @@ A range of features are offered for both end-users and developers, making it eas
 The GUI can automatically find and display printer IP addresses and model names, allowing users to:
 
 - Check printer status
-- Set the power-off timer
-- Reset the ink waste counter
-- Configure the _First TI Received Time_
+- Open the printer web interface
+- Detect the printer configuration
+- Change the printer power-off timer, the _First TI Received Time_, the printer WiFi MAC address, and the printer serial number
 - Read and write the EEPROM
-- Detect the access key (only the *read_key* at the moment)
+- Detect the access key (*read_key* and *write_key*)
+- Reset the ink waste counter
+- Special features allow showing the internal configuration settings
 
   The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
 

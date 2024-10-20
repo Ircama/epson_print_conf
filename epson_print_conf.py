@@ -75,6 +75,7 @@ class EpsonPrinter:
             "printer_head_id_f": [136, 137, 138, 129],
             "main_waste": {"oids": [24, 25, 30], "divider": 73.5},
             "borderless_waste": {"oids": [26, 27, 34], "divider": 34.34},
+            "wifi_mac_address": range(130, 136),
             "same-as": "XP-315"
         },
         "ET-4700": {
@@ -954,7 +955,15 @@ class EpsonPrinter:
 
     @property
     def list_methods(self):
-        """Return list of available information methods about a printer."""
+        """
+        Return the list of methods that can be invoked to get the printer
+        information data.
+        Used by stats() and other modes to return all available information
+        about a printer.
+        A conforming method shall start with "get_".
+        Do not use "get_" for new methods if you do not want them to be part
+        of list_methods.
+        """
         return(filter(lambda x: x.startswith("get_"), dir(self)))
 
     def expand_printer_conf(self, conf):
@@ -1655,6 +1664,7 @@ class EpsonPrinter:
                 data_set["unknown"].append((hex(ftype), item))
         return data_set
 
+    # Start of "get_" methods
     def get_snmp_info(
         self,
         mib_name: str = None,
@@ -1687,8 +1697,8 @@ class EpsonPrinter:
                             :
                             result.find(b';')
                         ].decode()
-                    ), byteorder="little") / 60
-                    sys_info[name] = f"{power_off_h} hours"
+                    ), byteorder="little")
+                    sys_info[name] = f"{power_off_h} minutes"
                 except Exception:
                     sys_info[name] = "(unknown)"
             elif name == "hex_data" and result is not False:
@@ -1719,6 +1729,22 @@ class EpsonPrinter:
             for value in self.read_eeprom_many(
                 self.parm["serial_number"], label="serial_number")
         )
+
+    def get_wifi_mac_address(self) -> str:
+        """Return the WiFi MAC address of the printer."""
+        if not self.parm:
+            logging.error("EpsonPrinter - invalid API usage")
+            return None
+        if "wifi_mac_address" not in self.parm:
+            return None
+        try:
+            return '-'.join(
+                octet.upper() for octet in self.read_eeprom_many(
+                    self.parm["wifi_mac_address"], label="get_wifi_mac_address"
+                )
+            )
+        except Exception:
+            return False
 
     def get_stats(self, stat_name: str = None) -> str:
         """Return printer statistics."""
@@ -1904,18 +1930,6 @@ class EpsonPrinter:
             label="last_printer_fatal_errors"
         )
 
-    def ink_color(self, number):
-        """
-        Return a list including the cartridge input number and the related
-        name of the ink color (or "unknown color" if not included
-        in self.CARTRIDGE_TYPE).
-        """
-        return [
-            number,
-            self.CARTRIDGE_TYPE[
-                number] if number in self.CARTRIDGE_TYPE else "unknown color",
-        ]
-
     def get_cartridge_information(self) -> str:
         """Return list of cartridge properties."""
         response = []
@@ -1944,6 +1958,19 @@ class EpsonPrinter:
         if not response:
             return None
         return self.cartridge_parser(response)
+    # End of "get_" methods
+
+    def ink_color(self, number):
+        """
+        Return a list including the cartridge input number and the related
+        name of the ink color (or "unknown color" if not included
+        in self.CARTRIDGE_TYPE).
+        """
+        return [
+            number,
+            self.CARTRIDGE_TYPE[
+                number] if number in self.CARTRIDGE_TYPE else "unknown color",
+        ]
 
     def cartridge_parser(self, cartridges: List[bytes]) -> str:
         """Parse the cartridge properties and decode as much as possible."""
@@ -2023,6 +2050,36 @@ class EpsonPrinter:
                 16
             )
         return d
+
+    def update_parameter(
+        self,
+        parameter: str,
+        value_list: list,
+        dry_run=False
+    ) -> bool:
+        """
+        Update printer parameter by writing value data to EEPROM
+        (tested with "serial_number" and "wifi_mac_address").
+        """
+        if not self.parm:
+            logging.error("EpsonPrinter - invalid API usage")
+            return None
+        if (
+            not parameter
+            or parameter not in self.parm
+            or not self.parm[parameter]
+            or not value_list
+            or not len(value_list)
+            or len(self.parm[parameter]) != len(value_list)
+        ):
+            return None
+        if dry_run:
+            return True
+        for oid, value in zip(self.parm[parameter], value_list):
+            if not self.write_eeprom(oid, value, label="update_" + parameter):
+                return False
+            return True
+        return False
 
     def reset_waste_ink_levels(self, dry_run=False) -> bool:
         """

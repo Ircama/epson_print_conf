@@ -29,7 +29,7 @@ from epson_print_conf import EpsonPrinter
 from find_printers import PrinterScanner
 
 
-VERSION = "3.0"
+VERSION = "4.0"
 
 NO_CONF_ERROR = (
     "[ERROR] Please select a printer model and a valid IP address,"
@@ -211,7 +211,7 @@ class EpsonPrinterUI(tk.Tk):
         super().__init__()
         self.title("Epson Printer Configuration - v" + VERSION)
         self.geometry("500x500")
-        self.minsize(500, 500)
+        self.minsize(550, 600)
         self.printer_scanner = PrinterScanner()
         self.ip_list = []
         self.ip_list_cycle = None
@@ -234,7 +234,7 @@ class EpsonPrinterUI(tk.Tk):
         main_frame = ttk.Frame(self, padding=FRAME_PAD)
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(4, weight=1)  # Number of rows
+        main_frame.rowconfigure(5, weight=1)  # Number of rows
         row_n = 0
 
         # [row 0] Container frame for the two LabelFrames Power-off timer and TI Received Time
@@ -278,9 +278,11 @@ class EpsonPrinterUI(tk.Tk):
         ToolTip(
             self.model_dropdown,
             "Select the model of the printer, or press 'Detect Printers'.\n"
-            "Press F2 to dump the parameters associated to the printer model.",
+            "Press F2 to dump the parameters associated to the printer model."
+            " Press F3 to get the values of the keys from the configuration.",
         )
         self.model_dropdown.bind("<F2>", self.printer_config)
+        self.model_dropdown.bind("<F3>", self.key_values)
 
         # BOX IP address
         ip_frame = ttk.LabelFrame(
@@ -435,7 +437,130 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E
         )
 
-        # [row 2] Query Buttons
+        # [row 2] Container frame for the two LabelFrames WiFi MAC address and printer serial number
+        row_n += 1
+        container_frame = ttk.Frame(main_frame, padding=PAD)
+        container_frame.grid(
+            row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E)
+        )
+        container_frame.columnconfigure(0, weight=1)  # Allow column to expand
+        container_frame.columnconfigure(1, weight=1)  # Allow column to expand
+
+        # BOX WiFi MAC Address (6 alphanumeric digits optionally separated by dash)
+        mac_addr_frame = ttk.LabelFrame(
+            container_frame, text="WiFi MAC Address", padding=PAD
+        )
+        mac_addr_frame.grid(
+            row=0, column=0, pady=PADY, padx=(0, PADX), sticky=(tk.W, tk.E)
+        )
+        mac_addr_frame.columnconfigure(0, weight=0)  # Button column on the left
+        mac_addr_frame.columnconfigure(1, weight=1)  # Entry column
+        mac_addr_frame.columnconfigure(2, weight=0)  # Button column on the right
+
+        # Configure validation command for MAC address
+        validate_mac_addr = (self.register(self.validate_mac_address), '%P')
+
+        # WiFi MAC Address - Get Button
+        button_width = 7
+        self.get_mac_addr = ttk.Button(
+            mac_addr_frame,
+            text="Get",
+            width=button_width,
+            command=self.get_mac_address,
+        )
+        self.get_mac_addr.grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W
+        )
+
+        # WiFi MAC Address - Entry
+        self.mac_addr_var = tk.StringVar()
+        self.mac_addr_entry = ttk.Entry(
+            mac_addr_frame,
+            textvariable=self.mac_addr_var,
+            validate="all",
+            validatecommand=(validate_mac_addr, "%P"),
+            width=22,  # Full MAC address with separators
+            justify="center",
+        )
+        self.mac_addr_entry.grid(
+            row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
+        )
+        ToolTip(
+            self.mac_addr_entry,
+            "Enter Enter a valid MAC address"
+            " (6 hex octets optionally separated by dash).",
+            destroy=False
+        )
+
+        # WiFi MAC Address - Set Button
+        self.set_mac_addr = ttk.Button(
+            mac_addr_frame,
+            text="Set",
+            width=button_width,
+            command=self.set_mac_address,
+        )
+        self.set_mac_addr.grid(
+            row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E
+        )
+
+        # BOX Serial number (10 characters)
+        ser_num_frame = ttk.LabelFrame(
+            container_frame, text="Printer Serial Number", padding=PAD
+        )
+        ser_num_frame.grid(
+            row=0, column=1, pady=PADY, padx=(0, PADX), sticky=(tk.W, tk.E)
+        )
+        ser_num_frame.columnconfigure(0, weight=0)  # Button column on the left
+        ser_num_frame.columnconfigure(1, weight=1)  # Entry column
+        ser_num_frame.columnconfigure(2, weight=0)  # Button column on the right
+
+        # Configure validation command for the printer serial number
+        validate_ser_num = (self.register(self.validate_ser_number), '%P')
+
+        # Printer Serial Number - Get Button
+        button_width = 7
+        self.get_ser_num = ttk.Button(
+            ser_num_frame,
+            text="Get",
+            width=button_width,
+            command=self.get_ser_number,
+        )
+        self.get_ser_num.grid(
+            row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W
+        )
+
+        # Printer Serial Number - Entry
+        self.ser_num_var = tk.StringVar()
+        self.ser_num_entry = ttk.Entry(
+            ser_num_frame,
+            textvariable=self.ser_num_var,
+            validate="all",
+            validatecommand=(validate_ser_num, "%P"),
+            width=14,  # 10 characters
+            justify="center",
+        )
+        self.ser_num_entry.grid(
+            row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
+        )
+        ToolTip(
+            self.ser_num_entry,
+            "Enter Enter a valid printer serial number"
+            " (10 uppercase or numeric characters).",
+            destroy=False
+        )
+
+        # Printer Serial Number - Set Button
+        self.set_ser_num = ttk.Button(
+            ser_num_frame,
+            text="Set",
+            width=button_width,
+            command=self.set_ser_number,
+        )
+        self.set_ser_num.grid(
+            row=0, column=2, padx=PADX, pady=PADY, sticky=tk.E
+        )
+
+        # [row 3] Query Buttons
         row_n += 1
         button_frame = ttk.Frame(main_frame, padding=PAD)
         button_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
@@ -462,18 +587,18 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=1, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
-        # Query firmware version
-        self.firmware_version_button = ttk.Button(
+        # Detect configuration values
+        self.detect_configuration_button = ttk.Button(
             button_frame,
-            text="Firmware version",
-            command=self.firmware_version,
+            text="Detect configuration",
+            command=self.detect_configuration,
             style="Centered.TButton"
         )
-        self.firmware_version_button.grid(
+        self.detect_configuration_button.grid(
             row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
-        # [row 3] Tweak Buttons
+        # [row 4] Tweak Buttons
         row_n += 1
         tweak_frame = ttk.Frame(main_frame, padding=PAD)
         tweak_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
@@ -563,6 +688,29 @@ class EpsonPrinterUI(tk.Tk):
         )
         # self.status_text.bind("<Button-1>", lambda e: "break")  # also disable the mouse
 
+        # Create a context menu
+        self.text_context_menu = Menu(self, tearoff=0)
+        self.text_context_menu.add_command(
+            label="Clear All", command=self.clear_all_text
+        )
+        self.text_context_menu.add_command(
+            label="Copy", command=self.copy_text
+        )
+        self.text_context_menu.add_command(
+            label="Copy all text", command=self.copy_all_text
+        )
+        self.text_context_menu.add_command(
+            label="Print all text",
+            command=lambda: self.print_items(
+                self.status_text.get("1.0", tk.END).strip()
+            )
+        )
+        self.text_context_menu.add_command(
+            label="Switch to tree view",
+            command=self.show_treeview
+        )
+        self.status_text.bind("<Button-3>", self.show_text_context_menu)
+
         # Create a frame to contain the Treeview and its scrollbar
         self.tree_frame = tk.Frame(status_frame)
         self.tree_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -613,7 +761,12 @@ class EpsonPrinterUI(tk.Tk):
             label="Copy all items", command=self.copy_all_items
         )
         self.context_menu.add_command(
-            label="Print all items", command=self.print_items
+            label="Print all items",
+            command=lambda: self.print_items(self.text_dump)
+        )
+        self.context_menu.add_command(
+            label="Switch to text status",
+            command=self.show_status_text_view
         )
 
         # Bind the right-click event to the Treeview
@@ -640,14 +793,16 @@ class EpsonPrinterUI(tk.Tk):
         """
         ToolTip(self.get_ti_received, "")
         ToolTip(self.get_po_minutes, "")
+        ToolTip(self.get_mac_addr, "")
+        ToolTip(self.set_mac_addr, "")
         ToolTip(self.read_eeprom_button, "")
+        ToolTip(self.detect_configuration_button, "")
         ToolTip(self.write_eeprom_button, "")
         ToolTip(self.reset_button, "")
         if self.ip_var.get():
             if not self.model_var.get():
                 self.reset_button.state(["disabled"])
             self.status_button.state(["!disabled"])
-            self.firmware_version_button.state(["!disabled"])
             self.web_interface_button.state(["!disabled"])
             self.detect_access_key_button.state(["!disabled"])
             self.printer = None
@@ -655,8 +810,8 @@ class EpsonPrinterUI(tk.Tk):
             self.reset_button.state(["disabled"])
             self.status_button.state(["disabled"])
             self.read_eeprom_button.state(["disabled"])
+            self.detect_configuration_button.state(["disabled"])
             self.write_eeprom_button.state(["disabled"])
-            self.firmware_version_button.state(["disabled"])
             self.web_interface_button.state(["disabled"])
             self.detect_access_key_button.state(["disabled"])
         if self.ip_var.get() and self.model_var.get():
@@ -677,6 +832,11 @@ class EpsonPrinterUI(tk.Tk):
                 self.read_eeprom_button,
                 "Feature not defined in the printer configuration."
             )
+            self.detect_configuration_button.state(["disabled"])
+            ToolTip(
+                self.detect_configuration_button,
+                "Feature not defined in the printer configuration."
+            )
             self.write_eeprom_button.state(["disabled"])
             ToolTip(
                 self.write_eeprom_button,
@@ -686,6 +846,8 @@ class EpsonPrinterUI(tk.Tk):
                 if "read_key" in self.printer.parm:
                     self.read_eeprom_button.state(["!disabled"])
                     ToolTip(self.read_eeprom_button, "")
+                    self.detect_configuration_button.state(["!disabled"])
+                    ToolTip(self.detect_configuration_button, "")
                 if "write_key" in self.printer.parm:
                     self.write_eeprom_button.state(["!disabled"])
                     ToolTip(
@@ -721,6 +883,34 @@ class EpsonPrinterUI(tk.Tk):
                     "Feature not defined in the printer configuration."
                 )
 
+            if self.printer.parm.get("wifi_mac_address"):
+                self.mac_addr_entry.state(["!disabled"])
+                self.get_mac_addr.state(["!disabled"])
+                self.set_mac_addr.state(["!disabled"])
+                ToolTip(self.get_mac_addr, "")
+            else:
+                self.mac_addr_entry.state(["disabled"])
+                self.get_mac_addr.state(["disabled"])
+                self.set_mac_addr.state(["disabled"])
+                ToolTip(
+                    self.get_mac_addr,
+                    "Feature not defined in the printer configuration."
+                )
+
+            if self.printer.parm.get("serial_number"):
+                self.ser_num_entry.state(["!disabled"])
+                self.get_ser_num.state(["!disabled"])
+                self.set_ser_num.state(["!disabled"])
+                ToolTip(self.get_ser_num, "")
+            else:
+                self.ser_num_entry.state(["disabled"])
+                self.get_ser_num.state(["disabled"])
+                self.set_ser_num.state(["disabled"])
+                ToolTip(
+                    self.get_ser_num,
+                    "Feature not defined in the printer configuration."
+                )
+
             if self.printer.reset_waste_ink_levels(dry_run=True):
                 self.reset_button.state(["!disabled"])
                 ToolTip(
@@ -736,6 +926,7 @@ class EpsonPrinterUI(tk.Tk):
         else:
             self.status_button.state(["disabled"])
             self.read_eeprom_button.state(["disabled"])
+            self.detect_configuration_button.state(["disabled"])
             self.write_eeprom_button.state(["disabled"])
 
             self.po_timer_entry.state(["disabled"])
@@ -745,6 +936,14 @@ class EpsonPrinterUI(tk.Tk):
             self.date_entry.state(["disabled"])
             self.get_ti_received.state(["disabled"])
             self.set_ti_received.state(["disabled"])
+
+            self.mac_addr_entry.state(["disabled"])
+            self.get_mac_addr.state(["disabled"])
+            self.set_mac_addr.state(["disabled"])
+
+            self.ser_num_entry.state(["disabled"])
+            self.get_ser_num.state(["disabled"])
+            self.set_ser_num.state(["disabled"])
 
         self.update_idletasks()
 
@@ -772,7 +971,7 @@ class EpsonPrinterUI(tk.Tk):
         self.show_status_text_view()
         if isinstance(e, TimeoutError):
             self.status_text.insert(
-                tk.END, f"[ERROR] printer is unreachable or offline.\n"
+                tk.END, f"[ERROR] Printer is unreachable or offline.\n"
             )
         else:
             self.status_text.insert(
@@ -815,6 +1014,72 @@ class EpsonPrinterUI(tk.Tk):
         finally:
             self.config(cursor="")
             self.update_idletasks()
+
+    def get_ser_number(self, cursor=True):
+        if cursor:
+            self.config(cursor="watch")
+            self.update()
+            current_function_name = inspect.stack()[0][3]
+            method_to_call = getattr(self, current_function_name)
+            self.after(100, lambda: method_to_call(cursor=False))
+            return
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update()
+            return
+        if not self.printer:
+            return
+        ser_num = self.printer.get_serial_number()
+        if not ser_num or "?" in ser_num:
+            self.status_text.insert(
+                tk.END,
+                f"[ERROR]: Cannot retrieve the printer serial number.\n",
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        self.status_text.insert(
+            tk.END, f"[INFO] Printer serial number: {ser_num}.\n"
+        )
+        self.ser_num_var.set(ser_num)
+        self.config(cursor="")
+        self.update_idletasks()
+
+    def get_mac_address(self, cursor=True):
+        if cursor:
+            self.config(cursor="watch")
+            self.update()
+            current_function_name = inspect.stack()[0][3]
+            method_to_call = getattr(self, current_function_name)
+            self.after(100, lambda: method_to_call(cursor=False))
+            return
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update()
+            return
+        if not self.printer:
+            return
+        mac_addr = self.printer.get_wifi_mac_address()
+        if not mac_addr:
+            self.status_text.insert(
+                tk.END,
+                f"[ERROR]: Cannot retrieve the printer WiFi MAC address.\n",
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        self.status_text.insert(
+            tk.END, f"[INFO] Printer WiFi MAC address: {mac_addr}.\n"
+        )
+        self.mac_addr_var.set(mac_addr)
+        self.config(cursor="")
+        self.update_idletasks()
 
     def get_current_eeprom_values(self, values, label):
         try:
@@ -895,17 +1160,189 @@ class EpsonPrinterUI(tk.Tk):
             self.update_idletasks()
             return
         self.status_text.insert(
-            tk.END, f"[INFO] Set Power off timer: {po_timer} minutes.\n"
+            tk.END,
+            f"[INFO] Set Power off timer: {po_timer} minutes. Restarting"
+            " the printer is required for this change to take effect.\n"
         )
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
                 self.printer.write_poweroff_timer(int(po_timer))
+                self.status_text.insert(
+                    tk.END, "[INFO] Update operation completed.\n"
+                )
             except Exception as e:
                 self.handle_printer_error(e)
         else:
             self.status_text.insert(
                 tk.END, f"[WARNING] Set Power off timer aborted.\n"
+            )
+        self.config(cursor="")
+        self.update_idletasks()
+
+    def set_mac_address(self, cursor=True):
+        if cursor:
+            self.config(cursor="watch")
+            self.update()
+            current_function_name = inspect.stack()[0][3]
+            method_to_call = getattr(self, current_function_name)
+            self.after(100, lambda: method_to_call(cursor=False))
+            return
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        if not self.printer:
+            return
+        mac = self.mac_to_int_list(self.mac_addr_var.get())
+        if not mac or not self.validate_mac_address(
+            self.mac_addr_var.get()
+        ):
+            self.status_text.insert(
+                tk.END, "[ERROR] Please Use a valid MAC address.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        response = messagebox.askyesno(
+            "Critical operation",
+            "After the change is applied, restarting the printer is required"
+            " for this change to take effect.\n\n"
+            "Warning: this is a dangerous operation.\nContinue only "
+            "if you are very sure of what you do.\n\n",
+            default='no')
+        if not response:
+            self.status_text.insert(
+                tk.END, "[WARNING] Operation aborted.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        try:
+            if not self.get_current_eeprom_values(
+                self.printer.parm["wifi_mac_address"],
+                "WiFi MAC Address"
+            ):
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Set WiFi MAC Address: {self.mac_addr_var.get()}.\n"
+        )
+        response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
+        if not response:
+            self.status_text.insert(
+                tk.END, "[WARNING] Operation aborted.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        self.status_text.insert(
+            tk.END,
+            "[INFO] Changing the WiFi MAC address of the printer. Restarting"
+            " the printer is required for this change to take effect.\n"
+        )
+        ret = None
+        try:
+            ret = self.printer.update_parameter(
+                "wifi_mac_address",
+                mac,
+                dry_run=False
+            )
+        except Exception as e:
+            self.handle_printer_error(e)
+        if ret:
+            self.status_text.insert(
+                tk.END, "[INFO] Update operation completed.\n"
+            )
+        else:
+            self.status_text.insert(
+                tk.END, f"[ERROR] Write operation failed.\n"
+            )
+        self.config(cursor="")
+        self.update_idletasks()
+
+    def set_ser_number(self, cursor=True):
+        if cursor:
+            self.config(cursor="watch")
+            self.update()
+            current_function_name = inspect.stack()[0][3]
+            method_to_call = getattr(self, current_function_name)
+            self.after(100, lambda: method_to_call(cursor=False))
+            return
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        if not self.printer:
+            return
+        if not self.ser_num_var.get() or not self.validate_ser_number(
+            self.ser_num_var.get()
+        ):
+            self.status_text.insert(
+                tk.END, "[ERROR] Please Use a valid serial number.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        try:
+            if not self.get_current_eeprom_values(
+                self.printer.parm["serial_number"],
+                "Printer Serial Number"
+            ):
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Set Printer Serial Number: {self.ser_num_var.get()}.\n"
+        )
+        response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
+        if not response:
+            self.status_text.insert(
+                tk.END, "[WARNING] Operation aborted.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        self.status_text.insert(
+            tk.END,
+            "[INFO] Changing the serial number of the printer. Restarting"
+            " the printer is required for this change to take effect.\n"
+        )
+        ret = None
+        try:
+            ret = self.printer.update_parameter(
+                "serial_number",
+                [i for i in self.ser_num_var.get().encode()],
+                dry_run=False
+            )
+        except Exception as e:
+            self.handle_printer_error(e)
+        if ret:
+            self.status_text.insert(
+                tk.END, "[INFO] Update operation completed.\n"
+            )
+        else:
+            self.status_text.insert(
+                tk.END, f"[ERROR] Write operation failed.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -1001,6 +1438,9 @@ class EpsonPrinterUI(tk.Tk):
                 self.printer.write_first_ti_received_time(
                     date_string.year, date_string.month, date_string.day
                 )
+                self.status_text.insert(
+                    tk.END, "[INFO] Update operation completed.\n"
+                )
             except Exception as e:
                 self.handle_printer_error(e)
         else:
@@ -1010,6 +1450,33 @@ class EpsonPrinterUI(tk.Tk):
             )
         self.config(cursor="")
         self.update_idletasks()
+
+    def mac_to_int_list(self, mac):
+        # Remove any dashes if present, then split the MAC address into 2-character chunks
+        mac = mac.replace('-', '')
+        try:
+            mac_list = [int(mac[i:i+2], 16) for i in range(0, len(mac), 2)]
+        except Exception:
+            return None
+        if len(mac_list) != 6:
+            return None
+        return mac_list
+
+    def validate_ser_number(self, new_value):
+        # Regular expression for a valid serial number (10 uppercase or numeric characters)
+        ser_pattern = re.compile(r'^[A-Z0-9]{10}$')
+        if ser_pattern.match(new_value) or new_value == "":
+            return True
+        else:
+            return False
+
+    def validate_mac_address(self, new_value):
+        # Regular expression for a valid MAC address (6 groups of 2 hexadecimal digits)
+        mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[-:]?){5}([0-9A-Fa-f]{2})?$')
+        if mac_pattern.match(new_value) or new_value == "":
+            return True
+        else:
+            return False
 
     def validate_number_input(self, new_value):
         # This function will be called with the new input value
@@ -1113,8 +1580,8 @@ class EpsonPrinterUI(tk.Tk):
             self.reset_printer_model()
             return
         try:
-            self.text_dump = black.format_str(
-                f'"{printer.model}": ' + repr(printer.parm),
+            self.text_dump = black.format_str(  # used by Copy All
+                f'"{printer.model}" + " configuration": ' + repr(printer.parm),
                 mode=self.mode
             )
             self.show_treeview()
@@ -1128,6 +1595,72 @@ class EpsonPrinterUI(tk.Tk):
             # Populate the Treeview
             self.tree.delete(*self.tree.get_children())
             self.populate_treeview("", self.tree, printer.parm)
+
+            # Expand all nodes
+            self.expand_all(self.tree)
+        except Exception as e:
+            self.handle_printer_error(e)
+        finally:
+            self.update_idletasks()
+
+    def key_values(self, cursor=True):
+        """
+        Pressing F3 gets the values of the keys from the printer configuration
+        """
+        model = self.model_var.get()
+        printer = EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf,
+            model=model
+        )
+        if not printer:
+            return
+        if not printer.parm:
+            self.reset_printer_model()
+            return
+        try:
+            key_data = {
+                "Printer model": printer.model,
+                "Read sequence":
+                    '.'.join(str(x) for x in printer.parm.get('read_key', [])),
+                "Hex read sequence":
+                    " ".join(
+                        '{0:02x}'.format(x)
+                        for x in printer.parm.get('read_key', [])
+                    ),
+                "Value of the 'write_key'":
+                    printer.parm.get("write_key", b''),
+                "Write string":
+                    "".join(
+                        chr(b + 1) for b in printer.parm.get("write_key", b'')
+                    ),
+                "Write sequence":
+                    self.printer.caesar(printer.parm.get("write_key", b'')),
+                "Hex write sequence":
+                    self.printer.caesar(
+                        printer.parm.get("write_key", b''), hex=True
+                    ).upper()
+            }
+
+            self.text_dump = black.format_str(  # used by Copy All
+                f'"{printer.model}": ' + repr(key_data),
+                mode=self.mode
+            )
+            self.show_treeview()
+
+            # Configure tags
+            self.tree.tag_configure("key", foreground="black")
+            self.tree.tag_configure("key_value", foreground="dark blue")
+            self.tree.tag_configure("value", foreground="blue")
+            self.tree.heading(
+                "#0",
+                text="Values of the keys from the printer configuration",
+                anchor="w"
+            )
+
+            # Populate the Treeview
+            self.tree.delete(*self.tree.get_children())
+            self.populate_treeview("", self.tree, key_data)
 
             # Expand all nodes
             self.expand_all(self.tree)
@@ -1282,28 +1815,39 @@ class EpsonPrinterUI(tk.Tk):
                 return
 
             # Extract the serial number
+            DETECTED = "DETECTED"
+            self.printer.PRINTER_CONFIG[DETECTED] = {}
+            self.update_idletasks()
+            len_ser_num = 10
+            last_ser_num_addr = None
+            if (
+                self.printer.parm
+                and 'read_key' in self.printer.parm
+                and self.printer.parm['read_key'] != read_key
+            ):
+                if self.printer.parm['read_key']:
+                    self.status_text.insert(
+                        tk.END,
+                        f"[ERROR] You selected a model with the wrong read_key "
+                        f"{self.printer.parm['read_key']} instead of "
+                        f"{read_key}. Using the detected one to go on.\n"
+                    )
+                self.printer.PRINTER_CONFIG[DETECTED] = {'read_key': read_key}
+                self.printer.parm = self.printer.PRINTER_CONFIG[DETECTED]
             self.status_text.insert(
                 tk.END,
                 f"[INFO] Detecting the serial number...\n"
             )
-            self.update_idletasks()
-            last_ser_num_addr = None
-            if not self.printer.parm:
-                self.printer.parm = {'read_key': read_key}
-            if (
-                'read_key' not in self.printer.parm
-                or self.printer.parm['read_key'] is None
-            ):
-                self.printer.parm['read_key'] = read_key
-            if self.printer.parm['read_key'] != read_key:
-                self.status_text.insert(
-                    tk.END,
-                    f"[INFO] You selected a model with the wrong read_key "
-                    f"{self.printer.parm['read_key']} instead of "
-                    f"{read_key}. Using the correct one now.\n"
+            try:
+                hex_bytes, matches = self.printer.find_serial_number(
+                    range(2048)
                 )
-                self.printer.parm['read_key'] = read_key
-            hex_bytes, matches = self.printer.find_serial_number(range(2048))
+            except Exception as e:
+                self.handle_printer_error(e)
+                logging.getLogger().setLevel(current_log_level)
+                self.config(cursor="")
+                self.update_idletasks()
+                return
             if not matches:
                 self.status_text.insert(
                     tk.END,
@@ -1324,13 +1868,22 @@ class EpsonPrinterUI(tk.Tk):
             else:
                 serial_number = matches[0].group()
                 serial_number_address = matches[0].start()
+                serial_number_range = range(
+                    serial_number_address, serial_number_address + len_ser_num
+                )
                 self.status_text.insert(
                     tk.END,
                     f'[INFO] Detected serial number "{serial_number}"'
                     f" at address {serial_number_address}.\n"
                 )
-                last_ser_num_addr = serial_number_address + 9
+                last_ser_num_addr = serial_number_address + len_ser_num - 1
                 last_ser_num_value = int(hex_bytes[last_ser_num_addr], 16)
+                self.status_text.insert(
+                    tk.END,
+                    f"[NOTE] Current EEPROM value for the last byte of the"
+                    f" serial number:"
+                    f" {last_ser_num_addr}: {last_ser_num_value}.\n"
+                )
 
             if last_ser_num_addr is None:
                 self.status_text.insert(
@@ -1341,14 +1894,35 @@ class EpsonPrinterUI(tk.Tk):
                 self.config(cursor="")
                 self.update_idletasks()
                 return
+            if (
+                'serial_number' not in self.printer.parm
+                or self.printer.parm['serial_number'] != serial_number_range
+            ):
+                if 'serial_number' in self.printer.parm:
+                    self.status_text.insert(
+                        tk.END,
+                        f"[ERROR] The serial number addresses"
+                        f" {self.printer.parm['serial_number']} of the"
+                        f" selected printer is different from the detected"
+                        f" one {serial_number_range},"
+                        f" which will be used to go on.\n"
+                    )
+                self.printer.PRINTER_CONFIG[DETECTED] = {'read_key': read_key}
+                self.printer.PRINTER_CONFIG[DETECTED]["serial_number"] = (
+                    serial_number_range
+                )
+                self.printer.parm = self.printer.PRINTER_CONFIG[DETECTED]
 
             # Produce an ordered list of all the known write_key
             write_key_list = self.printer.write_key_list(read_key)
 
             # Validate the write_key against any of the known values
-            old_write_key = None
-            if 'write_key' in self.printer.parm:
-                old_write_key = self.printer.parm['write_key']
+            self.status_text.insert(
+                tk.END,
+                "[INFO] Detecting the write_key,"
+                " do not power off the printer now...\n"
+            )
+            old_write_key = self.printer.parm.get('write_key')
             found_write_key = None
             valid = False
             for write_key in write_key_list:
@@ -1366,10 +1940,14 @@ class EpsonPrinterUI(tk.Tk):
                         "[ERROR] Write operation failed. Check whether the"
                         " serial number is changed and restore it manually.\n"
                     )
+                    self.printer.parm['write_key'] = old_write_key
+                    logging.getLogger().setLevel(current_log_level)
                     self.config(cursor="")
                     self.update_idletasks()
+                    return
                 except Exception as e:
                     self.handle_printer_error(e)
+                    self.printer.parm['write_key'] = old_write_key
                     logging.getLogger().setLevel(current_log_level)
                     self.config(cursor="")
                     self.update_idletasks()
@@ -1378,6 +1956,7 @@ class EpsonPrinterUI(tk.Tk):
                     self.status_text.insert(
                         tk.END, "[ERROR] Operation interrupted with errors.\n"
                     )
+                    self.printer.parm['write_key'] = old_write_key
                     logging.getLogger().setLevel(current_log_level)
                     self.config(cursor="")
                     self.update_idletasks()
@@ -1386,23 +1965,35 @@ class EpsonPrinterUI(tk.Tk):
                     continue
 
                 found_write_key = write_key
+                self.printer.parm['write_key'] = old_write_key
                 self.status_text.insert(
                     tk.END, f"[INFO] Detected write_key: {found_write_key}\n"
                 )
-                if old_write_key and old_write_key != found_write_key:
-                    self.status_text.insert(
-                        tk.END,
-                        f"[INFO] Found write key is different from"
-                        f" the selected one: {old_write_key}\n"
+                if not old_write_key or old_write_key != found_write_key:
+                    if old_write_key and old_write_key != found_write_key:
+                        self.status_text.insert(
+                            tk.END,
+                            f"[ERROR] The selected write key {old_write_key}"
+                            f" is different from the detected one, which will"
+                            f" be used to go on.\n"
+                        )
+                    self.printer.PRINTER_CONFIG[DETECTED] = {
+                        'read_key': read_key
+                    }
+                    self.printer.PRINTER_CONFIG[DETECTED]["serial_number"] = (
+                        serial_number_range
                     )
-                    self.printer.parm['write_key'] = old_write_key
+                    self.printer.PRINTER_CONFIG[DETECTED]["write_key"] = (
+                        found_write_key
+                    )
+                    self.printer.parm = self.printer.PRINTER_CONFIG[DETECTED]
 
                 # List conforming models
                 rk_kist = []
                 wk_kist = []
                 rwk_kist = []
                 for p, v in self.printer.PRINTER_CONFIG.items():
-                    if not v:
+                    if not p or not v or p == DETECTED:
                         continue
                     if v.get("read_key") == read_key:
                         rk_kist.append(p)
@@ -1429,6 +2020,12 @@ class EpsonPrinterUI(tk.Tk):
                         f"[INFO] Models with same access keys: {rwk_kist}\n"
                     )
 
+                if DETECTED in self.printer.PRINTER_CONFIG:
+                    self.status_text.insert(
+                        tk.END,
+                        f'[INFO] Found data: '
+                        f'{self.printer.PRINTER_CONFIG[DETECTED]}.\n'
+                    )
                 self.status_text.insert(
                     tk.END, "[INFO] Detect operation completed.\n"
                 )
@@ -1508,7 +2105,19 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
 
-    def firmware_version(self, cursor=True):
+    def detect_configuration(self, cursor=True):
+        def detect_sequence(eeprom, sequence):
+            seq_len = len(sequence)
+            addresses = []
+            
+            # Loop through all possible starting positions
+            for address in range(len(eeprom) - seq_len + 1):
+                # Check if the sequence matches starting at the current address
+                if all(eeprom[address + i] == sequence[i] for i in range(seq_len)):
+                    addresses.append(address)
+            
+            return addresses
+
         if cursor:
             self.config(cursor="watch")
             self.update()
@@ -1525,14 +2134,150 @@ class EpsonPrinterUI(tk.Tk):
             return
         if not self.printer:
             return
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Reading Printer SNMP values...\n"
+        )
         try:
-            firmware_version = self.printer.get_firmware_version()
+            stats = self.printer.stats()
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return False
+        if not "snmp_info" in stats:
             self.status_text.insert(
-                tk.END, f"[INFO] Firmware version: {firmware_version}.\n"
+                tk.END,
+                '[ERROR] No SNMP values could be found.\n'
             )
+            self.update()
+            self.config(cursor="")
+            self.update_idletasks()
+            return False
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Reading EEPROM values, please wait...\n"
+        )
+        self.update()
+        try:
+            addr = range(0, 2048)
+            eeprom = {
+                k: int(v, 16) for k, v in zip(
+                    addr,self.printer.read_eeprom_many(
+                        addr, label="dump_EEPROM"
+                    )
+                )
+            }
+            if not eeprom:
+                self.status_text.insert(
+                    tk.END,
+                    '[ERROR] Cannot read EEPROM values'
+                    ': invalid printer model selected.\n'
+                )
+                self.update()
+                self.config(cursor="")
+                self.update_idletasks()
+                return False
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return False
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Analyzing EEPROM values...\n"
+        )
+        self.update()
+
+        conf_data = {}
+
+        epson_name = [  # convert EPSON to a sequence of numbers, adding 0 after each char
+            val for char in "EPSON" for val in (ord(char), 0)
+        ]
+        epson_name.extend([0] * (64 - len(epson_name)))  # pad to zero until 32 chars
+
+        result = detect_sequence(eeprom, epson_name)
+        c = 0
+        for i in result:
+            conf_data["epson_name[%s]" % c] = range(i, i + 64)
+            c += 1
+
+        if "Model" in stats["snmp_info"] and stats["snmp_info"]["Model"]:
+            model_name = [
+                val for char in stats["snmp_info"]["Model"] for val in (ord(char), 0)
+            ]
+            model_name.extend([0] * (64 - len(model_name)))
+            result = detect_sequence(eeprom, model_name)
+            c = 0
+            for i in result:
+                conf_data["model_name[%s]" % c] = range(i, i + 64)
+                c += 1
+        else:
+            conf_data["model_name"] = None
+
+        sequence = ''.join([chr(eeprom[addr]) for addr in range(len(eeprom))])
+        serial_number_pattern = r'[A-Z0-9]{10}'  # Serial number pattern (10 consecutive uppercase letters or digits)
+        c = 0
+        for i in re.finditer(serial_number_pattern, sequence):
+            conf_data["serial_name[%s]" % c] = i.group()
+            conf_data["serial_number[%s]" % c] = range(i.start(), i.end())
+            c += 1
+
+        if "Power Off Timer" in stats["snmp_info"] and stats["snmp_info"]["Power Off Timer"]:
+            po_mins = int(re.findall(r'\d+', stats["snmp_info"]["Power Off Timer"])[0])
+            msb = po_mins // 256
+            lsb = po_mins % 256
+            result = detect_sequence(eeprom, (lsb, msb))
+            c = 0
+            for i in result:
+                conf_data["po_time[%s]" % c] = [i + 1, i]
+                c += 1
+        else:
+            conf_data["po_time"] = None
+
+        result = detect_sequence(eeprom, [94])
+        c = 0
+        for i in result:
+            conf_data["Maintenance required level[%s]" % c] = [i]
+            c += 1
+
+        if "MAC Address" in stats["snmp_info"] and stats["snmp_info"]["MAC Address"]:
+            mac = self.mac_to_int_list(stats["snmp_info"]["MAC Address"])
+            result = detect_sequence(eeprom, mac)
+            c = 0
+            for i in result:
+                conf_data["wifi_mac_address[%s]" % c] = range(i, i + 6)
+                c += 1
+        else:
+            conf_data["wifi_mac_address"] = None
+
+        try:
+            self.text_dump = black.format_str(  # used by Copy All
+                '"Printer configuration": ' + repr(conf_data),
+                mode=self.mode
+            )
+            self.show_treeview()
+
+            # Configure tags
+            self.tree.tag_configure("key", foreground="black")
+            self.tree.tag_configure("key_value", foreground="dark blue")
+            self.tree.tag_configure("value", foreground="blue")
+            self.tree.heading(
+                "#0",
+                text="Printer configuration",
+                anchor="w"
+            )
+
+            # Populate the Treeview
+            self.tree.delete(*self.tree.get_children())
+            self.populate_treeview("", self.tree, conf_data)
+
+            # Expand all nodes
+            self.expand_all(self.tree)
         except Exception as e:
             self.handle_printer_error(e)
         finally:
+            self.update_idletasks()
             self.config(cursor="")
             self.update_idletasks()
 
@@ -1854,12 +2599,32 @@ class EpsonPrinterUI(tk.Tk):
         for child in root_children:
             recursive_expand(child)
 
+    def show_text_context_menu(self, event):
+        """Show the context menu of the text box."""
+        self.text_context_menu.post(event.x_root, event.y_root)
+
+    def clear_all_text(self):
+        # Clear all the text in the ScrolledText
+        self.status_text.delete("1.0", tk.END)  # Delete all text from the widget
+
+    def copy_text(self):
+        # Copy the selected text
+        self.status_text.event_generate("<<Copy>>")
+
+    def copy_all_text(self):
+        # Copy all the text in the ScrolledText
+        self.clipboard_clear()
+        self.clipboard_append(self.status_text.get("1.0", tk.END))  # Get all text from the widget
+        self.update()  # Ensure clipboard updates
+
     def show_context_menu(self, event):
         """Show the context menu."""
         # Select the item under the cursor
         item = self.tree.identify_row(event.y)
         if item:
             self.tree.selection_set(item)
+            self.context_menu.post(event.x_root, event.y_root)
+        else:
             self.context_menu.post(event.x_root, event.y_root)
 
     def copy_selected_item(self):
@@ -1875,13 +2640,12 @@ class EpsonPrinterUI(tk.Tk):
         self.clipboard_clear()
         self.clipboard_append(self.text_dump)
 
-    def print_items(self):
+    def print_items(self, text):
         """Send items to the printer."""
         exit_packet_mode = b'\x00\x00\x00\x1b\x01@EJL 1284.4\n@EJL     \n'
         initialize_printer = b"\x1B\x40"
         form_feed = b"\f"
 
-        self.clipboard_append(self.text_dump)
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
             return
@@ -1892,7 +2656,7 @@ class EpsonPrinterUI(tk.Tk):
                     exit_packet_mode
                     + initialize_printer
                     + b"Printer configuration\n"
-                    + self.text_dump.encode('utf-8')
+                    + text.encode('utf-8')
                     + form_feed
                 )
         except Exception as e:
