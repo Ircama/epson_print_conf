@@ -20,10 +20,12 @@ A range of features are offered for both end-users and developers, making it eas
     start with `@BDC [SP] ST2 [CR] [LF]` ...). It is used to convey various aspects of the status of the printer, such as errors, paper status, ink and more. The element fields of this format may vary depending on the printer model. The *Epson Printer Configuration Tool* can decode all element fields found in publicly available Epson Programming Manuals of various printer models (a relevant subset of fields used by the Epson printers).
 
 - __Advanced Maintenance Functions__:
+    - Open the Web interface of the printer (via the default browser).
     - Reset the ink waste counter.
 
       The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or tank replacement is programmed.
     - Adjust the power-off timer for more accurate energy efficiency.
+    - Change the printer WiFi MAC address and the printer serial number (typically used in specialized scenarios where specific device identifiers are required).
     - Access various administrative and debugging options.
     - Read and write to EEPROM addresses for advanced configurations.
     - Dump and analyze sets of EEPROM addresses.
@@ -42,9 +44,10 @@ The GUI can automatically find and display printer IP addresses and model names,
 - Read and write the EEPROM
 - Detect the access key (*read_key* and *write_key*)
 - Reset the ink waste counter
-- Special features allow showing the internal configuration settings
 
-  The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
+Special features allow showing the internal configuration settings.
+
+The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
 
 The software provides a configurable printer dictionary, which can be easily extended. In addition, a tool allows importing and converting an extensive Epson printer configuration DB.
 

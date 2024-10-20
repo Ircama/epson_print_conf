@@ -76,6 +76,8 @@ class EpsonPrinter:
             "main_waste": {"oids": [24, 25, 30], "divider": 73.5},
             "borderless_waste": {"oids": [26, 27, 34], "divider": 34.34},
             "wifi_mac_address": range(130, 136),
+            "brand_name": range(868, 932),
+            "model_name": range(934, 998),
             "same-as": "XP-315"
         },
         "ET-4700": {
@@ -1730,6 +1732,34 @@ class EpsonPrinter:
                 self.parm["serial_number"], label="serial_number")
         )
 
+    def get_printer_brand(self) -> str:
+        """Return the producer name of the printer ("EPSON")."""
+        if not self.parm:
+            logging.error("EpsonPrinter - invalid API usage")
+            return None
+        if "brand_name" not in self.parm:
+            return None
+        return ''.join(
+            [chr(int(i or "0x3f", 16))
+            for i in self.read_eeprom_many(
+                self.parm["brand_name"], label="get_brand_name"
+            ) if i != '00']
+        )
+
+    def get_printer_model(self) -> str:
+        """Return the model name of the printer."""
+        if not self.parm:
+            logging.error("EpsonPrinter - invalid API usage")
+            return None
+        if "model_name" not in self.parm:
+            return None
+        return ''.join(
+            [chr(int(i or "0x3f", 16))
+            for i in self.read_eeprom_many(
+                self.parm["model_name"], label="get_model_name"
+            ) if i != '00']
+        )
+
     def get_wifi_mac_address(self) -> str:
         """Return the WiFi MAC address of the printer."""
         if not self.parm:
@@ -1773,11 +1803,14 @@ class EpsonPrinter:
         if "First TI received time" not in stats_result:
             return stats_result
         ftrt = stats_result["First TI received time"]
-        year = 2000 + ftrt // (16 * 32)
-        month = (ftrt - (year - 2000) * (16 * 32)) // 32
-        day = ftrt - (year - 2000) * 16 * 32 - 32 * month
-        stats_result["First TI received time"] = datetime.datetime(
-            year, month, day).strftime('%d %b %Y')
+        try:
+            year = 2000 + ftrt // (16 * 32)
+            month = (ftrt - (year - 2000) * (16 * 32)) // 32
+            day = ftrt - (year - 2000) * 16 * 32 - 32 * month
+            stats_result["First TI received time"] = datetime.datetime(
+                year, month, day).strftime('%d %b %Y')
+        except Exception:
+            stats_result["First TI received time"] = "?"
         return stats_result
 
     def get_printer_head_id(self) -> str:  # only partially correct

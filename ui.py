@@ -2199,7 +2199,7 @@ class EpsonPrinterUI(tk.Tk):
         result = detect_sequence(eeprom, epson_name)
         c = 0
         for i in result:
-            conf_data["epson_name[%s]" % c] = range(i, i + 64)
+            conf_data["brand_name[%s]" % c] = range(i, i + 64)
             c += 1
 
         if "Model" in stats["snmp_info"] and stats["snmp_info"]["Model"]:
@@ -2277,6 +2277,10 @@ class EpsonPrinterUI(tk.Tk):
         except Exception as e:
             self.handle_printer_error(e)
         finally:
+            self.status_text.insert(
+                tk.END,
+                f"[INFO] Operation completed.\n"
+            )
             self.update_idletasks()
             self.config(cursor="")
             self.update_idletasks()
