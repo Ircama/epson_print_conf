@@ -352,7 +352,7 @@ def normalize_config(
     logging.info("Number of obtained configuration entries: %s", len(config))
     return config
 
-def convert_toml(config):
+def convert_toml(config, printer_model):
     def hex_to_bytes(hex_value):
         byte1 = (hex_value >> 8) & 0xFF
         byte2 = hex_value & 0xFF
@@ -375,24 +375,41 @@ def convert_toml(config):
 
     output_data = {}
 
-    for section_name, section_val in parsed_toml.items():
-        # Convert rkey and extract mem data
-        section_data = section_val[0]
-        read_key = hex_to_bytes(section_data["rkey"])
-        raw_waste_reset = parse_mem_entries(section_data["mem"])
+    for e_section_name, e_section_val in parsed_toml.items():
+        for section_data in e_section_val:
+            # Process "models"
+            if not "models" in section_data or not section_data["models"]:
+                continue
+            if printer_model and printer_model not in section_data["models"]:
+                continue
+            main_model = section_data["models"].pop(0)
+            output_data[main_model] = {}
+            alias = section_data["models"]
+            if alias:
+                output_data[main_model]["alias"] = alias
 
-        main_model = section_data["models"][0]
-        alias = section_data["models"][1:]
-        if main_model in ["EPSON"] and alias:
-            main_model = alias.pop(0)
+            # Convert rkey and extract mem data
+            if "mem_low" in section_data:
+                output_data[main_model]["mem_low"] = section_data["mem_low"]
+            if "mem_high" in section_data:
+                output_data[main_model]["mem_high"] = section_data["mem_high"]
+            if "rlen" in section_data:
+                output_data[main_model]["rlen"] = section_data["rlen"]
+            if "wlen" in section_data:
+                output_data[main_model]["wlen"] = section_data["wlen"]
+            if "rkey" in section_data:
+                read_key = hex_to_bytes(section_data["rkey"])
+                output_data[main_model]["read_key"] = read_key
+            if "wkey1" in section_data:
+                output_data[main_model]["write_key"] = section_data["wkey1"].encode()
+            elif "wkey" in section_data:
+                output_data[main_model]["write_key"] = "".join(
+                    [chr(0 if b == 0 else b - 1) for b in section_data["wkey"].encode()]
+                )
 
-        # Structure the section data in the desired format
-        output_data[main_model] = {
-            "read_key": read_key,
-            "write_key": section_data["wkey1"].encode(),  # Write key in bytes
-            "raw_waste_reset": raw_waste_reset,  # Raw waste reset dictionary
-            "alias": alias  # Remaining models as aliases
-        }
+            if "mem" in section_data:
+                raw_waste_reset = parse_mem_entries(section_data["mem"])
+                output_data[main_model]["raw_waste_reset"] = raw_waste_reset
 
     return output_data
 
@@ -413,7 +430,7 @@ def main():
     import pickle
 
     parser = argparse.ArgumentParser(
-        epilog='Generate printer configuration from devices.xml or from TOML'
+        epilog='Generate printer configuration from devices.xml or from Reinkpy TOML'
     )
     parser.add_argument(
         '-m',
@@ -428,7 +445,7 @@ def main():
         '--toml',
         dest='toml',
         action='store_true',
-        help='Use TOML input format instead of XML'
+        help='Use the Reinkpy TOML input format instead of XML'
     )
     parser.add_argument(
         '-l',
@@ -485,7 +502,7 @@ def main():
         "--config",
         dest='config_file',
         type=argparse.FileType('r'),
-        help="use the XML or TOML configuration file to generate"
+        help="use the XML or the Reinkpy TOML configuration file to generate"
             " the configuration; default is 'devices.xml'",
         default=0,
         nargs=1,
@@ -574,7 +591,10 @@ def main():
         config = "devices.xml"
 
     if args.toml:
-        printer_config = convert_toml(config)
+        printer_config = convert_toml(
+            config=config,
+            printer_model=args.printer_model
+        )
     else:
         printer_config = generate_config(
             config=config,

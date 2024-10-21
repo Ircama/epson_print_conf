@@ -253,7 +253,7 @@ This repository includes a Windows *epson_print_conf.exe* executable file which 
 
 Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which includes an extensive XML database of Epson model features.
 
-The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use. It is also able to accept the TOML input format, if the `-T` option is used.
+The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use. It is also able to accept the [TOML](https://toml.io/) input format used by [reinkpy](https://codeberg.org/atufi/reinkpy) in [epson.toml](https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml), if the `-T` option is used.
 
 Here is a simple procedure to download that DB and run *parse_devices.py* to search for the XP-205 model and produce the related PRINTER_CONFIG dictionary to the standard output:
 
@@ -277,7 +277,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -m PRINTER_MODEL, --model PRINTER_MODEL
                         Filter printer model. Example: -m XP-205
-  -T, --toml            Use TOML input format instead of XML
+  -T, --toml            Use the Reinkpy TOML input format instead of XML
   -l LINE_LENGTH, --line LINE_LENGTH
                         Set line length of the output (default: 120)
   -i, --indent          Indent output of 4 spaces
@@ -287,8 +287,8 @@ optional arguments:
   -f, --full            Generate additional tags
   -e, --errors          Add last_printer_fatal_errors
   -c CONFIG_FILE, --config CONFIG_FILE
-                        use the XML or TOML configuration file to generate the configuration; default
-                        is 'devices.xml'
+                        use the XML or the Reinkpy TOML configuration file to generate the configuration;
+                        default is 'devices.xml'
   -s DEFAULT_MODEL, --default_model DEFAULT_MODEL
                         Default printer model. Example: -s XP-205
   -a HOSTNAME, --address HOSTNAME
@@ -305,7 +305,7 @@ optional arguments:
   -S, --no_same_as      Do not add "same-as" for similar printers with different names
   -M, --no_maint_level  Do not add "Maintenance required levelas" in "stats"
 
-Generate printer configuration from devices.xml or from TOML
+Generate printer configuration from devices.xml or from Reinkpy TOML
 ```
 
 The program does not provide *printer_head_id* and *Power off timer*.
