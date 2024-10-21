@@ -52,12 +52,19 @@ def traverse_data(element, depth=0):
         traverse_data(child, depth + 1)
 
 
-def generate_config(config, traverse, add_fatal_errors, full, printer_model):
+def generate_config_from_xml(
+    config, traverse, add_fatal_errors, full, printer_model
+):
     irc_pattern = [
         r'Ink replacement counter %-% (\w+) % \((\w+)\)',
         'Ink replacement counter %-% (\\w+ \\w+) % \\((\\w+)\\)'
     ]
-    tree = ET.parse(config)
+
+    try:
+        tree = ET.parse(config)
+    except Exception as e:
+        logging.error("Invalid XML file - %s", e)
+        return {}
     root = tree.getroot()
     printer_config = {}
     for printer in root.iterfind(".//printer"):
@@ -352,16 +359,17 @@ def normalize_config(
     logging.info("Number of obtained configuration entries: %s", len(config))
     return config
 
-def convert_toml(config, printer_model):
+def generate_config_from_toml(
+    config, printer_model, full,
+
+):
+    # Generate "read_key" values
     def hex_to_bytes(hex_value):
         byte1 = (hex_value >> 8) & 0xFF
         byte2 = hex_value & 0xFF
         return [byte2, byte1]
 
-    with open(config, mode="rb") as fp:
-        parsed_toml = tomli.load(fp)
-
-    # Parse mem entries to create raw_waste_reset
+    # Parse "mem" entries to create "raw_waste_reset"
     def parse_mem_entries(mem):
         raw_waste_reset = {}
         for entry in mem:
@@ -372,6 +380,13 @@ def convert_toml(config, printer_model):
                 raw_waste_reset[addr_val] = reset_val
 
         return raw_waste_reset
+
+    try:
+        with open(config, mode="rb") as fp:
+            parsed_toml = tomli.load(fp)
+    except Exception as e:
+        logging.error("Invalid TOML file - %s", e)
+        return {}
 
     output_data = {}
 
@@ -389,13 +404,13 @@ def convert_toml(config, printer_model):
                 output_data[main_model]["alias"] = alias
 
             # Convert rkey and extract mem data
-            if "mem_low" in section_data:
+            if full and "mem_low" in section_data:
                 output_data[main_model]["mem_low"] = section_data["mem_low"]
-            if "mem_high" in section_data:
+            if full and "mem_high" in section_data:
                 output_data[main_model]["mem_high"] = section_data["mem_high"]
-            if "rlen" in section_data:
+            if full and "rlen" in section_data:
                 output_data[main_model]["rlen"] = section_data["rlen"]
-            if "wlen" in section_data:
+            if full and "wlen" in section_data:
                 output_data[main_model]["wlen"] = section_data["wlen"]
             if "rkey" in section_data:
                 read_key = hex_to_bytes(section_data["rkey"])
@@ -404,7 +419,10 @@ def convert_toml(config, printer_model):
                 output_data[main_model]["write_key"] = section_data["wkey1"].encode()
             elif "wkey" in section_data:
                 output_data[main_model]["write_key"] = "".join(
-                    [chr(0 if b == 0 else b - 1) for b in section_data["wkey"].encode()]
+                    [
+                        chr(0 if b == 0 else b - 1)
+                        for b in section_data["wkey"].encode()
+                    ]
                 )
 
             if "mem" in section_data:
@@ -503,7 +521,8 @@ def main():
         dest='config_file',
         type=argparse.FileType('r'),
         help="use the XML or the Reinkpy TOML configuration file to generate"
-            " the configuration; default is 'devices.xml'",
+            " the configuration; default is 'devices.xml', or 'epson.toml'"
+            " if -T is used",
         default=0,
         nargs=1,
         metavar='CONFIG_FILE'
@@ -588,21 +607,28 @@ def main():
     if args.config_file:
         config = args.config_file[0].name
     else:
-        config = "devices.xml"
+        if args.toml:
+            config = "epson.toml"
+        else:
+            config = "devices.xml"
 
     if args.toml:
-        printer_config = convert_toml(
+        printer_config = generate_config_from_toml(
             config=config,
-            printer_model=args.printer_model
+            printer_model=args.printer_model,
+            full=args.full,
         )
     else:
-        printer_config = generate_config(
+        printer_config = generate_config_from_xml(
             config=config,
             traverse=args.traverse,
             add_fatal_errors=args.add_fatal_errors,
             full=args.full,
             printer_model=args.printer_model
         )
+    if not printer_config:
+        logging.info("No output generated.")
+        quit()
     normalized_config = normalize_config(
         config=printer_config,
         remove_invalid=not args.keep_invalid,

@@ -288,7 +288,7 @@ optional arguments:
   -e, --errors          Add last_printer_fatal_errors
   -c CONFIG_FILE, --config CONFIG_FILE
                         use the XML or the Reinkpy TOML configuration file to generate the configuration;
-                        default is 'devices.xml'
+                        default is 'devices.xml', or 'epson.toml' if -T is used
   -s DEFAULT_MODEL, --default_model DEFAULT_MODEL
                         Default printer model. Example: -s XP-205
   -a HOSTNAME, --address HOSTNAME
