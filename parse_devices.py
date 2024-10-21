@@ -5,6 +5,7 @@ import re
 import xml.etree.ElementTree as ET
 import itertools
 import textwrap
+import tomli
 
 from ui import get_printer_models
 
@@ -351,6 +352,50 @@ def normalize_config(
     logging.info("Number of obtained configuration entries: %s", len(config))
     return config
 
+def convert_toml(config):
+    def hex_to_bytes(hex_value):
+        byte1 = (hex_value >> 8) & 0xFF
+        byte2 = hex_value & 0xFF
+        return [byte2, byte1]
+
+    with open(config, mode="rb") as fp:
+        parsed_toml = tomli.load(fp)
+
+    # Parse mem entries to create raw_waste_reset
+    def parse_mem_entries(mem):
+        raw_waste_reset = {}
+        for entry in mem:
+            addr = entry.get('addr', [])
+            reset = entry.get('reset', [0] * len(addr))
+
+            for addr_val, reset_val in zip(addr, reset):
+                raw_waste_reset[addr_val] = reset_val
+
+        return raw_waste_reset
+
+    output_data = {}
+
+    for section_name, section_val in parsed_toml.items():
+        # Convert rkey and extract mem data
+        section_data = section_val[0]
+        read_key = hex_to_bytes(section_data["rkey"])
+        raw_waste_reset = parse_mem_entries(section_data["mem"])
+
+        main_model = section_data["models"][0]
+        alias = section_data["models"][1:]
+        if main_model in ["EPSON"] and alias:
+            main_model = alias.pop(0)
+
+        # Structure the section data in the desired format
+        output_data[main_model] = {
+            "read_key": read_key,
+            "write_key": section_data["wkey1"].encode(),  # Write key in bytes
+            "raw_waste_reset": raw_waste_reset,  # Raw waste reset dictionary
+            "alias": alias  # Remaining models as aliases
+        }
+
+    return output_data
+
 def ordinal(n: int):
     if 11 <= (n % 100) <= 13:
         suffix = 'th'
@@ -368,7 +413,7 @@ def main():
     import pickle
 
     parser = argparse.ArgumentParser(
-        epilog='Generate printer configuration from devices.xml'
+        epilog='Generate printer configuration from devices.xml or from TOML'
     )
     parser.add_argument(
         '-m',
@@ -376,7 +421,14 @@ def main():
         dest='printer_model',
         default=False,
         action="store",
-        help='Printer model. Example: -m XP-205'
+        help='Filter printer model. Example: -m XP-205'
+    )
+    parser.add_argument(
+        '-T',
+        '--toml',
+        dest='toml',
+        action='store_true',
+        help='Use TOML input format instead of XML'
     )
     parser.add_argument(
         '-l',
@@ -433,7 +485,8 @@ def main():
         "--config",
         dest='config_file',
         type=argparse.FileType('r'),
-        help="use the XML configuration file to generate the configuration",
+        help="use the XML or TOML configuration file to generate"
+            " the configuration; default is 'devices.xml'",
         default=0,
         nargs=1,
         metavar='CONFIG_FILE'
@@ -520,13 +573,16 @@ def main():
     else:
         config = "devices.xml"
 
-    printer_config = generate_config(
-        config=config,
-        traverse=args.traverse,
-        add_fatal_errors=args.add_fatal_errors,
-        full=args.full,
-        printer_model=args.printer_model
-    )
+    if args.toml:
+        printer_config = convert_toml(config)
+    else:
+        printer_config = generate_config(
+            config=config,
+            traverse=args.traverse,
+            add_fatal_errors=args.add_fatal_errors,
+            full=args.full,
+            printer_model=args.printer_model
+        )
     normalized_config = normalize_config(
         config=printer_config,
         remove_invalid=not args.keep_invalid,

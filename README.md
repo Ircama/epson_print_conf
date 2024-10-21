@@ -52,6 +52,8 @@ The software provides a configurable printer dictionary, which can be easily ext
 
 The GUI includes some features that attempt to detect the attributes of an Epson printer whose model is not included in the configuration. First press "Detect Printers". If the printer is not in the configuration, press "Detect Access Keys". If the output does not show errors, press "Detect Configuration". These commands produce a tree view and a text view, which are useful to analyze whether there is a configured model that might be close or possibly same to target one. Notice that these operations take many minutes to complete and the printer shall be kept switched on for the whole period. Temporarily disabling the auto power-off timer is suggested.
 
+"Detect Configuration" can also be used with known printers, to detect additional parameters.
+
 Note on the ink waste counter reset feature: resetting the ink waste counter is just removing a lock; not replacing the tank will reduce the print quality and make the ink spill.
 
 ## Installation
@@ -251,7 +253,7 @@ This repository includes a Windows *epson_print_conf.exe* executable file which 
 
 Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which includes an extensive XML database of Epson model features.
 
-The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use.
+The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use. It is also able to accept the TOML input format, if the `-T` option is used.
 
 Here is a simple procedure to download that DB and run *parse_devices.py* to search for the XP-205 model and produce the related PRINTER_CONFIG dictionary to the standard output:
 
@@ -267,13 +269,15 @@ The `-m` option is optional and is used to filter the printer model in scope. If
 Program usage:
 
 ```
-parse_devices.py [-h] [-m PRINTER_MODEL] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e] [-c CONFIG_FILE] [-s DEFAULT_MODEL] [-a HOSTNAME] [-p PICKLE_FILE] [-I]
-                        [-N] [-A] [-G] [-S] [-M]
+usage: parse_devices.py [-h] [-m PRINTER_MODEL] [-T] [-l LINE_LENGTH] [-i] [-d] [-t] [-v] [-f] [-e]
+                        [-c CONFIG_FILE] [-s DEFAULT_MODEL] [-a HOSTNAME] [-p PICKLE_FILE] [-I] [-N]
+                        [-A] [-G] [-S] [-M]
 
 optional arguments:
   -h, --help            show this help message and exit
   -m PRINTER_MODEL, --model PRINTER_MODEL
-                        Printer model. Example: -m XP-205
+                        Filter printer model. Example: -m XP-205
+  -T, --toml            Use TOML input format instead of XML
   -l LINE_LENGTH, --line LINE_LENGTH
                         Set line length of the output (default: 120)
   -i, --indent          Indent output of 4 spaces
@@ -283,7 +287,8 @@ optional arguments:
   -f, --full            Generate additional tags
   -e, --errors          Add last_printer_fatal_errors
   -c CONFIG_FILE, --config CONFIG_FILE
-                        use the XML configuration file to generate the configuration
+                        use the XML or TOML configuration file to generate the configuration; default
+                        is 'devices.xml'
   -s DEFAULT_MODEL, --default_model DEFAULT_MODEL
                         Default printer model. Example: -s XP-205
   -a HOSTNAME, --address HOSTNAME
@@ -291,14 +296,16 @@ optional arguments:
   -p PICKLE_FILE, --pickle PICKLE_FILE
                         Save a pickle archive for subsequent load by ui.py and epson_print_conf.py
   -I, --keep_invalid    Do not remove printers without write_key or without read_key
-  -N, --keep_names      Do not replace original names with converted names and add printers for all optional names
-  -A, --no_alias        Do not add aliases for same printer with different names and remove aliased printers
+  -N, --keep_names      Do not replace original names with converted names and add printers for all
+                        optional names
+  -A, --no_alias        Do not add aliases for same printer with different names and remove aliased
+                        printers
   -G, --no_aggregate_alias
                         Do not aggregate aliases of printers with same configuration
   -S, --no_same_as      Do not add "same-as" for similar printers with different names
   -M, --no_maint_level  Do not add "Maintenance required levelas" in "stats"
 
-Generate printer configuration from devices.xml
+Generate printer configuration from devices.xml or from TOML
 ```
 
 The program does not provide *printer_head_id* and *Power off timer*.
