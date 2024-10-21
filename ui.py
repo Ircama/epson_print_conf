@@ -1635,9 +1635,9 @@ class EpsonPrinterUI(tk.Tk):
                         chr(b + 1) for b in printer.parm.get("write_key", b'')
                     ),
                 "Write sequence":
-                    self.printer.caesar(printer.parm.get("write_key", b'')),
+                    printer.caesar(printer.parm.get("write_key", b'')),
                 "Hex write sequence":
-                    self.printer.caesar(
+                    printer.caesar(
                         printer.parm.get("write_key", b''), hex=True
                     ).upper()
             }
