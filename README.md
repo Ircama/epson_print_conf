@@ -241,6 +241,15 @@ python3 parse_devices.py -a 192.168.178.29 -s XP-205 -p epson_print_conf.pickle 
 pyinstaller epson_print_conf.spec
 ```
 
+Same procedure using the Reinkpy's *epson.toml* file (in place of *devices.xml*):
+
+```bash
+pip install pyinstaller  # if not yet installed
+curl -o epson.toml https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml
+python3 parse_devices.py -Ta 192.168.178.29 -s XP-205 -p epson_print_conf.pickle  # use your default IP address and printer model as default settings for the GUI
+pyinstaller epson_print_conf.spec
+```
+
 When embedding *epson_print_conf.pickle*, the created program does not have options and starts with the default IP address and printer model defined in the build phase.
 
 As mentioned in the [documentation](https://pyinstaller.org/en/stable/), PyInstaller supports Windows, MacOS X, Linux and other UNIX Operating Systems. It creates an executable file which is only compatible with the operating system that is used to build the asset.
@@ -255,11 +264,18 @@ Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in 
 
 The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use. It is also able to accept the [TOML](https://toml.io/) input format used by [reinkpy](https://codeberg.org/atufi/reinkpy) in [epson.toml](https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml), if the `-T` option is used.
 
-Here is a simple procedure to download that DB and run *parse_devices.py* to search for the XP-205 model and produce the related PRINTER_CONFIG dictionary to the standard output:
+Here is a simple procedure to download the *devices.xml* DB and run *parse_devices.py* to search for the XP-205 model and produce the related PRINTER_CONFIG dictionary to the standard output:
 
 ```bash
 curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
 python3 parse_devices.py -i -m XP-205
+```
+
+Same procedure, processing the *epson.toml* file:
+
+```bash
+curl -o epson.toml https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml
+python3 parse_devices.py -T -i -m XP-205
 ```
 
 After generating the related printer configuration, *epson_print_conf.py* shall be manually edited to copy/paste the output of *parse_devices.py* within its PRINTER_CONFIG dictionary. Alternatively, the program is able to create a *pickle* configuration file (check the `-p` lowercase option), which the other programs can load (with the `-P` uppercase option and in addition with the optional `-O` flag).
@@ -317,6 +333,14 @@ Suppose ET-4800 ia a printer already defined in the mentioned [attachment](https
 ```bash
 curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
 python3 parse_devices.py -m ET-4800 -p epson_print_conf.pickle
+python3 ui.py -P epson_print_conf.pickle
+```
+
+or (operating *epson.toml*):
+
+```bash
+curl -o epson.toml https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml
+python3 parse_devices.py -T -m ET-4800 -p epson_print_conf.pickle
 python3 ui.py -P epson_print_conf.pickle
 ```
 
