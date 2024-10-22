@@ -1,6 +1,6 @@
 ---
 name: Software bug report
-about: Create a report on a bug found in the software
+about: Please avoid questions about usage clarifications or requests to add new printers
 title: ''
 labels: ''
 assignees: ''
