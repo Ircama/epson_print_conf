@@ -1,5 +1,5 @@
 ---
-name: Software bug report
+name: Python software bug report
 about: Please avoid questions about usage clarifications or requests to add new printers
 title: ''
 labels: ''
@@ -12,4 +12,4 @@ A clear and concise description of the bug, including steps to reproduce the beh
 We do not accept questions about usage clarifications or requests to add new printers.
 
 **Additional context**
-Please feel free to add any other context about the problem here.
+Feel free to add any other context about the problem here.
