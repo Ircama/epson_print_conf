@@ -1,15 +1,17 @@
 ---
-name: Python software bug report
-about: This option is only for software bugs. Not to be used for usage clarifications or for requests printers (new or already defined)
+name: Python software bug report or feature enhancement
+about: This option is only for software bugs or to propose software enhancements. Not to be used for usage clarifications or for requests on printers
 title: ''
 labels: ''
 assignees: ''
 
 ---
+This repository is intended for software developers with experience managing Python programs. We will not respond to requests regarding difficulties in software development or in using the software. Issues related to printers (either new or already defined) should be reported in other options.
 
 **Describe the bug**
 A clear and concise description of the bug, including steps to reproduce the behavior and a short description of what you expected to happen.
-We do not accept questions about usage clarifications or requests to add new printers.
+This option is only for software bugs.
+We do not accept questions about usage clarifications or requests about printers.
 
 **Additional context**
 Feel free to add any other context about the problem here.

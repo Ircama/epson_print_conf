@@ -8,8 +8,10 @@ assignees: ''
 ---
 This repository is intended for software developers with experience managing Python programs. We will not respond to requests regarding difficulties in software development or in using the software.
 
+We will not address any issues unless the following checklist is thoroughly completed.
+
 **Scenario**
-Clearly describe that you followed the instruction in the README and specifically that you carefully completed the steps described in the [Example to integrate new printers](https://github.com/Ircama/epson_print_conf/?tab=readme-ov-file#example-to-integrate-new-printers). Report the issue including steps to reproduce the behavior and a short description of what you expected to happen.
+Clearly describe that you followed the instructions in the README and specifically that you carefully completed the steps described in the [Example to integrate new printers](https://github.com/Ircama/epson_print_conf/?tab=readme-ov-file#example-to-integrate-new-printers). Report the issue including steps to reproduce the behavior and a short description of what you expected to happen.
 
 **Printer model**
 Provide the exact printer model.

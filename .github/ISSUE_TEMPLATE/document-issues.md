@@ -1,8 +1,8 @@
 ---
 name: Documentation issues
-about: Use this option for request of clarifications clearly not reported in the README
+about: Use this option for request of clarifications clearly not reported in the README. Not for usage support.
 title: ''
-labels: ''
+labels: 'documentation'
 assignees: ''
 
 ---

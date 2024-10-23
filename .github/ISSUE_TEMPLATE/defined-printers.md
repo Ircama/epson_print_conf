@@ -13,7 +13,7 @@ We will not process issues related to networking, WiFi, IP addressing issues.
 We will not address any issues unless the following checklist is thoroughly completed.
 
 **Printer model**
-Provide the printer model as reported by the product label. This model shall be available in the the drop-down list of the UI. It should clearly confirm that the printer in question matches the configuration specified in the software without ambiguity.
+Provide the printer model as reported by the product label. This model shall be available in the drop-down list of the UI. It should clearly confirm that the printer in question matches the configuration specified in the software without ambiguity.
 
 **Software configuration**
 In the UI, select the model from the drop-down list; press F2 in correspondence to your model. The status box will show the printer definition values. Select the status box, right button of the mouse, then copy all data and paste them here.
