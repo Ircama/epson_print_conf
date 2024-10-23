@@ -1,6 +1,6 @@
 ---
 name: Python software bug report
-about: Please avoid questions about usage clarifications or requests to add new printers
+about: This option is only for software bugs. Not to be used for usage clarifications or for requests printers (new or already defined)
 title: ''
 labels: ''
 assignees: ''
