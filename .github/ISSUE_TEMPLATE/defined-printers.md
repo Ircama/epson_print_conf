@@ -1,16 +1,19 @@
 ---
 name: Request on printers included in the software
-about: This option is only related to already defined printers which are not appropriately managed by the software
+about: This option is only related to already defined printers which are not appropriately managed by the software.
 title: ''
 labels: ''
 assignees: ''
-
 ---
+<!--
 Note: this option shall not be used for printers that are NOT mentioned in the drop-down list of the UI.
 
 We will not process issues related to networking, WiFi, IP addressing issues.
 
 We will not address any issues unless the following checklist is thoroughly completed.
+
+Please do not expect immediate responses. We will review cases only when it is feasible to do so.
+-->
 
 **Printer model**
 Provide the printer model as reported by the product label. This model shall be available in the drop-down list of the UI. It should clearly confirm that the printer in question matches the configuration specified in the software without ambiguity.
