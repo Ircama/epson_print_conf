@@ -6,7 +6,7 @@ labels: ''
 assignees: ''
 
 ---
-This repository is intended for software developers with experience managing Python programs. We will not respond to requests regarding difficulties in software development or in using the software. Issues related to printers (either new or already defined) should be reported in other options.
+This repository is intended for software developers with experience managing Python programs. We will not respond to requests related to development challenges or difficulties in using the software. Issues related to printers (either new or already defined) should be reported in other options.
 
 **Describe the bug**
 A clear and concise description of the bug, including steps to reproduce the behavior and a short description of what you expected to happen.

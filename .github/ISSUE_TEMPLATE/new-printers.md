@@ -6,7 +6,7 @@ labels: ''
 assignees: ''
 
 ---
-This repository is intended for software developers with experience managing Python programs. We will not respond to requests regarding difficulties in software development or in using the software.
+This repository is intended for software developers with experience managing Python programs. We will not respond to requests related to development challenges or difficulties in using the software.
 
 We will not address any issues unless the following checklist is thoroughly completed.
 

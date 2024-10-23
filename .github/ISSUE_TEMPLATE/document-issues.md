@@ -6,7 +6,7 @@ labels: 'documentation'
 assignees: ''
 
 ---
-This repository is intended for software developers with experience managing Python programs. We will not respond to requests regarding difficulties in software development or in using the software.
+This repository is intended for software developers with experience managing Python programs. We will not respond to requests related to development challenges or difficulties in using the software.
 
 Generic reports that do not reference specific wording in the README will not be addressed.
  
