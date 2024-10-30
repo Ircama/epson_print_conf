@@ -516,7 +516,7 @@ class EpsonPrinter:
             "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
         },
         "XP-422": {
-            "alias": ["XP-423", "XP-425"],
+            "alias": ["XP-423", "XP-425", "XP-225"],
             "read_key": [85, 5],
             "write_key": b'Muscari.',
             "main_waste": {"oids": [24, 25, 30], "divider": 196.5},
