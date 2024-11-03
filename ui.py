@@ -5,6 +5,7 @@
 Epson Printer Configuration via SNMP (TCP/IP) - GUI
 """
 
+import os
 import sys
 import re
 import threading
@@ -15,6 +16,7 @@ import socket
 import traceback
 import logging
 import webbrowser
+import pickle
 
 import black
 import tkinter as tk
@@ -22,14 +24,15 @@ from tkinter import ttk, Menu
 from tkinter.scrolledtext import ScrolledText
 import tkinter.font as tkfont
 from tkcalendar import DateEntry  # Ensure you have: pip install tkcalendar
-from tkinter import simpledialog, messagebox
+from tkinter import simpledialog, messagebox, filedialog
 
 import pyperclip
-from epson_print_conf import EpsonPrinter
+from epson_print_conf import EpsonPrinter, get_printer_models
+from parse_devices import generate_config_from_toml, generate_config_from_xml, normalize_config
 from find_printers import PrinterScanner
 
 
-VERSION = "4.0"
+VERSION = "5.0"
 
 NO_CONF_ERROR = (
     "[ERROR] Please select a printer model and a valid IP address,"
@@ -43,40 +46,6 @@ CONFIRM_MESSAGE = (
             " in case of problems.\n\n"
             "Are you sure you want to proceed?"
 )
-
-def get_printer_models(input_string):
-    # Tokenize the string
-    tokens = re.split(" |/", input_string)
-    if not len(tokens):
-        return []
-
-    # Define the words to remove (uppercase, then case insensitive)
-    remove_tokens = {"EPSON", "SERIES"}
-
-    # Process tokens
-    processed_tokens = []
-    non_numeric_part = ""
-    pre_model = ""
-    for token in tokens:
-        upper_token = token.upper()
-
-        # Remove tokens that match remove_tokens
-        if any(word == upper_token for word in remove_tokens):
-            continue
-        if not any(char.isdigit() for char in token):  # no alphanum inside
-            pre_model = pre_model + token + " "
-            continue
-        # Identify the non-numeric part of the first token
-        if not token.isnumeric() and not non_numeric_part:
-            non_numeric_part = "".join(c for c in token if not c.isdigit())
-        # if token is numeric, prepend the non-numeric part
-        if token.isnumeric():
-            processed_tokens.append(f"{pre_model}{non_numeric_part}{token}")
-        else:
-            processed_tokens.append(f"{pre_model}{token}")
-    if not processed_tokens and pre_model:
-        processed_tokens.append(pre_model.strip())
-    return processed_tokens
 
 
 class MultiLineInputDialog(simpledialog.Dialog):
@@ -205,7 +174,7 @@ class EpsonPrinterUI(tk.Tk):
         self,
         model: str = None,
         hostname: str = None,
-        conf_dict={},
+        conf_dict = {},
         replace_conf=False
         ):
         super().__init__()
@@ -225,6 +194,89 @@ class EpsonPrinterUI(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
+        # Setup the menu
+        menubar = tk.Menu(self)
+        self.config(menu=menubar)
+
+        # Create File menu
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        LOAD_LABEL_NAME = "%s printer configuration file or web URL..."
+        LOAD_LABEL_TITLE = "Select a %s printer configuration file, or enter a Web URL"
+        LOAD_LABEL_TYPE = "%s files"
+        file_menu.add_command(
+            label=LOAD_LABEL_NAME % "Load a PICKLE",
+            command=lambda: self.load_from_file(
+                file_type={
+                    "title": LOAD_LABEL_TITLE % "PICKLE",
+                    "filetypes": [
+                        (LOAD_LABEL_TYPE % "PICKLE", "*.pickle"),
+                        ("All files", "*.*")
+                    ]
+                },
+                type=0
+            )
+        )
+        file_menu.add_command(
+            label=LOAD_LABEL_NAME % "Import a XML",
+            command=lambda: self.load_from_file(
+                file_type={
+                    "title": LOAD_LABEL_TITLE % "XML",
+                    "filetypes": [
+                        (LOAD_LABEL_TYPE % "XML", "*.xml"),
+                        ("All files", "*.*")
+                    ]
+                },
+                type=1
+            )
+        )
+        file_menu.add_command(
+            label=LOAD_LABEL_NAME % "Import a TOML",
+            command=lambda: self.load_from_file(
+                file_type={
+                    "title": LOAD_LABEL_TITLE % "TOML",
+                    "filetypes": [
+                        (LOAD_LABEL_TYPE % "TOML", "*.toml"),
+                        ("All files", "*.*")
+                    ]
+                },
+                type=2
+            )
+        )
+        file_menu.add_command(
+            label="Save the selected printer configuration to a PICKLE file...",
+            command=self.save_to_file
+        )
+
+        # Create Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Settings", menu=help_menu)
+
+        help_menu.add_command(label="Show printer parameters of the selected model", command=self.printer_config)
+        help_menu.entryconfig("Show printer parameters of the selected model", accelerator="F2")
+
+        help_menu.add_command(label="Show printer keys of the selected model", command=self.key_values)
+        help_menu.entryconfig("Show printer keys of the selected model", accelerator="F3")
+
+        help_menu.add_command(label="Remove selected printer configuration", command=self.remove_printer_conf)
+        help_menu.entryconfig("Remove selected printer configuration", accelerator="F4")
+
+        help_menu.add_command(label="Keep only selected printer configuration", command=self.keep_printer_conf)
+        help_menu.entryconfig("Keep only selected printer configuration", accelerator="F5")
+
+        help_menu.add_command(label="Clear printer list", command=self.clear_printer_list)
+        help_menu.entryconfig("Clear printer list", accelerator="F6")
+
+        help_menu.add_command(label="Get next local IP addresss", command=lambda: self.next_ip(0))
+        help_menu.entryconfig("Get next local IP addresss", accelerator="F9")
+
+        # Create Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Help", command=self.open_help_browser)
+        help_menu.add_command(label="Program Information", command=self.show_program_info)
+
+        # Setup frames
         FRAME_PAD = 10
         PAD = (3, 0)
         PADX = 4
@@ -277,12 +329,14 @@ class EpsonPrinterUI(tk.Tk):
         )
         ToolTip(
             self.model_dropdown,
-            "Select the model of the printer, or press 'Detect Printers'.\n"
-            "Press F2 to dump the parameters associated to the printer model."
-            " Press F3 to get the values of the keys from the configuration.",
+            "Select the model of the printer, or press 'Detect Printers'."
+            " Special features are allowed via F2, F3, F4, F5, or F6.\n"
         )
         self.model_dropdown.bind("<F2>", self.printer_config)
         self.model_dropdown.bind("<F3>", self.key_values)
+        self.model_dropdown.bind("<F4>", lambda event: self.remove_printer_conf())
+        self.model_dropdown.bind("<F5>", lambda event: self.keep_printer_conf())
+        self.model_dropdown.bind("<F6>", lambda event: self.clear_printer_list())
 
         # BOX IP address
         ip_frame = ttk.LabelFrame(
@@ -310,13 +364,13 @@ class EpsonPrinterUI(tk.Tk):
         self.ip_entry.grid(
             row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
         )
-        self.ip_entry.bind("<F2>", self.next_ip)
+        self.ip_entry.bind("<F9>", self.next_ip)
         ToolTip(
             self.ip_entry,
             "Enter the IP address, or press 'Detect Printers'"
             " (you can also enter part of the IP address"
             " to speed up the detection),"
-            " or press F2 more times to get the next local IP address,"
+            " or press F9 more times to get the next local IP address,"
             " which can then be edited"
             " (by removing the last part before pressing 'Detect Printers').",
         )
@@ -778,6 +832,219 @@ class EpsonPrinterUI(tk.Tk):
         self.model_var.trace('w', self.change_widget_states)
         self.ip_var.trace('w', self.change_widget_states)
         self.change_widget_states()
+
+    def save_to_file(self):
+        if not self.model_var.get():
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END,
+                '[ERROR]: Unknown printer model.'
+            )
+            return
+        if not self.printer:
+            self.printer = EpsonPrinter(
+                conf_dict=self.conf_dict,
+                model=self.model_var.get(),
+            )
+        if not self.printer or not self.printer.parm:
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END,
+                '[ERROR]: No printer configuration defined.'
+            )
+            return
+        # Open file dialog to enter the file
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".pickle",
+            title="PICKLE file name",
+            initialfile=self.model_var.get(),
+            filetypes=[("PICKLE files", "*.pickle")]
+        )
+        if not file_path:
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END,
+                f"[WARNING] File save operation aborted.\n"
+            )
+            return
+        # Ensure the file has the desired extension
+        if "." not in file_path and not file_path.endswith(".pickle"):
+            file_path += ".pickle"
+        normalized_config = { self.model_var.get(): self.printer.parm.copy() }
+        normalized_config["internal_data"] = {}
+        normalized_config["internal_data"]["default_model"] = self.model_var.get()
+        if self.ip_var.get():
+            normalized_config["internal_data"]["hostname"] = self.ip_var.get()
+        try:
+            with open(file_path, "wb") as file:
+                pickle.dump(normalized_config, file) # serialize the list
+        except Exception:
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END,
+                f"[ERROR] File save operation failed.\n"
+            )
+            return
+        self.status_text.insert(
+            tk.END,
+            f'[INFO] "{os.path.basename(file_path)}" file save operation completed.\n'
+        )
+
+    def load_from_file(self, file_type, type):
+        # Open file dialog to select the file
+        file_path = filedialog.askopenfilename(**file_type)
+        if not file_path:
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END,
+                f"[WARNING] File load operation aborted.\n"
+            )
+            return
+        if type == 0:
+            try:
+                with open(file_path, 'rb') as pickle_file:
+                    self.conf_dict = pickle.load(pickle_file)
+            except Exception as e:
+                self.show_status_text_view()
+                if not file_path.tell():
+                    self.status_text.insert(
+                        tk.END,
+                        f"[ERROR] Empty PICKLE FILE {file_path}.\n"
+                    )
+                else:
+                    self.status_text.insert(
+                        tk.END,
+                        f"[ERROR] Cannot load PICKLE file {file_path}. {e}\n"
+                    )
+                return
+            if (
+                "internal_data" in self.conf_dict
+                and "hostname" in self.conf_dict["internal_data"]
+            ):
+                self.ip_var.set(self.conf_dict["internal_data"]["hostname"])
+            if (
+                "internal_data" in self.conf_dict
+                and "default_model" in self.conf_dict["internal_data"]
+            ):
+                self.model_var.set(self.conf_dict["internal_data"]["default_model"])
+        else:
+            self.status_text.insert(
+                tk.END,
+                f"[INFO] Converting file, please wait...\n"
+            )
+            self.update_idletasks()
+            if type == 1:
+                printer_config = generate_config_from_xml(config=file_path)
+            if type == 2:
+                printer_config = generate_config_from_toml(config=file_path)
+            if not printer_config:
+                self.show_status_text_view()
+                self.status_text.insert(
+                    tk.END,
+                    f"[ERROR] Cannot load file {file_path}\n"
+                )
+                return
+            self.conf_dict = normalize_config(config=printer_config)
+        self.model_dropdown["values"] = sorted(EpsonPrinter(
+            conf_dict=self.conf_dict,
+            replace_conf=self.replace_conf
+        ).valid_printers)
+        if file_path:
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END,
+                f"[INFO] Loaded file {os.path.basename(file_path)}.\n"
+            )
+
+    def keep_printer_conf(self):
+        self.show_status_text_view()
+        if not self.model_var.get():
+            self.status_text.insert(
+                tk.END,
+                '[ERROR]: Select a valid printer model.\n'
+            )
+            return
+        keep_model = self.model_var.get()
+        self.model_dropdown["values"] = tuple(
+            model for model in self.model_dropdown["values"] if model == keep_model
+        )
+        self.replace_conf = True
+        self.show_status_text_view()
+        self.update_idletasks()
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Printer {keep_model} is the only one in the list.\n"
+        )
+
+    def remove_printer_conf(self):
+        self.show_status_text_view()
+        if not self.model_var.get():
+            self.status_text.insert(
+                tk.END,
+                '[ERROR]: Select a valid printer model.\n'
+            )
+            return
+        remove_model = self.model_var.get()
+        self.model_var.set("")
+        self.model_dropdown["values"] = tuple(
+            model for model in self.model_dropdown["values"] if model != remove_model
+        )
+        self.replace_conf = True
+        self.show_status_text_view()
+        self.update_idletasks()
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Configuation of printer {remove_model} removed.\n"
+        )
+
+    def clear_printer_list(self):
+        self.conf_dict = {}
+        self.model_var.set("")
+        self.model_dropdown["values"] = {}
+        self.replace_conf = True
+        self.show_status_text_view()
+        self.update_idletasks()
+        self.status_text.insert(
+            tk.END,
+            f"[INFO] Printer list cleared.\n"
+        )
+
+    def open_help_browser(self):
+        # Opens a web browser to a help URL
+        url = "https://github.com/Ircama/epson_print_conf/?tab=readme-ov-file#epson_print_conf"
+        self.show_status_text_view()
+        try:
+            ret = webbrowser.open(url)
+            if ret:
+                self.status_text.insert(
+                    tk.END, f"[INFO] The browser is being opened.\n"
+                )
+            else:
+                self.status_text.insert(
+                    tk.END, f"[ERROR] Cannot open browser.\n"
+                )
+        except Exception as e:
+            self.status_text.insert(
+                tk.END, f"[ERROR] Cannot open web browser: {e}\n"
+            )
+        finally:
+            self.config(cursor="")
+            self.update_idletasks()
+
+    def show_program_info(self):
+        # Show program information in a popup
+        program_version = "1.0.0"  # Specify your program version
+        description = """
+Epson Printer Configuration tool via SNMP (TCP/IP).
+
+A tool for managing settings of Epson printers connected via Wi-Fi over the SNMP protocol.
+
+Web site: https://github.com/Ircama/epson_print_conf
+"""
+        self.title("Epson Printer Configuration - v" + VERSION)
+        messagebox.showinfo("Program Information",
+            f"Version: {VERSION}\n{description}"
+        )
 
     def focus_next(self, event):
         event.widget.tk_focusNext().focus()
@@ -1783,6 +2050,7 @@ class EpsonPrinterUI(tk.Tk):
                 return
             if not self.printer:
                 self.printer = EpsonPrinter(
+                    conf_dict=self.conf_dict,
                     hostname=self.ip_var.get()
                 )
                 self.printer.parm = {'read_key': None}
@@ -1796,16 +2064,17 @@ class EpsonPrinterUI(tk.Tk):
             read_key = None
             try:
                 read_key = self.printer.brute_force_read_key()
-                self.status_text.insert(
-                    tk.END, f"[INFO] Detected read_key: {read_key}.\n"
-                )
             except Exception as e:
                 self.handle_printer_error(e)
                 logging.getLogger().setLevel(current_log_level)
                 self.config(cursor="")
                 self.update_idletasks()
                 return
-            if not read_key:
+            if read_key:
+                self.status_text.insert(
+                    tk.END, f"[INFO] Detected read_key: {read_key}.\n"
+                )
+            else:
                 self.status_text.insert(
                     tk.END, f"[ERROR] Could not detect read_key.\n"
                 )
@@ -2163,13 +2432,14 @@ class EpsonPrinterUI(tk.Tk):
         try:
             addr = range(0, 2048)
             eeprom = {
-                k: int(v, 16) for k, v in zip(
-                    addr,self.printer.read_eeprom_many(
+                k: None if v == None else int(v, 16) for k, v in zip(
+                    addr,
+                    self.printer.read_eeprom_many(
                         addr, label="dump_EEPROM"
                     )
                 )
             }
-            if not eeprom:
+            if not eeprom or eeprom == {0: None}:
                 self.status_text.insert(
                     tk.END,
                     '[ERROR] Cannot read EEPROM values'
@@ -2658,6 +2928,10 @@ class EpsonPrinterUI(tk.Tk):
 
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END, f"[ERROR] Missing IP address or printer host name.\n"
+            )
             return
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -2670,7 +2944,10 @@ class EpsonPrinterUI(tk.Tk):
                     + form_feed
                 )
         except Exception as e:
-            self.handle_printer_error(e)
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END, f"[ERROR] Printer is unreachable or offline.\n"
+            )
 
 
 def main():
@@ -2726,7 +3003,14 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
     conf_dict = {}
     if args.pickle:
-        conf_dict = pickle.load(args.pickle[0])
+        try:
+            conf_dict = pickle.load(args.pickle[0])
+        except Exception as e:
+            if not args.pickle[0].tell():
+                print("Error. Empty PICKLE FILE.")
+            else:
+                print("Error. Cannot load PICKLE FILE:", e)
+            quit()
 
     return EpsonPrinterUI(
         model=args.model,

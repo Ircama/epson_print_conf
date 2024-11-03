@@ -8,6 +8,8 @@ The *Epson Printer Configuration Tool* simplifies the management of Epson printe
 
 A range of features are offered for both end-users and developers, making it easier to administer and maintain Epson printers.
 
+The software provides a configurable printer dictionary, which can be easily extended. In addition, it is possible to import and convert external Epson printer configuration databases.
+
 ## Key Features
 
 - __SNMP Interface__: Seamlessly connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections (not USB).
@@ -24,35 +26,26 @@ A range of features are offered for both end-users and developers, making it eas
     - Reset the ink waste counter.
 
       The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or tank replacement is programmed.
-    - Adjust the power-off timer for more accurate energy efficiency.
+    - Adjust the power-off timer (for more accurate energy efficiency).
+    - Change the _First TI Received Time_,
+
+      The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
+
     - Change the printer WiFi MAC address and the printer serial number (typically used in specialized scenarios where specific device identifiers are required).
-    - Access various administrative and debugging options.
     - Read and write to EEPROM addresses for advanced configurations.
     - Dump and analyze sets of EEPROM addresses.
+    - Detect the access key (*read_key* and *write_key*) and some attributes of the printer configuration.
+
+      The GUI includes some features that attempt to detect the attributes of an Epson printer whose model is not included in the configuration, which can also be used with known printers, to detect additional parameters.
+
+    - Import and export printer configuration datasets in various formats: epson_print_conf pickle, Reinkpy XML, Reinkpy TOML.
+
+    - Access various administrative and debugging options.
 
 - __User-Friendly Interfaces__:
     - __Graphical User Interface (GUI)__: Intuitive interface with an autodiscovery function that detects printer IP addresses and model names.
     - __Command Line Tool__: For users who prefer command-line interactions, providing the full set of features.
     - __Python API Interface__: For developers to integrate and automate printer management tasks.
-
-The GUI can automatically find and display printer IP addresses and model names, allowing users to:
-
-- Check printer status
-- Open the printer web interface
-- Change the printer power-off timer, the _First TI Received Time_, the printer WiFi MAC address, and the printer serial number
-- Read and write the EEPROM
-- Detect the access key (*read_key* and *write_key*) and some attributes of the printer configuration
-- Reset the ink waste counter
-
-Special features allow showing the internal configuration settings.
-
-The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
-
-The software provides a configurable printer dictionary, which can be easily extended. In addition, a tool allows importing and converting an extensive Epson printer configuration DB.
-
-The GUI includes some features that attempt to detect the attributes of an Epson printer whose model is not included in the configuration. First press "Detect Printers". If the printer is not in the configuration, press "Detect Access Keys". If the output does not show errors, press "Detect Configuration". These commands produce a tree view and a text view, which are useful to analyze whether there is a configured model that might be close or possibly same to target one. Notice that these operations take many minutes to complete and the printer shall be kept switched on for the whole period. Temporarily disabling the auto power-off timer is suggested.
-
-"Detect Configuration" can also be used with known printers, to detect additional parameters.
 
 Note on the ink waste counter reset feature: resetting the ink waste counter is just removing a lock; not replacing the tank will reduce the print quality and make the ink spill.
 
@@ -75,6 +68,8 @@ pip3 install pyasn1==0.4.8
 pip3 install git+https://github.com/etingof/pysnmp.git
 pip3 install tkcalendar
 pip3 install pyperclip
+pip3 install black
+pip3 install tomli
 
 cd epson_print_conf
 ```
@@ -124,6 +119,28 @@ optional arguments:
 
 epson_print_conf GUI
 ```
+
+### How to import an external printer configuration DB
+
+With the GUI, the following operations are possible (from the file menu):
+
+- Load a PICKLE configuration file or web URL.
+
+  This operation allows to open a file saved with the GUI ("Save the selected printer configuration to a PICKLE file") or with the *parse_devices.py* utility. In addition to the printer configuration DB, this file includes the last used IP address and printer model in order to simplify the GUI usage.
+
+- Import an XML configuration file or web URL
+
+  This option allows to import the XML configuration file downloaded from https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d. Alternatively, this option directly accepts the [source Web URL](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) of this file, incorporating the download operation into the GUI.
+
+- Import a TOML configuration file or web URL
+
+  Similar to the XML import, this option allows to load the TOML configuration file downloaded from https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml and also accepts the [source Web URL](https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml) of this file, incorporating the download operation into the GUI.
+
+Other menu options allow to filter or clean up the configuration list, as well as select a specific printer model and then save data to a PICKLE file.
+
+### How to detect parameters of an unknown printer
+
+First press "Detect Printers". If the printer is not in the configuration, press "Detect Access Keys". If the output does not show errors, press "Detect Configuration". These commands produce a tree view and a text view, which are useful to analyze whether there is a configured model that might be close or possibly same to target one. Notice that these operations take many minutes to complete and the printer shall be kept switched on for the whole period. Temporarily disabling the auto power-off timer is suggested.
 
 ### How to revert a change performed through the GUI
 
@@ -649,13 +666,15 @@ Example of advanced printer status with an XP-205 printer:
 
 ## Resources
 
-### snmpget (Linux)
+### snmpget
 
-Installation:
+Installation with Linux:
 
 ```
 sudo apt-get install snmp
 ```
+
+There are also [binaries for Windows](https://netcologne.dl.sourceforge.net/project/net-snmp/net-snmp%20binaries/5.7-binaries/net-snmp-5.7.0-1.x86.exe?viasf=1) which include snmpget.exe, running with the same arguments.
 
 Usage:
 
@@ -695,7 +714,7 @@ emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
   - Epson Maintenance Reset Utility: https://epson.com/epsonstorefront/orbeon/fr/us_regular_s03/us_ServiceInk_Pad_Reset/new
   - Epson Ink Pads Reset Utility Terms and Conditions: https://epson.com/Support/wa00370
 - Epson Adjustment Program (developed by EPSON)
-- WIC-Reset: https://wic-reset.com / https://www.2manuals.com / https://resetters.com (Use at your risk)
+- WIC-Reset: https://www.wic.support/download/ / https://www.2manuals.com / (Use at your risk)
 - PrintHelp: https://printhelp.info/ (Use at your risk)
 
 ### Other resources

@@ -16,6 +16,7 @@ import logging
 import os
 import yaml
 from pathlib import Path
+import pickle
 
 # The pysnmp module uses functionality from importlib.util and 
 # importlib.machinery, which were seperated from the importlib module
@@ -262,6 +263,7 @@ class EpsonPrinter:
             },
             "serial_number": range(192, 202),
         },
+        """
         "L3250": {
             "alias": ["L3251", "L3253", "L3255"],
             "read_key": [74, 54],
@@ -290,6 +292,7 @@ class EpsonPrinter:
                 "Total scan counter": [1843, 1842, 1841, 1840],
             },
         },
+        """
         "ET-2400": {
             "alias": ["ET-2401", "ET-2403", "ET-2405"],
             "read_key": [74, 54],
@@ -2480,6 +2483,41 @@ class EpsonPrinter:
         return True
 
 
+def get_printer_models(input_string):
+    # Tokenize the string
+    tokens = re.split(" |/", input_string)
+    if not len(tokens):
+        return []
+
+    # Define the words to remove (uppercase, then case insensitive)
+    remove_tokens = {"EPSON", "SERIES"}
+
+    # Process tokens
+    processed_tokens = []
+    non_numeric_part = ""
+    pre_model = ""
+    for token in tokens:
+        upper_token = token.upper()
+
+        # Remove tokens that match remove_tokens
+        if any(word == upper_token for word in remove_tokens):
+            continue
+        if not any(char.isdigit() for char in token):  # no alphanum inside
+            pre_model = pre_model + token + " "
+            continue
+        # Identify the non-numeric part of the first token
+        if not token.isnumeric() and not non_numeric_part:
+            non_numeric_part = "".join(c for c in token if not c.isdigit())
+        # if token is numeric, prepend the non-numeric part
+        if token.isnumeric():
+            processed_tokens.append(f"{pre_model}{non_numeric_part}{token}")
+        else:
+            processed_tokens.append(f"{pre_model}{token}")
+    if not processed_tokens and pre_model:
+        processed_tokens.append(pre_model.strip())
+    return processed_tokens
+
+
 if __name__ == "__main__":
     import argparse
     from pprint import pprint
@@ -2687,7 +2725,11 @@ if __name__ == "__main__":
 
     conf_dict = {}
     if args.pickle:
-        conf_dict = pickle.load(args.pickle[0])
+        try:
+            conf_dict = pickle.load(args.pickle[0])
+        except Exception as e:
+            print("Error while loading the pickle file:", e)
+            quit(1)
 
     printer = EpsonPrinter(
         conf_dict=conf_dict,
@@ -2733,7 +2775,7 @@ if __name__ == "__main__":
                 print("List of known keys:")
                 print("\n".join(printer.list_known_keys()))
             else:
-                print(f"Cannot found read_key")
+                print(f"Could not detect read_key.")
         if args.ftrt:
             print_opt = True
             if printer.write_first_ti_received_time(

@@ -7,7 +7,7 @@ import itertools
 import textwrap
 import tomli
 
-from ui import get_printer_models
+from epson_print_conf import get_printer_models, EpsonPrinter
 
 WASTE_LABELS = [
     "main_waste", "borderless_waste", "third_waste", "fourth_waste",
@@ -53,7 +53,7 @@ def traverse_data(element, depth=0):
 
 
 def generate_config_from_xml(
-    config, traverse, add_fatal_errors, full, printer_model
+    config, traverse=False, add_fatal_errors=False, full=False, printer_model=False
 ):
     irc_pattern = [
         r'Ink replacement counter %-% (\w+) % \((\w+)\)',
@@ -231,12 +231,12 @@ def generate_config_from_xml(
 
 def normalize_config(
         config,
-        remove_invalid,
-        expand_names,
-        add_alias,
-        aggregate_alias,
-        maint_level,
-        add_same_as,
+        remove_invalid=True,
+        expand_names=True,
+        add_alias=True,
+        aggregate_alias=True,
+        maint_level=True,
+        add_same_as=True,
     ):
     logging.info("Number of configuration entries before removing invalid ones: %s", len(config))
     # Remove printers without write_key or without read_key
@@ -360,7 +360,7 @@ def normalize_config(
     return config
 
 def generate_config_from_toml(
-    config, printer_model, full,
+    config, printer_model=None, full=False,
 
 ):
     # Generate "read_key" values
@@ -650,8 +650,6 @@ def main():
     if args.pickle:
         pickle.dump(normalized_config, args.pickle[0]) # serialize the list
         args.pickle[0].close()
-
-        from epson_print_conf import EpsonPrinter
         ep = EpsonPrinter(conf_dict=normalized_config, replace_conf=True)
         logging.info("Number of expanded configuration entries: %s", len(ep.PRINTER_CONFIG))
         quit()
