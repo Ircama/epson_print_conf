@@ -8,7 +8,7 @@ assignees: ''
 <!--
 This repository is intended for software developers with experience managing Python programs. We will not respond to requests related to development challenges or difficulties in using the software.
 
-Generic reports that do not reference specific wording in the README will not be addressed.
+This section is only for document issues and related improvement requests (not for software). Generic reports that do not reference specific wording in the README will not be addressed.
  
 Please do not expect immediate responses. We will review cases only when it is feasible to do so.
 -->

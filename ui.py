@@ -892,8 +892,14 @@ class EpsonPrinterUI(tk.Tk):
 
     def load_from_file(self, file_type, type):
         # Open file dialog to select the file
+        self.show_status_text_view()
         file_path = filedialog.askopenfilename(**file_type)
+        self.config(cursor="watch")
+        self.update_idletasks()
+        self.update()
         if not file_path:
+            self.config(cursor="")
+            self.update_idletasks()
             self.show_status_text_view()
             self.status_text.insert(
                 tk.END,
@@ -905,6 +911,8 @@ class EpsonPrinterUI(tk.Tk):
                 with open(file_path, 'rb') as pickle_file:
                     self.conf_dict = pickle.load(pickle_file)
             except Exception as e:
+                self.config(cursor="")
+                self.update_idletasks()
                 self.show_status_text_view()
                 if not file_path.tell():
                     self.status_text.insert(
@@ -928,6 +936,7 @@ class EpsonPrinterUI(tk.Tk):
             ):
                 self.model_var.set(self.conf_dict["internal_data"]["default_model"])
         else:
+            self.config(cursor="watch")
             self.status_text.insert(
                 tk.END,
                 f"[INFO] Converting file, please wait...\n"
@@ -938,6 +947,7 @@ class EpsonPrinterUI(tk.Tk):
             if type == 2:
                 printer_config = generate_config_from_toml(config=file_path)
             if not printer_config:
+                self.config(cursor="")
                 self.show_status_text_view()
                 self.status_text.insert(
                     tk.END,
@@ -949,6 +959,8 @@ class EpsonPrinterUI(tk.Tk):
             conf_dict=self.conf_dict,
             replace_conf=self.replace_conf
         ).valid_printers)
+        self.config(cursor="")
+        self.update_idletasks()
         if file_path:
             self.show_status_text_view()
             self.status_text.insert(
@@ -1299,7 +1311,13 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         if not self.printer:
             return
-        ser_num = self.printer.get_serial_number()
+        try:
+            ser_num = self.printer.get_serial_number()
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         if not ser_num or "?" in ser_num:
             self.status_text.insert(
                 tk.END,
@@ -1332,7 +1350,13 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         if not self.printer:
             return
-        mac_addr = self.printer.get_wifi_mac_address()
+        try:
+            mac_addr = self.printer.get_wifi_mac_address()
+        except Exception as e:
+            self.handle_printer_error(e)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         if not mac_addr:
             self.status_text.insert(
                 tk.END,

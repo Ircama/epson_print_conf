@@ -16,5 +16,8 @@ A clear and concise description of the bug, including steps to reproduce the beh
 This option is only for software bugs.
 We do not accept questions about usage clarifications or requests about printers.
 
+**Software version**
+The exact version of the tested software.
+
 **Additional context**
 Feel free to add any other context about the problem here.

@@ -26,7 +26,7 @@ try:
     import importlib.machinery
 except ImportError:
     pass
-from pysnmp.hlapi.v1arch import *
+from pysnmp.hlapi.v1arch import *  # this imports UdpTransportTarget
 
 from pyasn1.type.univ import OctetString as OctetStringType
 from itertools import chain
@@ -263,36 +263,6 @@ class EpsonPrinter:
             },
             "serial_number": range(192, 202),
         },
-        """
-        "L3250": {
-            "alias": ["L3251", "L3253", "L3255"],
-            "read_key": [74, 54],
-            "write_key": b'Maribaya',
-            "serial_number": range(1604, 1614),
-            "main_waste": {"oids": [48, 49, 47], "divider": 63.45},
-            "second_waste": {"oids": [50, 51, 47], "divider": 34.15},
-            "third_waste": {"oids": [252, 253, 254], "divider": 13},
-            "raw_waste_reset": {
-                48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
-                55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94
-            },
-            "last_printer_fatal_errors": [
-                289, 288, 291, 290, 293, 292, 295, 294, 297, 296, 1831, 1832,
-                1833, 1834, 1835, 2037, 2036, 2039, 2038, 2041, 2040, 2043,
-                2042, 2045, 2044],
-            "stats": {
-                "Maintenance required level of 1st waste ink counter": [54],
-                "Maintenance required level of 2nd waste ink counter": [55],
-                "Maintenance required level of 3rd waste ink counter": [255],
-                "Manual cleaning counter": [90],
-                "Timer cleaning counter": [89],
-                "Power cleaning counter": [91],
-                "Total print pass counter": [133, 132, 131, 130],
-                "Total print page counter": [776, 775, 774, 773],
-                "Total scan counter": [1843, 1842, 1841, 1840],
-            },
-        },
-        """
         "ET-2400": {
             "alias": ["ET-2401", "ET-2403", "ET-2405"],
             "read_key": [74, 54],
@@ -1154,7 +1124,7 @@ class EpsonPrinter:
                 )
         except Exception as e:
             logging.critical("snmp_mib invalid address: %s", e)
-            quit(3)                    
+            return None, False
         if self.timeout is not None:
             utt.timeout = self.timeout
         if self.retries is not None:
