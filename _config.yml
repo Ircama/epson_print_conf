@@ -1,0 +1,66 @@
+remote_theme: bmndc/just-the-docs
+search_enabled: false
+enable_copy_code_button: true
+heading_anchors: true
+aux_links:
+  "epson_print_conf on GitHub":
+    - "https://github.com/Ircama/epson_print_conf/"
+aux_links_new_tab: true
+nav_enabled: false
+
+# Table of Contents
+# Enable or disable the Table of Contents globally
+# Supports true (default) or false
+toc_enabled: true
+toc:
+  # Minimum header level to include in ToC
+  # Default: 1
+  min_level: 1
+  # Maximum header level to include in ToC
+  # Default: 6
+  max_level: 6
+  # Display the ToC as ordered list instead of an unordered list
+  # Supports true (default) or false
+  ordered: true
+  # Whether ToC will be a single level list
+  # Supports true or false (default)
+  flat_toc: false
+
+# Back to top link
+back_to_top: true
+back_to_top_text: "Back to top"
+
+footer_content: 'Copyright &copy; 2023-2024 Ircama. Distributed by an <a href="https://raw.githubusercontent.com/Ircama/epson_print_conf/refs/heads/main/LICENSE">MIT license.</a>'
+
+# Footer last edited timestamp
+last_edit_timestamp: true # show or hide edit time - page must have `last_modified_date` defined in the frontmatter
+last_edit_time_format: "%b %e %Y at %I:%M %p" # uses ruby's time format: https://ruby-doc.org/stdlib-2.7.0/libdoc/time/rdoc/Time.html
+
+# Footer "Edit this page on GitHub" link text
+gh_edit_link: true # show or hide edit this page link
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/Ircama/epson_print_conf" # the github URL for your repo
+gh_edit_branch: "main" # the branch that your docs is served from
+# gh_edit_source: docs # the source that your files originate from
+gh_edit_view_mode: "tree" # "tree" or "edit" if you want the user to jump into the editor immediately
+
+plugins:
+  - jekyll-autolinker
+  - jekyll-remote-theme # Add if not already present
+  - jekyll-include-cache # Optional, for caching
+
+
+kramdown:
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
+compress_html:
+  clippings: all
+  comments: all
+  endings: all
+  startings: []
+  blanklines: false
+  profile: false
+  # ignore:
+  

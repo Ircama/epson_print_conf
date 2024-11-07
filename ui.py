@@ -1023,7 +1023,7 @@ class EpsonPrinterUI(tk.Tk):
 
     def open_help_browser(self):
         # Opens a web browser to a help URL
-        url = "https://github.com/Ircama/epson_print_conf/?tab=readme-ov-file#epson_print_conf"
+        url = "https://ircama.github.io/epson_print_conf"
         self.show_status_text_view()
         try:
             ret = webbrowser.open(url)
