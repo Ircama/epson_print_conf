@@ -1699,11 +1699,23 @@ class EpsonPrinter:
             return None
         if "serial_number" not in self.parm:
             return None
-        return "".join(
-            chr(int(value or "0x3f", 16))  # "0x3f" --> "?"
-            for value in self.read_eeprom_many(
-                self.parm["serial_number"], label="serial_number")
-        )
+        if isinstance(self.parm["serial_number"], (list, tuple)):
+            left_val = None
+            for i in self.parm["serial_number"]:
+                val = "".join(
+                    chr(int(value or "0x3f", 16))  # "0x3f" --> "?"
+                    for value in self.read_eeprom_many(i, label="serial_number")
+                )
+                if left_val is not None and val != left_val:
+                    return False
+                left_val = val
+            return left_val
+        else:
+            return "".join(
+                chr(int(value or "0x3f", 16))  # "0x3f" --> "?"
+                for value in self.read_eeprom_many(
+                    self.parm["serial_number"], label="serial_number")
+            )
 
     def get_printer_brand(self) -> str:
         """Return the producer name of the printer ("EPSON")."""
@@ -2076,11 +2088,30 @@ class EpsonPrinter:
             or not self.parm[parameter]
             or not value_list
             or not len(value_list)
-            or len(self.parm[parameter]) != len(value_list)
+            or (
+                isinstance(self.parm[parameter], (list, tuple))
+                and not all(
+                    len(sublist) == len(value_list)
+                    for sublist in self.parm[parameter]
+                )
+            )
+            or (
+                not isinstance(self.parm[parameter], (list, tuple))
+                and len(self.parm[parameter]) != len(value_list)
+            )
         ):
             return None
         if dry_run:
             return True
+        if isinstance(self.parm[parameter], (list, tuple)):
+            for i in self.parm[parameter]:
+                for oid, value in zip(i, value_list):
+                    if not self.write_eeprom(
+                        oid, value, label="update_" + parameter
+                    ):
+                        return False
+                    return True
+            return False
         for oid, value in zip(self.parm[parameter], value_list):
             if not self.write_eeprom(oid, value, label="update_" + parameter):
                 return False

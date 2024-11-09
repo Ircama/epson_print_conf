@@ -32,7 +32,7 @@ from parse_devices import generate_config_from_toml, generate_config_from_xml, n
 from find_printers import PrinterScanner
 
 
-VERSION = "5.0"
+VERSION = "5.1"
 
 NO_CONF_ERROR = (
     "[ERROR] Please select a printer model and a valid IP address,"
@@ -1318,6 +1318,14 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
+        if ser_num is False:
+            self.status_text.insert(
+                tk.END,
+                f"[ERROR]: Improper values in printer serial number.\n",
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         if not ser_num or "?" in ser_num:
             self.status_text.insert(
                 tk.END,
@@ -1588,19 +1596,22 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
-        try:
-            if not self.get_current_eeprom_values(
-                self.printer.parm["serial_number"],
-                "Printer Serial Number"
-            ):
+        pr_ser_num = self.printer.parm["serial_number"]
+        if isinstance(pr_ser_num, (list, tuple)):
+            list_ser_num = pr_ser_num
+        else:
+            list_ser_num = [pr_ser_num]
+        for i in list_ser_num:
+            try:
+                if not self.get_current_eeprom_values(i, "Printer Serial Number"):
+                    self.config(cursor="")
+                    self.update_idletasks()
+                    return
+            except Exception as e:
+                self.handle_printer_error(e)
                 self.config(cursor="")
                 self.update_idletasks()
                 return
-        except Exception as e:
-            self.handle_printer_error(e)
-            self.config(cursor="")
-            self.update_idletasks()
-            return
         self.status_text.insert(
             tk.END,
             f"[INFO] Set Printer Serial Number: {self.ser_num_var.get()}.\n"
@@ -2146,29 +2157,37 @@ Web site: https://github.com/Ircama/epson_print_conf
                     tk.END,
                     f"[ERROR] Cannot detect the serial number.\n"
                 )
-            elif len(matches) != 1:
-                self.status_text.insert(
-                    tk.END,
-                    "[ERROR] More than one pattern appears to be"
-                    " a serial number:\n"
-                )
-                for match in matches:
+            left_ser_num = None
+            for match in matches:
+                tmp_ser_num = match.group()
+                if left_ser_num is not None and tmp_ser_num != left_ser_num:
                     self.status_text.insert(
                         tk.END,
-                        f'[ERROR] - found pattern "{match.group()}"'
-                        f" at address {match.start()}\n"
+                        "[ERROR] More than one pattern appears to be"
+                        " a serial number with different values:\n"
                     )
-            else:
-                serial_number = matches[0].group()
-                serial_number_address = matches[0].start()
-                serial_number_range = range(
-                    serial_number_address, serial_number_address + len_ser_num
-                )
-                self.status_text.insert(
-                    tk.END,
-                    f'[INFO] Detected serial number "{serial_number}"'
-                    f" at address {serial_number_address}.\n"
-                )
+                    for match in matches:
+                        self.status_text.insert(
+                            tk.END,
+                            f'[ERROR] - found pattern "{match.group()}"'
+                            f" at address {match.start()}\n"
+                        )
+                    left_ser_num = None
+                    break
+                left_ser_num = tmp_ser_num
+            if left_ser_num:
+                for match in matches:
+                    serial_number = match.group()
+                    serial_number_address = match.start()
+                    serial_number_range = range(
+                        serial_number_address,
+                        serial_number_address + len_ser_num
+                    )
+                    self.status_text.insert(
+                        tk.END,
+                        f'[INFO] Detected serial number "{serial_number}"'
+                        f" at address {serial_number_address}.\n"
+                    )
                 last_ser_num_addr = serial_number_address + len_ser_num - 1
                 last_ser_num_value = int(hex_bytes[last_ser_num_addr], 16)
                 self.status_text.insert(
