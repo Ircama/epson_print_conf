@@ -162,3 +162,5 @@ devices.xml
 *.toml
 *.srs
 *.pickle
+
+.console_history

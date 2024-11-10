@@ -11,6 +11,24 @@ jobs:
     steps:
       - name: Git Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0  # Fetch all history for accurate commits and tags
+
+      - name: Update VERSION in python file ui.py; commit and push updates
+        run: |
+          $filePath = "ui.py"
+          $VERSION = "${{ github.ref_name }}"
+          if ($VERSION.StartsWith('v')) {
+              $VERSION = $VERSION.Substring(1)
+          }
+          (Get-Content $filePath) -replace '^VERSION = ".*"$', "VERSION = `"$VERSION`"" | Set-Content $filePath
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add $filePath
+          git commit -m "Update VERSION to ${{ github.ref_name }}"
+          git remote set-url origin https://${GITHUB_USER}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git push origin main
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -27,9 +45,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run PyInstaller to create epson_print_conf.exe
-        run: >
-          python -m PyInstaller epson_print_conf.spec -- --default
-          --version ${{ github.ref_name }}
+        run: python -m PyInstaller epson_print_conf.spec -- --default
 
       - name: Zip the epson_print_conf.exe asset to epson_print_conf.zip
         run: |

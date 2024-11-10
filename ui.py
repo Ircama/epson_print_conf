@@ -18,6 +18,10 @@ import logging
 import webbrowser
 import pickle
 
+from code import InteractiveConsole
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
+
 import black
 import tkinter as tk
 from tkinter import ttk, Menu
@@ -30,12 +34,13 @@ import pyperclip
 from epson_print_conf import EpsonPrinter, get_printer_models
 from parse_devices import generate_config_from_toml, generate_config_from_xml, normalize_config
 from find_printers import PrinterScanner
+from text_console import TextConsole
 
 
-VERSION = "5.1"
+VERSION = "5.3.1"
 
 NO_CONF_ERROR = (
-    "[ERROR] Please select a printer model and a valid IP address,"
+    " Please select a printer model and a valid IP address,"
     " or press 'Detect Printers'.\n"
 )
 
@@ -46,6 +51,91 @@ CONFIRM_MESSAGE = (
             " in case of problems.\n\n"
             "Are you sure you want to proceed?"
 )
+
+
+class EpcTextConsole(TextConsole):
+
+    show_about_message = "epson_print_conf Debug Console."
+
+    def show_help(self):
+        """Open a separate window with help text."""
+        help_window = tk.Toplevel(self)
+        help_window.title("Help")
+        help_window.geometry("1000x400")
+
+        # Add a scrollbar and text widget
+        scrollbar = tk.Scrollbar(help_window)
+        scrollbar.pack(side="right", fill="y")
+
+        help_text = tk.Text(help_window, wrap="word", yscrollcommand=scrollbar.set)
+        help_text.tag_configure("title", foreground="purple")
+        help_text.tag_configure("section", foreground="blue")
+
+        help_text.insert(
+            tk.END,
+            'Welcome to the epson_print_conf Debug Console\n\n',
+            "title"
+        )
+        help_text.insert(
+            tk.END,
+            'Features:\n\n',
+            "section"
+        )
+        help_text.insert(
+            tk.END,
+            (
+                "- Clear Console: Clears all text in the console.\n"
+                "- Context Menu: Right-click for cut, copy, paste, or clear.\n"
+                "- Help: Provides this text.\n\n"
+            )
+        )
+        help_text.insert(
+            tk.END,
+            'Keyboard Shortcuts from the main window:\n\n',
+            "section"
+        )
+        help_text.insert(
+            tk.END,
+            (
+                "- F7: Open the debug console.\n\n"
+            )
+        )
+        help_text.insert(
+            tk.END,
+            'Tokens:\n\n',
+            "section"
+        )
+        help_text.insert(
+            tk.END,
+            (
+                "self: EpsonPrinterUI self\n"
+                "master: TextConsole widget\n"
+                "kw: kw dictionary ({'width': 50, 'wrap': 'word'})\n"
+                "local: TextConsole self\n\n"
+            )
+        )
+        help_text.insert(
+            tk.END,
+            'Examples of commands:\n\n',
+            "section"
+        )
+        help_text.insert(
+            tk.END,
+            (
+                "self.printer.model\n"
+                "self.printer.reverse_caesar(b'Hpttzqjv')\n"
+                'self.printer.reverse_caesar(bytes.fromhex("48 62 7B 62 6F 6A 62 2B"))\n'
+                'import pprint;pprint.pprint(self.printer.status_parser(self.printer.snmp_mib("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))\n'
+                "self.printer.read_eeprom_many([0])\n"
+                "self.printer.read_eeprom(0)\n"
+                "self.printer.snmp_mib(self.printer.eeprom_oid_read_address(0))\n"
+                "self.printer.snmp_mib('1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.25.7.65.190.160.0.0')\n"
+                "self.get_ti_date(cursor=True)"
+            )
+        )
+        help_text.config(state="disabled")  # Make the text read-only
+        help_text.pack(fill="both", expand=True)
+        scrollbar.config(command=help_text.yview)
 
 
 class MultiLineInputDialog(simpledialog.Dialog):
@@ -195,11 +285,11 @@ class EpsonPrinterUI(tk.Tk):
         self.rowconfigure(0, weight=1)
 
         # Setup the menu
-        menubar = tk.Menu(self)
+        menubar = Menu(self)
         self.config(menu=menubar)
 
         # Create File menu
-        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="File", menu=file_menu)
         LOAD_LABEL_NAME = "%s printer configuration file or web URL..."
         LOAD_LABEL_TITLE = "Select a %s printer configuration file, or enter a Web URL"
@@ -247,9 +337,10 @@ class EpsonPrinterUI(tk.Tk):
             label="Save the selected printer configuration to a PICKLE file...",
             command=self.save_to_file
         )
+        file_menu.add_command(label="Quit Application", command=self.quit)
 
         # Create Help menu
-        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Settings", menu=help_menu)
 
         help_menu.add_command(label="Show printer parameters of the selected model", command=self.printer_config)
@@ -267,11 +358,14 @@ class EpsonPrinterUI(tk.Tk):
         help_menu.add_command(label="Clear printer list", command=self.clear_printer_list)
         help_menu.entryconfig("Clear printer list", accelerator="F6")
 
+        help_menu.add_command(label="Debug shell", command=self.tk_console)
+        help_menu.entryconfig("Debug shell", accelerator="F7")
+
         help_menu.add_command(label="Get next local IP addresss", command=lambda: self.next_ip(0))
         help_menu.entryconfig("Get next local IP addresss", accelerator="F9")
 
         # Create Help menu
-        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="Help", command=self.open_help_browser)
         help_menu.add_command(label="Program Information", command=self.show_program_info)
@@ -332,11 +426,12 @@ class EpsonPrinterUI(tk.Tk):
             "Select the model of the printer, or press 'Detect Printers'."
             " Special features are allowed via F2, F3, F4, F5, or F6.\n"
         )
-        self.model_dropdown.bind("<F2>", self.printer_config)
-        self.model_dropdown.bind("<F3>", self.key_values)
-        self.model_dropdown.bind("<F4>", lambda event: self.remove_printer_conf())
-        self.model_dropdown.bind("<F5>", lambda event: self.keep_printer_conf())
-        self.model_dropdown.bind("<F6>", lambda event: self.clear_printer_list())
+        self.bind_all("<F2>", self.printer_config)
+        self.bind_all("<F3>", self.key_values)
+        self.bind_all("<F4>", lambda event: self.remove_printer_conf())
+        self.bind_all("<F5>", lambda event: self.keep_printer_conf())
+        self.bind_all("<F6>", lambda event: self.clear_printer_list())
+        self.bind_all("<F7>", lambda event: self.tk_console())
 
         # BOX IP address
         ip_frame = ttk.LabelFrame(
@@ -726,6 +821,10 @@ class EpsonPrinterUI(tk.Tk):
         self.status_text = ScrolledText(
             status_frame, wrap=tk.WORD, font=("TkDefaultFont")
         )
+        self.status_text.tag_configure("error", foreground="red")
+        self.status_text.tag_configure("warn", foreground="blue")
+        self.status_text.tag_configure("note", foreground="purple")
+        self.status_text.tag_configure("info", foreground="green")
         self.status_text.grid(
             row=0,
             column=0,
@@ -836,9 +935,10 @@ class EpsonPrinterUI(tk.Tk):
     def save_to_file(self):
         if not self.model_var.get():
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                '[ERROR]: Unknown printer model.'
+                ': Unknown printer model.'
             )
             return
         if not self.printer:
@@ -848,9 +948,10 @@ class EpsonPrinterUI(tk.Tk):
             )
         if not self.printer or not self.printer.parm:
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                '[ERROR]: No printer configuration defined.'
+                ': No printer configuration defined.'
             )
             return
         # Open file dialog to enter the file
@@ -880,14 +981,16 @@ class EpsonPrinterUI(tk.Tk):
                 pickle.dump(normalized_config, file) # serialize the list
         except Exception:
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR] File save operation failed.\n"
+                f" File save operation failed.\n"
             )
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f'[INFO] "{os.path.basename(file_path)}" file save operation completed.\n'
+            f' "{os.path.basename(file_path)}" file save operation completed.\n'
         )
 
     def load_from_file(self, file_type, type):
@@ -915,14 +1018,16 @@ class EpsonPrinterUI(tk.Tk):
                 self.update_idletasks()
                 self.show_status_text_view()
                 if not file_path.tell():
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        f"[ERROR] Empty PICKLE FILE {file_path}.\n"
+                        f" Empty PICKLE FILE {file_path}.\n"
                     )
                 else:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        f"[ERROR] Cannot load PICKLE file {file_path}. {e}\n"
+                        f" Cannot load PICKLE file {file_path}. {e}\n"
                     )
                 return
             if (
@@ -937,9 +1042,10 @@ class EpsonPrinterUI(tk.Tk):
                 self.model_var.set(self.conf_dict["internal_data"]["default_model"])
         else:
             self.config(cursor="watch")
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f"[INFO] Converting file, please wait...\n"
+                f" Converting file, please wait...\n"
             )
             self.update_idletasks()
             if type == 1:
@@ -949,9 +1055,10 @@ class EpsonPrinterUI(tk.Tk):
             if not printer_config:
                 self.config(cursor="")
                 self.show_status_text_view()
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    f"[ERROR] Cannot load file {file_path}\n"
+                    f" Cannot load file {file_path}\n"
                 )
                 return
             self.conf_dict = normalize_config(config=printer_config)
@@ -963,17 +1070,19 @@ class EpsonPrinterUI(tk.Tk):
         self.update_idletasks()
         if file_path:
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f"[INFO] Loaded file {os.path.basename(file_path)}.\n"
+                f" Loaded file {os.path.basename(file_path)}.\n"
             )
 
     def keep_printer_conf(self):
         self.show_status_text_view()
         if not self.model_var.get():
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                '[ERROR]: Select a valid printer model.\n'
+                ': Select a valid printer model.\n'
             )
             return
         keep_model = self.model_var.get()
@@ -983,17 +1092,19 @@ class EpsonPrinterUI(tk.Tk):
         self.replace_conf = True
         self.show_status_text_view()
         self.update_idletasks()
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Printer {keep_model} is the only one in the list.\n"
+            f" Printer {keep_model} is the only one in the list.\n"
         )
 
     def remove_printer_conf(self):
         self.show_status_text_view()
         if not self.model_var.get():
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                '[ERROR]: Select a valid printer model.\n'
+                ': Select a valid printer model.\n'
             )
             return
         remove_model = self.model_var.get()
@@ -1004,9 +1115,10 @@ class EpsonPrinterUI(tk.Tk):
         self.replace_conf = True
         self.show_status_text_view()
         self.update_idletasks()
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Configuation of printer {remove_model} removed.\n"
+            f" Configuation of printer {remove_model} removed.\n"
         )
 
     def clear_printer_list(self):
@@ -1016,10 +1128,23 @@ class EpsonPrinterUI(tk.Tk):
         self.replace_conf = True
         self.show_status_text_view()
         self.update_idletasks()
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Printer list cleared.\n"
+            f" Printer list cleared.\n"
         )
+
+    def tk_console(self):
+        console_window = tk.Toplevel(self)
+        console_window.title("Debug Console")
+        console_window.geometry("800x400")
+
+        console = EpcTextConsole(self, console_window)
+        console.pack(fill='both', expand=True)  # Use pack within the frame
+
+        # Configure grid resizing for the frame
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
 
     def open_help_browser(self):
         # Opens a web browser to a help URL
@@ -1028,16 +1153,19 @@ class EpsonPrinterUI(tk.Tk):
         try:
             ret = webbrowser.open(url)
             if ret:
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
-                    tk.END, f"[INFO] The browser is being opened.\n"
+                    tk.END, f" The browser is being opened.\n"
                 )
             else:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
-                    tk.END, f"[ERROR] Cannot open browser.\n"
+                    tk.END, f" Cannot open browser.\n"
                 )
         except Exception as e:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] Cannot open web browser: {e}\n"
+                tk.END, f" Cannot open web browser: {e}\n"
             )
         finally:
             self.config(cursor="")
@@ -1249,12 +1377,14 @@ Web site: https://github.com/Ircama/epson_print_conf
     def handle_printer_error(self, e):
         self.show_status_text_view()
         if isinstance(e, TimeoutError):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] Printer is unreachable or offline.\n"
+                tk.END, f" Printer is unreachable or offline.\n"
             )
         else:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] {e}\n{traceback.format_exc()}\n"
+                tk.END, f" {e}\n{traceback.format_exc()}\n"
             )
 
     def get_po_mins(self, cursor=True):
@@ -1268,6 +1398,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update()
@@ -1275,17 +1406,19 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not self.printer:
             return
         if not self.printer.parm.get("stats", {}).get("Power off timer"):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR]: Missing 'Power off timer' in configuration\n",
+                f": Missing 'Power off timer' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
             return
         try:
             po_timer = self.printer.stats()["stats"]["Power off timer"]
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
-                tk.END, f"[INFO] Power off timer: {po_timer} minutes.\n"
+                tk.END, f" Power off timer: {po_timer} minutes.\n"
             )
             self.po_timer_var.set(po_timer)
         except Exception as e:
@@ -1305,6 +1438,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update()
@@ -1319,23 +1453,26 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.update_idletasks()
             return
         if ser_num is False:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR]: Improper values in printer serial number.\n",
+                f": Improper values in printer serial number.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
             return
         if not ser_num or "?" in ser_num:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR]: Cannot retrieve the printer serial number.\n",
+                f": Cannot retrieve the printer serial number.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
-            tk.END, f"[INFO] Printer serial number: {ser_num}.\n"
+            tk.END, f" Printer serial number: {ser_num}.\n"
         )
         self.ser_num_var.set(ser_num)
         self.config(cursor="")
@@ -1352,6 +1489,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update()
@@ -1366,15 +1504,17 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.update_idletasks()
             return
         if not mac_addr:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR]: Cannot retrieve the printer WiFi MAC address.\n",
+                f": Cannot retrieve the printer WiFi MAC address.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
-            tk.END, f"[INFO] Printer WiFi MAC address: {mac_addr}.\n"
+            tk.END, f" Printer WiFi MAC address: {mac_addr}.\n"
         )
         self.mac_addr_var.set(mac_addr)
         self.config(cursor="")
@@ -1388,15 +1528,17 @@ Web site: https://github.com/Ircama/epson_print_conf
                 )
             )
             if org_values:
+                self.status_text.insert(tk.END, '[NOTE]', "note")
                 self.status_text.insert(
                     tk.END,
-                    f"[NOTE] Current EEPROM values for {label}: {org_values}.\n"
+                    f" Current EEPROM values for {label}: {org_values}.\n"
                 )
             else:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    f'[ERROR] Cannot read EEPROM values for "{label}"'
-                    ': invalid printer model selected.\n'
+                    f' Cannot read EEPROM values for "{label}"'
+                    f': invalid printer model selected: {self.printer.model}.\n'
                 )
                 self.config(cursor="")
                 self.update_idletasks()
@@ -1421,6 +1563,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -1428,9 +1571,10 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not self.printer:
             return
         if not self.printer.parm.get("stats", {}).get("Power off timer"):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR]: Missing 'Power off timer' in configuration\n",
+                f": Missing 'Power off timer' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1439,8 +1583,9 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.config(cursor="")
         self.update_idletasks()
         if not po_timer.isnumeric():
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, "[ERROR] Please Use a valid value for minutes.\n"
+                tk.END, " Please Use a valid value for minutes.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1458,17 +1603,19 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Set Power off timer: {po_timer} minutes. Restarting"
+            f" Set Power off timer: {po_timer} minutes. Restarting"
             " the printer is required for this change to take effect.\n"
         )
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
                 self.printer.write_poweroff_timer(int(po_timer))
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
-                    tk.END, "[INFO] Update operation completed.\n"
+                    tk.END, " Update operation completed.\n"
                 )
             except Exception as e:
                 self.handle_printer_error(e)
@@ -1500,8 +1647,9 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not mac or not self.validate_mac_address(
             self.mac_addr_var.get()
         ):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, "[ERROR] Please Use a valid MAC address.\n"
+                tk.END, " Please Use a valid MAC address.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1533,9 +1681,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Set WiFi MAC Address: {self.mac_addr_var.get()}.\n"
+            f" Set WiFi MAC Address: {self.mac_addr_var.get()}.\n"
         )
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if not response:
@@ -1545,9 +1694,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            "[INFO] Changing the WiFi MAC address of the printer. Restarting"
+            " Changing the WiFi MAC address of the printer. Restarting"
             " the printer is required for this change to take effect.\n"
         )
         ret = None
@@ -1560,12 +1710,14 @@ Web site: https://github.com/Ircama/epson_print_conf
         except Exception as e:
             self.handle_printer_error(e)
         if ret:
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
-                tk.END, "[INFO] Update operation completed.\n"
+                tk.END, " Update operation completed.\n"
             )
         else:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] Write operation failed.\n"
+                tk.END, f" Write operation failed.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -1581,6 +1733,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -1590,8 +1743,9 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not self.ser_num_var.get() or not self.validate_ser_number(
             self.ser_num_var.get()
         ):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, "[ERROR] Please Use a valid serial number.\n"
+                tk.END, " Please Use a valid serial number.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1612,9 +1766,10 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.config(cursor="")
                 self.update_idletasks()
                 return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Set Printer Serial Number: {self.ser_num_var.get()}.\n"
+            f" Set Printer Serial Number: {self.ser_num_var.get()}.\n"
         )
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if not response:
@@ -1624,9 +1779,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            "[INFO] Changing the serial number of the printer. Restarting"
+            " Changing the serial number of the printer. Restarting"
             " the printer is required for this change to take effect.\n"
         )
         ret = None
@@ -1639,12 +1795,14 @@ Web site: https://github.com/Ircama/epson_print_conf
         except Exception as e:
             self.handle_printer_error(e)
         if ret:
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
-                tk.END, "[INFO] Update operation completed.\n"
+                tk.END, " Update operation completed.\n"
             )
         else:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] Write operation failed.\n"
+                tk.END, f" Write operation failed.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -1660,6 +1818,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -1667,21 +1826,31 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not self.printer:
             return
         if not self.printer.parm.get("stats", {}).get("First TI received time"):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR]: Missing 'First TI received time' in configuration\n",
+                f": Missing 'First TI received time' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
             return
         try:
-            date_string = datetime.strptime(
-                self.printer.stats(
-                )["stats"]["First TI received time"], "%d %b %Y"
-            ).strftime("%Y-%m-%d")
+            d = self.printer.stats()["stats"]["First TI received time"]
+            if d == "?":
+                self.status_text.insert(tk.END, '[ERROR]', "error")
+                self.status_text.insert(
+                    tk.END,
+                    ": No data from 'First TI received time'."
+                    " Check printer configuration.\n",
+                )
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+            date_string = datetime.strptime(d, "%d %b %Y").strftime("%Y-%m-%d")
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f"[INFO] First TI received time (YYYY-MM-DD): {date_string}.\n",
+                f" First TI received time (YYYY-MM-DD): {date_string}.\n",
             )
             self.date_entry.set_date(date_string)
         except Exception as e:
@@ -1701,6 +1870,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -1708,9 +1878,10 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not self.printer:
             return
         if not self.printer.parm.get("stats", {}).get("First TI received time"):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f"[ERROR]: Missing 'First TI received time' in configuration\n",
+                f": Missing 'First TI received time' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1729,9 +1900,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Set 'First TI received time' (YYYY-MM-DD) to: "
+            f" Set 'First TI received time' (YYYY-MM-DD) to: "
             f"{date_string.strftime('%Y-%m-%d')}.\n",
         )
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
@@ -1740,8 +1912,9 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.printer.write_first_ti_received_time(
                     date_string.year, date_string.month, date_string.day
                 )
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
-                    tk.END, "[INFO] Update operation completed.\n"
+                    tk.END, " Update operation completed.\n"
                 )
             except Exception as e:
                 self.handle_printer_error(e)
@@ -1809,9 +1982,10 @@ Web site: https://github.com/Ircama/epson_print_conf
         model = self.model_var.get()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                "[ERROR] Please enter a valid IP address, or "
+                " Please enter a valid IP address, or "
                 "press 'Detect Printers'.\n"
             )
             self.config(cursor="")
@@ -1852,15 +2026,17 @@ Web site: https://github.com/Ircama/epson_print_conf
     def reset_printer_model(self):
         self.show_status_text_view()
         if self.model_var.get():
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                '[ERROR]: Unknown printer model '
+                ': Unknown printer model '
                 f'"{self.model_var.get()}"\n',
             )
         else:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                '[ERROR]: Select a valid printer model.\n'
+                ': Select a valid printer model.\n'
             )
         self.config(cursor="")
         self.update()
@@ -1883,7 +2059,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         try:
             self.text_dump = black.format_str(  # used by Copy All
-                f'"{printer.model}" + " configuration": ' + repr(printer.parm),
+                f'"{printer.model}": ' + repr(printer.parm),
                 mode=self.mode
             )
             self.show_treeview()
@@ -1941,7 +2117,11 @@ Web site: https://github.com/Ircama/epson_print_conf
                 "Hex write sequence":
                     printer.caesar(
                         printer.parm.get("write_key", b''), hex=True
-                    ).upper()
+                    ).upper(),
+                "OID - Read address 0":
+                    printer.eeprom_oid_read_address(0),
+                "OID - Write value 0 to address 0":
+                    printer.eeprom_oid_write_address(0, 0),
             }
 
             self.text_dump = black.format_str(  # used by Copy All
@@ -2039,14 +2219,16 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
                 return
             if values:
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
                     tk.END,
-                    f"[INFO] EEPROM values: {values}.\n"
+                    f" EEPROM values: {values}.\n"
                 )
             else:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    f'[ERROR] Cannot read EEPROM values'
+                    f' Cannot read EEPROM values for addresses "{addresses}"'
                     ': invalid printer model selected.\n'
                 )
             self.config(cursor="")
@@ -2055,6 +2237,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -2078,6 +2261,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             current_log_level = logging.getLogger().getEffectiveLevel()
             logging.getLogger().setLevel(logging.ERROR)
             if not self._is_valid_ip(ip_address):
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(tk.END, NO_CONF_ERROR)
                 logging.getLogger().setLevel(current_log_level)
                 self.config(cursor="")
@@ -2091,9 +2275,10 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.printer.parm = {'read_key': None}
 
             # Detect the read_key
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f"[INFO] Detecting the read_key...\n"
+                f" Detecting the read_key...\n"
             )
             self.update_idletasks()
             read_key = None
@@ -2106,12 +2291,14 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
                 return
             if read_key:
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
-                    tk.END, f"[INFO] Detected read_key: {read_key}.\n"
+                    tk.END, f" Detected read_key: {read_key}.\n"
                 )
             else:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
-                    tk.END, f"[ERROR] Could not detect read_key.\n"
+                    tk.END, f" Could not detect read_key.\n"
                 )
                 logging.getLogger().setLevel(current_log_level)
                 self.config(cursor="")
@@ -2130,17 +2317,19 @@ Web site: https://github.com/Ircama/epson_print_conf
                 and self.printer.parm['read_key'] != read_key
             ):
                 if self.printer.parm['read_key']:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        f"[ERROR] You selected a model with the wrong read_key "
+                        f" You selected a model with the wrong read_key "
                         f"{self.printer.parm['read_key']} instead of "
                         f"{read_key}. Using the detected one to go on.\n"
                     )
                 self.printer.PRINTER_CONFIG[DETECTED] = {'read_key': read_key}
                 self.printer.parm = self.printer.PRINTER_CONFIG[DETECTED]
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f"[INFO] Detecting the serial number...\n"
+                f" Detecting the serial number...\n"
             )
             try:
                 hex_bytes, matches = self.printer.find_serial_number(
@@ -2153,23 +2342,26 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
                 return
             if not matches:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    f"[ERROR] Cannot detect the serial number.\n"
+                    f" Cannot detect the serial number.\n"
                 )
             left_ser_num = None
             for match in matches:
                 tmp_ser_num = match.group()
                 if left_ser_num is not None and tmp_ser_num != left_ser_num:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        "[ERROR] More than one pattern appears to be"
+                        " More than one pattern appears to be"
                         " a serial number with different values:\n"
                     )
                     for match in matches:
+                        self.status_text.insert(tk.END, '[ERROR]', "error")
                         self.status_text.insert(
                             tk.END,
-                            f'[ERROR] - found pattern "{match.group()}"'
+                            f' - found pattern "{match.group()}"'
                             f" at address {match.start()}\n"
                         )
                     left_ser_num = None
@@ -2183,24 +2375,27 @@ Web site: https://github.com/Ircama/epson_print_conf
                         serial_number_address,
                         serial_number_address + len_ser_num
                     )
+                    self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
-                        f'[INFO] Detected serial number "{serial_number}"'
+                        f' Detected serial number "{serial_number}"'
                         f" at address {serial_number_address}.\n"
                     )
                 last_ser_num_addr = serial_number_address + len_ser_num - 1
                 last_ser_num_value = int(hex_bytes[last_ser_num_addr], 16)
+                self.status_text.insert(tk.END, '[NOTE]', "note")
                 self.status_text.insert(
                     tk.END,
-                    f"[NOTE] Current EEPROM value for the last byte of the"
+                    f" Current EEPROM value for the last byte of the"
                     f" serial number:"
                     f" {last_ser_num_addr}: {last_ser_num_value}.\n"
                 )
 
             if last_ser_num_addr is None:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    "[ERROR] Could not detect serial number.\n"
+                    " Could not detect serial number.\n"
                 )
                 logging.getLogger().setLevel(current_log_level)
                 self.config(cursor="")
@@ -2211,9 +2406,10 @@ Web site: https://github.com/Ircama/epson_print_conf
                 or self.printer.parm['serial_number'] != serial_number_range
             ):
                 if 'serial_number' in self.printer.parm:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        f"[ERROR] The serial number addresses"
+                        f" The serial number addresses"
                         f" {self.printer.parm['serial_number']} of the"
                         f" selected printer is different from the detected"
                         f" one {serial_number_range},"
@@ -2229,9 +2425,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             write_key_list = self.printer.write_key_list(read_key)
 
             # Validate the write_key against any of the known values
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                "[INFO] Detecting the write_key,"
+                " Detecting the write_key,"
                 " do not power off the printer now...\n"
             )
             old_write_key = self.printer.parm.get('write_key')
@@ -2247,9 +2444,10 @@ Web site: https://github.com/Ircama/epson_print_conf
                     )
                     assert valid is not None
                 except AssertionError:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        "[ERROR] Write operation failed. Check whether the"
+                        " Write operation failed. Check whether the"
                         " serial number is changed and restore it manually.\n"
                     )
                     self.printer.parm['write_key'] = old_write_key
@@ -2265,8 +2463,9 @@ Web site: https://github.com/Ircama/epson_print_conf
                     self.update_idletasks()
                     return
                 if valid is None:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
-                        tk.END, "[ERROR] Operation interrupted with errors.\n"
+                        tk.END, " Operation interrupted with errors.\n"
                     )
                     self.printer.parm['write_key'] = old_write_key
                     logging.getLogger().setLevel(current_log_level)
@@ -2278,14 +2477,16 @@ Web site: https://github.com/Ircama/epson_print_conf
 
                 found_write_key = write_key
                 self.printer.parm['write_key'] = old_write_key
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
-                    tk.END, f"[INFO] Detected write_key: {found_write_key}\n"
+                    tk.END, f" Detected write_key: {found_write_key}\n"
                 )
                 if not old_write_key or old_write_key != found_write_key:
                     if old_write_key and old_write_key != found_write_key:
+                        self.status_text.insert(tk.END, '[ERROR]', "error")
                         self.status_text.insert(
                             tk.END,
-                            f"[ERROR] The selected write key {old_write_key}"
+                            f" The selected write key {old_write_key}"
                             f" is different from the detected one, which will"
                             f" be used to go on.\n"
                         )
@@ -2317,39 +2518,45 @@ Web site: https://github.com/Ircama/epson_print_conf
                     ):
                         rwk_kist.append(p)
                 if rk_kist:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
-                        f"[INFO] Models with same read_key: {rk_kist}\n"
+                        f" Models with same read_key: {rk_kist}\n"
                     )
                 if wk_kist:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
-                        f"[INFO] Models with same write_key: {wk_kist}\n"
+                        f" Models with same write_key: {wk_kist}\n"
                     )
                 if rwk_kist:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
-                        f"[INFO] Models with same access keys: {rwk_kist}\n"
+                        f" Models with same access keys: {rwk_kist}\n"
                     )
 
                 if (
                     DETECTED in self.printer.PRINTER_CONFIG
                     and self.printer.PRINTER_CONFIG[DETECTED]
                 ):
+                    self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
-                        f'[INFO] Found data: '
+                        f' Found data: '
                         f'{self.printer.PRINTER_CONFIG[DETECTED]}.\n'
                     )
                 self.detect_configuration_button.state(["!disabled"])
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
-                    tk.END, "[INFO] Detect operation completed.\n"
+                    tk.END, " Detect operation completed.\n"
                 )
                 break
             if not found_write_key:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    "[ERROR] Unable to detect the write key by validating"
+                    " Unable to detect the write key by validating"
                     " against any of the known ones.\n"
                 )
             logging.getLogger().setLevel(current_log_level)
@@ -2360,6 +2567,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             return
         response = messagebox.askyesno(
@@ -2373,9 +2581,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             default='no'
         )
         if response:
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f"[INFO] Starting the access key detection, please wait for many minutes...\n"
+                f" Starting the access key detection, please wait for many minutes...\n"
             )
             self.config(cursor="watch")
             self.update()
@@ -2398,6 +2607,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update()
@@ -2407,16 +2617,19 @@ Web site: https://github.com/Ircama/epson_print_conf
         try:
             ret = webbrowser.open(ip_address)
             if ret:
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
-                    tk.END, f"[INFO] The browser is being opened.\n"
+                    tk.END, f" The browser is being opened.\n"
                 )
             else:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
-                    tk.END, f"[ERROR] Cannot open browser.\n"
+                    tk.END, f" Cannot open browser.\n"
                 )
         except Exception as e:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] Cannot open web browser: {e}\n"
+                tk.END, f" Cannot open web browser: {e}\n"
             )
         finally:
             self.config(cursor="")
@@ -2445,15 +2658,17 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update()
             return
         if not self.printer:
             return
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Reading Printer SNMP values...\n"
+            f" Reading Printer SNMP values...\n"
         )
         try:
             stats = self.printer.stats()
@@ -2463,17 +2678,19 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.update_idletasks()
             return False
         if not "snmp_info" in stats:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                '[ERROR] No SNMP values could be found.\n'
+                ' No SNMP values could be found.\n'
             )
             self.update()
             self.config(cursor="")
             self.update_idletasks()
             return False
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Reading EEPROM values, please wait for some minutes...\n"
+            f" Reading EEPROM values, please wait for some minutes...\n"
         )
         self.update()
         try:
@@ -2487,10 +2704,10 @@ Web site: https://github.com/Ircama/epson_print_conf
                 )
             }
             if not eeprom or eeprom == {0: None}:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    '[ERROR] Cannot read EEPROM values'
-                    ': invalid printer model selected.\n'
+                    ' Cannot read EEPROM values: invalid printer model selected.\n'
                 )
                 self.update()
                 self.config(cursor="")
@@ -2501,9 +2718,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return False
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f"[INFO] Analyzing EEPROM values...\n"
+            f" Analyzing EEPROM values...\n"
         )
         self.update()
 
@@ -2604,9 +2822,10 @@ Web site: https://github.com/Ircama/epson_print_conf
         except Exception as e:
             self.handle_printer_error(e)
         finally:
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f"[INFO] Operation completed.\n"
+                f" Operation completed.\n"
             )
             self.update_idletasks()
             self.config(cursor="")
@@ -2700,8 +2919,9 @@ Web site: https://github.com/Ircama/epson_print_conf
                         return False
             except Exception as e:
                 self.handle_printer_error(e)
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
-                tk.END, f"[INFO] Write EEPROM completed.\n"
+                tk.END, f" Write EEPROM completed.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2709,14 +2929,16 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             return
         dict_addr_val = get_input()
         if dict_addr_val is not None:
             self.config(cursor="watch")
             self.update()
+            self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
-                tk.END, f"[INFO] Going to write EEPROM: {dict_addr_val}.\n"
+                tk.END, f" Going to write EEPROM: {dict_addr_val}.\n"
             )
             self.after(200, lambda: dialog_write_values(dict_addr_val))
 
@@ -2737,6 +2959,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             or "read_key" not in self.printer.parm
             or "write_key" not in self.printer.parm
         ):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -2770,9 +2993,10 @@ Web site: https://github.com/Ircama/epson_print_conf
         if response:
             try:
                 self.printer.reset_waste_ink_levels()
+                self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
                     tk.END,
-                    "[INFO] Waste ink levels have been reset."
+                    " Waste ink levels have been reset."
                     " Perform a power cycle of the printer now.\n"
                 )
             except Exception as e:
@@ -2786,8 +3010,9 @@ Web site: https://github.com/Ircama/epson_print_conf
 
     def start_detect_printers(self):
         self.show_status_text_view()
+        self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
-            tk.END, "[INFO] Detecting printers... (this might take a while)\n"
+            tk.END, " Detecting printers... (this might take a while)\n"
         )
 
         # run printer detection in new thread, as it can take a while
@@ -2809,9 +3034,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             )
             if len(printers) > 0:
                 if len(printers) == 1:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
-                        f"[INFO] Found printer '{printers[0]['name']}' "
+                        f" Found printer '{printers[0]['name']}' "
                         f"at {printers[0]['ip']} "
                         f"(hostname: {printers[0]['hostname']})\n",
                     )
@@ -2824,23 +3050,27 @@ Web site: https://github.com/Ircama/epson_print_conf
                             self.model_var.set(model)
                             break
                     if self.model_var.get() == "":
+                        self.status_text.insert(tk.END, '[ERROR]', "error")
                         self.status_text.insert(
                             tk.END,
-                            f'[ERROR] Printer model unknown.\n'
+                            f' Printer model unknown.\n'
                         )
                         self.model_var.set("")
                 else:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
-                        tk.END, f"[INFO] Found {len(printers)} printers:\n"
+                        tk.END, f" Found {len(printers)} printers:\n"
                     )
                     for printer in printers:
+                        self.status_text.insert(tk.END, '[INFO]', "info")
                         self.status_text.insert(
                             tk.END,
-                            f"[INFO] {printer['name']} found at {printer['ip']}"
+                            f" {printer['name']} found at {printer['ip']}"
                             f" (hostname: {printer['hostname']})\n",
                         )
             else:
-                self.status_text.insert(tk.END, "[WARN] No printers found.\n")
+                self.status_text.insert(tk.END, '[WARN]', "warn")
+                self.status_text.insert(tk.END, " No printers found.\n")
         except Exception as e:
             self.handle_printer_error(e)
         finally:
@@ -2980,8 +3210,9 @@ Web site: https://github.com/Ircama/epson_print_conf
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] Missing IP address or printer host name.\n"
+                tk.END, f" Missing IP address or printer host name.\n"
             )
             return
         try:
@@ -2996,8 +3227,9 @@ Web site: https://github.com/Ircama/epson_print_conf
                 )
         except Exception as e:
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f"[ERROR] Printer is unreachable or offline.\n"
+                tk.END, f" Printer is unreachable or offline.\n"
             )
 
 

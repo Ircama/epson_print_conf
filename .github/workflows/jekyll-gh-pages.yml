@@ -28,6 +28,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Convert URLs to Autolink Format
+        run: |
+          # Find all markdown files and convert URLs to <autolink> format
+          find . -name "*.md" -exec sed -i 's#\([^<]\)\(http[s]\?://[^\s)\]]\+\)#[\1](<\2>)#g' {} +
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Build with Jekyll

@@ -4,46 +4,44 @@ Epson Printer Configuration tool via SNMP (TCP/IP)
 
 ## Product Overview
 
-The *Epson Printer Configuration Tool* simplifies the management of Epson printers connected via Wi-Fi over the SNMP protocol.
+The Epson Printer Configuration Tool provides an interface for the configuration and monitoring of Epson printers connected via Wi-Fi using the SNMP protocol. A range of features are offered for both end-users and developers.
 
-A range of features are offered for both end-users and developers, making it easier to administer and maintain Epson printers.
-
-The software provides a configurable printer dictionary, which can be easily extended. In addition, it is possible to import and convert external Epson printer configuration databases.
+The software also includes a configurable printer dictionary, which can be easily extended. In addition, it is possible to import and convert external Epson printer configuration databases.
 
 ## Key Features
 
-- __SNMP Interface__: Seamlessly connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections (not USB).
+- __SNMP Interface__: Connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections (not USB).
 
-    Printers are queried via Simple Network Management Protocol (SNMP) with a set of Object Identifiers (OIDs) used by Epson printers. Some of them are also valid with other printer brands. SNMP is also used to manage the EEPROM and read/set specific Epson configuration.
+    Printers are queried via Simple Network Management Protocol (SNMP) with a set of Object Identifiers (OIDs) used by Epson printers. Some of them are also valid with other printer brands. SNMP is used to manage the EEPROM and read/set specific Epson configuration.
 
 - __Detailed Status Reporting__: Produce a comprehensive printer status report (with options to focus on specific details).
 
     Epson printers produce a status response in a proprietary "new binary format" named @BDC ST2, including a data structure which is partially undocumented (such messages
-    start with `@BDC [SP] ST2 [CR] [LF]` ...). It is used to convey various aspects of the status of the printer, such as errors, paper status, ink and more. The element fields of this format may vary depending on the printer model. The *Epson Printer Configuration Tool* can decode all element fields found in publicly available Epson Programming Manuals of various printer models (a relevant subset of fields used by the Epson printers).
+    start with `@BDC [SP] ST2 [CR] [LF]` ...). @BDC ST2 is used to convey various aspects of the status of the printer, such as errors, paper status, ink and more. The element fields of this format may vary depending on the printer model. The *Epson Printer Configuration Tool* can decode all element fields found in publicly available Epson Programming Manuals of various printer models (a relevant subset of fields used by the Epson printers).
 
 - __Advanced Maintenance Functions__:
     - Open the Web interface of the printer (via the default browser).
     - Reset the ink waste counter.
 
-      The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or tank replacement is programmed.
-    - Adjust the power-off timer (for more accurate energy efficiency).
+      The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or tank replacement is programmed (operation that shall necessarily be pefromed).
+    - Adjust the power-off timer (for energy efficiency).
     - Change the _First TI Received Time_,
 
-      The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer when it was first set up. This feature tracks when the printer first operated.
+      The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer. This feature tracks when the printer first operated.
 
     - Change the printer WiFi MAC address and the printer serial number (typically used in specialized scenarios where specific device identifiers are required).
-    - Read and write to EEPROM addresses for advanced configurations.
+    - Read and write to EEPROM addresses.
     - Dump and analyze sets of EEPROM addresses.
     - Detect the access key (*read_key* and *write_key*) and some attributes of the printer configuration.
 
-      The GUI includes some features that attempt to detect the attributes of an Epson printer whose model is not included in the configuration, which can also be used with known printers, to detect additional parameters.
+      The GUI includes some features that attempt to detect the attributes of an Epson printer whose model is not included in the configuration; such features can also be used with known printers, to detect additional parameters.
 
     - Import and export printer configuration datasets in various formats: epson_print_conf pickle, Reinkpy XML, Reinkpy TOML.
 
     - Access various administrative and debugging options.
 
-- __User-Friendly Interfaces__:
-    - __Graphical User Interface (GUI)__: Intuitive interface with an autodiscovery function that detects printer IP addresses and model names.
+- __Available Interfaces__:
+    - __Graphical User Interface__: [Tcl/Tk](https://en.wikipedia.org/wiki/Tk_(software)) platform-independent GUI with an autodiscovery function that detects printer IP addresses and model names.
     - __Command Line Tool__: For users who prefer command-line interactions, providing the full set of features.
     - __Python API Interface__: For developers to integrate and automate printer management tasks.
 
@@ -59,29 +57,12 @@ cd epson_print_conf
 pip install -r requirements.txt
 ```
 
-Alternatively, install requirements via command line:
-
-```
-git clone https://github.com/Ircama/epson_print_conf
-pip3 install pyyaml
-pip3 install pyasn1==0.4.8
-pip3 install git+https://github.com/etingof/pysnmp.git
-pip3 install tkcalendar
-pip3 install pyperclip
-pip3 install black
-pip3 install tomli
-
-cd epson_print_conf
-```
-
-With Python 12, also: `pip3 install pyasyncore`.
-
 Notes (at the time of writing):
 
 - [before pysnmp, install pyasn1 with version 0.4.8 and not 0.5](https://github.com/etingof/pysnmp/issues/440#issuecomment-1544341598)
 - [pull pysnmp from the GitHub master branch, not from PyPI](https://stackoverflow.com/questions/54868134/snmp-reading-from-an-oid-with-three-libraries-gives-different-execution-times#comment96532761_54869361)
 
-This program exploits [pysnmp](https://github.com/etingof/pysnmp), with related [documentation](https://pysnmp.readthedocs.io/).
+This program exploits [pysnmp](https://github.com/etingof/pysnmp), basing on the related [documentation](https://pysnmp.readthedocs.io/).
 
 It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
@@ -130,17 +111,17 @@ With the GUI, the following operations are possible (from the file menu):
 
 - Import an XML configuration file or web URL
 
-  This option allows to import the XML configuration file downloaded from https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d. Alternatively, this option directly accepts the [source Web URL](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) of this file, incorporating the download operation into the GUI.
+  This option allows to import the XML configuration file downloaded from <https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d>. Alternatively, this option directly accepts the [source Web URL](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) of this file, incorporating the download operation into the GUI.
 
 - Import a TOML configuration file or web URL
 
-  Similar to the XML import, this option allows to load the TOML configuration file downloaded from https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml and also accepts the [source Web URL](https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml) of this file, incorporating the download operation into the GUI.
+  Similar to the XML import, this option allows to load the TOML configuration file downloaded from <https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml> and also accepts the [source Web URL](https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml) of this file, incorporating the download operation into the GUI.
 
 Other menu options allow to filter or clean up the configuration list, as well as select a specific printer model and then save data to a PICKLE file.
 
 ### How to detect parameters of an unknown printer
 
-First press "Detect Printers". If the printer is not in the configuration, press "Detect Access Keys". If the output does not show errors, press "Detect Configuration". These commands produce a tree view and a text view, which are useful to analyze whether there is a configured model that might be close or possibly same to target one. Notice that these operations take many minutes to complete and the printer shall be kept switched on for the whole period. Temporarily disabling the auto power-off timer is suggested.
+First press "Detect Printers". If the printer is not in the configuration, press "Detect Access Keys". If the output does not show errors, press "Detect Configuration". These commands produce a tree view and a text view, which are useful to analyze whether there is a configured model that might be close or possibly same to target one. Use the right key of the mouse to switch between the two views. Notice that these operations take many minutes to complete and the printer shall be kept switched on for the whole period. Temporarily disabling the auto power-off timer is suggested.
 
 ### How to revert a change performed through the GUI
 
@@ -277,7 +258,7 @@ This repository includes a Windows *epson_print_conf.exe* executable file which 
 
 ### parse_devices.py
 
-Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo https://codeberg.org/atufi/reinkpy there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which includes an extensive XML database of Epson model features.
+Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo <https://codeberg.org/atufi/reinkpy> there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which includes an extensive XML database of Epson model features.
 
 The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use. It is also able to accept the [TOML](https://toml.io/) input format used by [reinkpy](https://codeberg.org/atufi/reinkpy) in [epson.toml](https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml), if the `-T` option is used.
 
@@ -694,30 +675,30 @@ snmpget -v1 -d -c public 192.168.1.87 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.
 
 ### References
 
-epson-printer-snmp: https://github.com/Zedeldi/epson-printer-snmp (and https://github.com/Zedeldi/epson-printer-snmp/issues/1)
+epson-printer-snmp: <https://github.com/Zedeldi/epson-printer-snmp> (and <https://github.com/Zedeldi/epson-printer-snmp/issues/1>)
 
-ReInkPy: https://codeberg.org/atufi/reinkpy/
+ReInkPy: <https://codeberg.org/atufi/reinkpy/>
 
-ReInk: https://github.com/lion-simba/reink (especially https://github.com/lion-simba/reink/issues/1)
+ReInk: <https://github.com/lion-simba/reink> (especially <https://github.com/lion-simba/reink/issues/1>)
 
-reink-net: https://github.com/gentu/reink-net
+reink-net: <https://github.com/gentu/reink-net>
 
-epson-l4160-ink-waste-resetter: https://github.com/nicootto/epson-l4160-ink-waste-resetter
+epson-l4160-ink-waste-resetter: <https://github.com/nicootto/epson-l4160-ink-waste-resetter>
 
-epson-l3160-ink-waste-resetter: https://github.com/k3dt/epson-l3160-ink-waste-resetter
+epson-l3160-ink-waste-resetter: <https://github.com/k3dt/epson-l3160-ink-waste-resetter>
 
-emanage x900: https://github.com/abrasive/x900-otsakupuhastajat/
+emanage x900: <https://github.com/abrasive/x900-otsakupuhastajat/>
 
 ### Other programs
 
-- Epson One-Time Maintenance Ink Pad Reset Utility: https://epson.com/Support/wa00369
-  - Epson Maintenance Reset Utility: https://epson.com/epsonstorefront/orbeon/fr/us_regular_s03/us_ServiceInk_Pad_Reset/new
-  - Epson Ink Pads Reset Utility Terms and Conditions: https://epson.com/Support/wa00370
+- Epson One-Time Maintenance Ink Pad Reset Utility: <https://epson.com/Support/wa00369>
+  - Epson Maintenance Reset Utility: <https://epson.com/epsonstorefront/orbeon/fr/us_regular_s03/us_ServiceInk_Pad_Reset/new>
+  - Epson Ink Pads Reset Utility Terms and Conditions: <https://epson.com/Support/wa00370>
 - Epson Adjustment Program (developed by EPSON)
-- WIC-Reset: https://www.wic.support/download/ / https://www.2manuals.com / (Use at your risk)
-- PrintHelp: https://printhelp.info/ (Use at your risk)
+- WIC-Reset: <https://www.wic.support/download/> / <https://www.2manuals.com/> (Use at your risk)
+- PrintHelp: <https://printhelp.info/> (Use at your risk)
 
 ### Other resources
 
-- https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
-- https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml
+- <https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d>
+- <https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml>

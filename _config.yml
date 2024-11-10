@@ -1,12 +1,11 @@
-remote_theme: bmndc/just-the-docs
+remote_theme: ircama/just-the-docs
+
+# Enable or disable the site search
+# Supports true (default) or false
 search_enabled: false
+
+# For copy button on code
 enable_copy_code_button: true
-heading_anchors: true
-aux_links:
-  "epson_print_conf on GitHub":
-    - "https://github.com/Ircama/epson_print_conf/"
-aux_links_new_tab: true
-nav_enabled: false
 
 # Table of Contents
 # Enable or disable the Table of Contents globally
@@ -26,6 +25,54 @@ toc:
   # Supports true or false (default)
   flat_toc: false
 
+# By default, consuming the theme as a gem leaves mermaid disabled; it is opt-in
+mermaid:
+  # Version of mermaid library
+  # Pick an available version from https://cdn.jsdelivr.net/npm/mermaid/
+  version: "9.1.6"
+  # Put any additional configuration, such as setting the theme, in _includes/mermaid_config.js
+  # See also docs/ui-components/code
+  # To load mermaid from a local library, also use the `path` key to specify the location of the library; e.g.
+  # for (v10+):
+  # path: "/assets/js/mermaid.esm.min.mjs"
+  # for (<v10):
+  # path: "/assets/js/mermaid.min.js"
+  # Note: copy both `mermaid.esm.min.mjs` (v10+) or `mermaid.min.js` (<v10) and the associated `.map` file from the specified version of `mermaid/dist` to `/assets/js/`.
+
+# Enable or disable heading anchors
+heading_anchors: true
+
+# Aux links for the upper right navigation
+aux_links:
+  "epson_print_conf on GitHub":
+    - "https://github.com/Ircama/epson_print_conf/"
+
+# Makes Aux links open in a new tab. Default is false
+aux_links_new_tab: true
+
+# Enable or disable the side/mobile menu globally
+# Nav menu can also be selectively enabled or disabled using page variables or the minimal layout
+nav_enabled: false
+
+# Sort order for navigation links
+# nav_sort: case_insensitive # default, equivalent to nil
+nav_sort: case_sensitive # Capital letters sorted before lowercase
+
+# External navigation links
+nav_external_links:
+  - title: Just the Docs on GitHub
+    url: https://github.com/just-the-docs/just-the-docs
+
+# Show navigation error report
+nav_error_report: true # default is false/nil.
+
+liquid:
+  error_mode: strict
+  strict_filters: true
+
+# Footer content
+# appears at the bottom of every page's main content
+
 # Back to top link
 back_to_top: true
 back_to_top_text: "Back to top"
@@ -44,11 +91,39 @@ gh_edit_branch: "main" # the branch that your docs is served from
 # gh_edit_source: docs # the source that your files originate from
 gh_edit_view_mode: "tree" # "tree" or "edit" if you want the user to jump into the editor immediately
 
+# Color scheme currently only supports "dark", "light"/nil (default), or a custom scheme that you define
+color_scheme: nil
+
+callouts_level: quiet # or loud
+callouts:
+  highlight:
+    color: yellow
+  important:
+    title: Important
+    color: blue
+  new:
+    title: New
+    color: green
+  note:
+    title: Note
+    color: purple
+  warning:
+    title: Warning
+    color: red
+
+# Google Analytics Tracking (optional)
+# Supports a CSV of tracking ID strings (eg. "UA-1234567-89,G-1AB234CDE5")
+# Note: the main Just the Docs site does *not* use Google Analytics.
+# ga_tracking: UA-2709176-10,G-5FG1HLH3XQ
+# ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (true/nil by default)
+
 plugins:
-  - jekyll-autolinker
+  - jekyll-seo-tag
+  - jekyll-github-metadata
+  - jekyll-sitemap
+  - jekyll-autolinks
   - jekyll-remote-theme # Add if not already present
   - jekyll-include-cache # Optional, for caching
-
 
 kramdown:
   syntax_highlighter_opts:
@@ -63,4 +138,8 @@ compress_html:
   blanklines: false
   profile: false
   # ignore:
-  
+  #   envs: all
+
+autolinks:
+  link_attr: 'target="_blank"'
+  skip_tags: ["a", "pre", "code", "kbd", "script"]
