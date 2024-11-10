@@ -2332,7 +2332,10 @@ Web site: https://github.com/Ircama/epson_print_conf
                         f"[INFO] Models with same access keys: {rwk_kist}\n"
                     )
 
-                if DETECTED in self.printer.PRINTER_CONFIG:
+                if (
+                    DETECTED in self.printer.PRINTER_CONFIG
+                    and self.printer.PRINTER_CONFIG[DETECTED]
+                ):
                     self.status_text.insert(
                         tk.END,
                         f'[INFO] Found data: '
@@ -2371,7 +2374,8 @@ Web site: https://github.com/Ircama/epson_print_conf
         )
         if response:
             self.status_text.insert(
-                tk.END, f"[INFO] Starting the operation, please wait...\n"
+                tk.END,
+                f"[INFO] Starting the access key detection, please wait for many minutes...\n"
             )
             self.config(cursor="watch")
             self.update()
@@ -2469,7 +2473,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return False
         self.status_text.insert(
             tk.END,
-            f"[INFO] Reading EEPROM values, please wait...\n"
+            f"[INFO] Reading EEPROM values, please wait for some minutes...\n"
         )
         self.update()
         try:
@@ -2538,14 +2542,18 @@ Web site: https://github.com/Ircama/epson_print_conf
             c += 1
 
         if "Power Off Timer" in stats["snmp_info"] and stats["snmp_info"]["Power Off Timer"]:
-            po_mins = int(re.findall(r'\d+', stats["snmp_info"]["Power Off Timer"])[0])
-            msb = po_mins // 256
-            lsb = po_mins % 256
-            result = detect_sequence(eeprom, (lsb, msb))
-            c = 0
-            for i in result:
-                conf_data["po_time[%s]" % c] = [i + 1, i]
-                c += 1
+            matches = re.findall(r'\d+', stats["snmp_info"]["Power Off Timer"])
+            if matches:
+                po_mins = int(matches[0])
+                msb = po_mins // 256
+                lsb = po_mins % 256
+                result = detect_sequence(eeprom, (lsb, msb))
+                c = 0
+                for i in result:
+                    conf_data["po_time[%s]" % c] = [i + 1, i]
+                    c += 1
+            else:
+                conf_data["po_time"] = None
         else:
             conf_data["po_time"] = None
 
