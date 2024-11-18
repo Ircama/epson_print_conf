@@ -37,7 +37,7 @@ from find_printers import PrinterScanner
 from text_console import TextConsole
 
 
-VERSION = "5.3.5"
+VERSION = "5.3.6"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
