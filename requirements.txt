@@ -6,4 +6,4 @@ tkcalendar
 pyperclip
 black
 tomli
-text-console
+text-console>=1
