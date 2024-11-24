@@ -129,6 +129,16 @@ The GUI displays a `[NOTE]` in the status box before performing any change, spec
 
 It is recommended to copy the status history and keep it in a safe place after making changes, so that a reverse operation can be performed when needed.
 
+### Incompatible models
+
+For the following models there is no known way to read the EEPROM via SNMP protocol using the adopted read key and the related algorithm:
+
+- [ET-2800](https://github.com/Ircama/epson_print_conf/issues/27)
+- [ET-2850 ET-2851 ET-2853 ET-2855 ET-2856](https://github.com/Ircama/epson_print_conf/issues/26)
+- [ET-4800](https://github.com/Ircama/epson_print_conf/issues/29) might not work, to be verified
+- [L3250](https://github.com/Ircama/epson_print_conf/issues/35)
+- [XP-7100 with firmware version YL25O7 (25 Jul 2024)](https://github.com/Ircama/epson_print_conf/issues/42) (firmware YL11K6 works)
+
 ### Using the command-line tool
 
 ```

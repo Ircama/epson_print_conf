@@ -22,24 +22,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Build job
+  # Build job (github-pages-build)
   build:
+    name: Build (github-pages-build gem)
     runs-on: ubuntu-latest
+    env:
+      PAGES_REPO_NWO: ${{ github.repository }}
+      JEKYLL_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      JEKYLL_ENV: production
+      NODE_ENV: production
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Convert URLs to Autolink Format
-        run: |
-          # Find all markdown files and convert URLs to <autolink> format
-          find . -name "*.md" -exec sed -i 's#\([^<]\)\(http[s]\?://[^\s)\]]\+\)#[\1](<\2>)#g' {} +
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
+      - name: Setup Ruby Environment
+        uses: ruby/setup-ruby@v1
         with:
-          source: ./
-          destination: ./_site
-      - name: Upload artifact
+          ruby-version: "3.3"
+          bundler-cache: true # runs 'bundle install' to install and cache gems
+      - name: Add a YAML front matter to README.md
+        run: |
+          ex README.md <<EOF
+          1i
+          ---
+          title: Home
+          layout: home
+          nav_order: 1
+          nav_enabled: false
+          permalink: /
+          ---
+          .
+          wq
+          EOF
+      - name: Build Jekyll Site
+        run: bundle exec jekyll build
+      - name: Upload artifact for Pages
         uses: actions/upload-pages-artifact@v3
 
   # Deployment job

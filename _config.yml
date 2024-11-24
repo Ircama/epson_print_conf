@@ -1,8 +1,8 @@
-remote_theme: ircama/just-the-docs
+remote_theme: ircama/just-the-readme
 
 # Enable or disable the site search
 # Supports true (default) or false
-search_enabled: false
+search_enabled: true
 
 # For copy button on code
 enable_copy_code_button: true

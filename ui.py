@@ -85,8 +85,9 @@ class EpcTextConsole(TextConsole):
             tk.END,
             (
                 "- Clear Console: Clears all text in the console.\n"
-                "- Context Menu: Right-click for cut, copy, paste, or clear.\n"
-                "- Help: Provides this text.\n\n"
+                "- History: Open a separate window showing the list of"
+                " successfully executed commands (browse the command history).\n"
+                "- Context Menu: Right-click for cut, copy, paste, or clear.\n\n"
             )
         )
         help_text.insert(
