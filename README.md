@@ -121,7 +121,26 @@ Other menu options allow to filter or clean up the configuration list, as well a
 
 ### How to detect parameters of an unknown printer
 
-First press "Detect Printers". If the printer is not in the configuration, press "Detect Access Keys". If the output does not show errors, press "Detect Configuration". These commands produce a tree view and a text view, which are useful to analyze whether there is a configured model that might be close or possibly same to target one. Use the right key of the mouse to switch between the two views. Notice that these operations take many minutes to complete and the printer shall be kept switched on for the whole period. Temporarily disabling the auto power-off timer is suggested.
+- Detect Printers:
+
+  Start by pressing the *Detect Printers* button. This action generates a tree view, which helps in analyzing the device's parameters. The printer model field should automatically populate if detection is successful.
+
+- Detect Access Keys:
+
+  If the printer is not listed in the configuration or is not manageable, press *Detect Access Keys.* This process may take several minutes to complete.
+
+  - If the message *"Could not detect read_key."* appears at the end, it means the printer cannot be controlled with the current software version (refer to "Known Incompatible Models" below).
+
+  - If no errors are reported in the output, proceed by pressing *Detect Configuration.*
+
+- Analyze Results:
+
+  Each of these operations generates both a tree view and a text view. These outputs help determine if an existing configured model closely matches or is identical to the target printer. Use the right mouse button to switch between the two views for easier analysis.
+
+- Important Notes:
+
+  - These processes can take several minutes to complete. Ensure the printer remains powered on throughout the entire operation.
+  - To avoid interruptions, consider temporarily disabling the printer's auto power-off timer.
 
 ### How to revert a change performed through the GUI
 
@@ -129,7 +148,7 @@ The GUI displays a `[NOTE]` in the status box before performing any change, spec
 
 It is recommended to copy the status history and keep it in a safe place after making changes, so that a reverse operation can be performed when needed.
 
-### Incompatible models
+### Known incompatible models
 
 For the following models there is no known way to read the EEPROM via SNMP protocol using the adopted read key and the related algorithm:
 
