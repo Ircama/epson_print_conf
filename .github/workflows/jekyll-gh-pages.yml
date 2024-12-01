@@ -34,7 +34,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Setup Ruby Environment
+      - name: Setup environment
+        run: |
+          mv .jekyll-gh-pages/* .
+      - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
