@@ -154,7 +154,7 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 
 - [ET-2800](https://github.com/Ircama/epson_print_conf/issues/27)
 - [ET-2850 ET-2851 ET-2853 ET-2855 ET-2856](https://github.com/Ircama/epson_print_conf/issues/26)
-- [ET-4800](https://github.com/Ircama/epson_print_conf/issues/29) might not work, to be verified
+- [ET-4800](https://github.com/Ircama/epson_print_conf/issues/29) with new firmware (older firmware might work)
 - [L3250](https://github.com/Ircama/epson_print_conf/issues/35)
 - [XP-7100 with firmware version YL25O7 (25 Jul 2024)](https://github.com/Ircama/epson_print_conf/issues/42) (firmware YL11K6 works)
 

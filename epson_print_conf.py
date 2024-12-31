@@ -2149,7 +2149,7 @@ class EpsonPrinter:
 
     def reset_waste_ink_levels(self, dry_run=False) -> bool:
         """
-        Set waste ink levels to 0.
+        Set waste ink levels to the values specified in the configuration.
         """
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")

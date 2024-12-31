@@ -129,6 +129,7 @@ class EpcTextConsole(TextConsole):
                 'import pprint;pprint.pprint(self.printer.status_parser(self.printer.snmp_mib("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))\n'
                 "self.printer.read_eeprom_many([0])\n"
                 "self.printer.read_eeprom(0)\n"
+                "self.printer.reset_waste_ink_levels()\n"
                 "self.printer.snmp_mib(self.printer.eeprom_oid_read_address(0))\n"
                 "self.printer.snmp_mib('1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.25.7.65.190.160.0.0')\n"
                 "self.get_ti_date(cursor=True)"
@@ -368,7 +369,7 @@ class EpsonPrinterUI(tk.Tk):
         # Create Help menu
         help_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="Help", command=self.open_help_browser)
+        help_menu.add_command(label="Usage guide", command=self.open_help_browser)
         help_menu.add_command(label="Program Information", command=self.show_program_info)
 
         # Setup frames
@@ -1083,7 +1084,7 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                ': Select a valid printer model.\n'
+                ' Select a valid printer model.\n'
             )
             return
         keep_model = self.model_var.get()
@@ -1105,7 +1106,7 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                ': Select a valid printer model.\n'
+                ' Select a valid printer model.\n'
             )
             return
         remove_model = self.model_var.get()
@@ -1410,7 +1411,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f": Missing 'Power off timer' in configuration\n",
+                f" Missing 'Power off timer' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1457,7 +1458,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f": Improper values in printer serial number.\n",
+                f" Improper values in printer serial number.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1466,7 +1467,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f": Cannot retrieve the printer serial number.\n",
+                f" Cannot retrieve the printer serial number.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1508,7 +1509,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f": Cannot retrieve the printer WiFi MAC address.\n",
+                f" Cannot retrieve the printer WiFi MAC address.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1539,7 +1540,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(
                     tk.END,
                     f' Cannot read EEPROM values for "{label}"'
-                    f': invalid printer model selected: {self.printer.model}.\n'
+                    f' invalid printer model selected: {self.printer.model}.\n'
                 )
                 self.config(cursor="")
                 self.update_idletasks()
@@ -1575,7 +1576,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f": Missing 'Power off timer' in configuration\n",
+                f" Missing 'Power off timer' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1830,7 +1831,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f": Missing 'First TI received time' in configuration\n",
+                f" Missing 'First TI received time' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1841,7 +1842,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    ": No data from 'First TI received time'."
+                    " No data from 'First TI received time'."
                     " Check printer configuration.\n",
                 )
                 self.config(cursor="")
@@ -1882,7 +1883,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f": Missing 'First TI received time' in configuration\n",
+                f" Missing 'First TI received time' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2030,14 +2031,14 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                ': Unknown printer model '
+                ' Unknown printer model '
                 f'"{self.model_var.get()}"\n',
             )
         else:
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                ': Select a valid printer model.\n'
+                ' Select a valid printer model.\n'
             )
         self.config(cursor="")
         self.update()
@@ -2230,7 +2231,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(
                     tk.END,
                     f' Cannot read EEPROM values for addresses "{addresses}"'
-                    ': invalid printer model selected.\n'
+                    ' invalid printer model selected.\n'
                 )
             self.config(cursor="")
             self.update_idletasks()
