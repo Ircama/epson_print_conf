@@ -47,6 +47,33 @@ The software also includes a configurable printer dictionary, which can be easil
 
 Note on the ink waste counter reset feature: resetting the ink waste counter is just removing a lock; not replacing the tank will reduce the print quality and make the ink spill.
 
+## Install-2-go (macOS)
+Prerequirements: Docker, TigerVNC
+
+### 1. Install Tiger VNC Viewer
+
+```bash
+brew install tigervnc-viewer
+```
+
+### 2. Download Docker Image
+
+```bash
+docker pull mvoreakou/epson-god-mode:latest
+```
+
+### 3. App run
+```bash
+docker run --rm --publish 5990:5990 --env HOME=/ mvoreakou/epson-god-mode x11vnc -usepw -create
+```
+### 4. Open GUI
+Open tiger VNC that was installed on your mac, and fill
+
+`VNC server:` `localhost:5990`
+
+Click `Connect` & voila!
+
+
 ## Installation
 
 Install requirements using *requirements.txt*:
