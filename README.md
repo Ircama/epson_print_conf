@@ -162,6 +162,7 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 - [ET-4800](https://github.com/Ircama/epson_print_conf/issues/29) with new firmware (older firmware might work)
 - [L3250](https://github.com/Ircama/epson_print_conf/issues/35)
 - [L18050](https://github.com/Ircama/epson_print_conf/issues/47)
+- [XP-2200](https://github.com/Ircama/epson_print_conf/issues/51)
 
 ### Using the command-line tool
 
