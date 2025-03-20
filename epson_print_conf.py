@@ -2926,7 +2926,7 @@ if __name__ == "__main__":
                         print(
                             f"EEPROM_ADDR {hex(addr).rjust(4)} = "
                             f"{str(addr).rjust(3)}: "
-                            f"{int(val):#04x} = {val.rjust(3)}"
+                            f"0x{val.rjust(2)} = {int(val,16)}"
                         )
                 except (ValueError, SyntaxError):
                     print("invalid argument for read_eeprom")
