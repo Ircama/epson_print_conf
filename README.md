@@ -189,10 +189,9 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 - [ET-4800](https://github.com/Ircama/epson_print_conf/issues/29) with new firmware (older firmware might work)
 - [L3250](https://github.com/Ircama/epson_print_conf/issues/35)
 - [L18050](https://github.com/Ircama/epson_print_conf/issues/47)
+- [EcoTank ET-2862 with firmware 05.18.XF12OB dated 12/11/2024](https://github.com/Ircama/epson_print_conf/discussions/58) and possibly ET-2860 / 2861 / 2863 / 2865 series.
 
-For the following model the write key is not known:
-
-- [XP-2200](https://github.com/Ircama/epson_print_conf/issues/51)
+For model XP-2200, check https://github.com/Ircama/epson_print_conf/issues/51
 
 ### Using the command-line tool
 
