@@ -493,6 +493,10 @@ class EpsonPrinter:
         "L4160": {
             "read_key": [73, 8],
             "write_key": b'Arantifo',
+            "alias": [
+                "L4150", "L4152", "L4154", "L4156", "L4158",
+                "L4162", "L4164", "L4166", "L4168"
+            ],
             "main_waste": {"oids": [48, 49, 47], "divider": 109.13},
             "borderless_waste": {"oids": [50, 51, 47], "divider": 16.31},
             "stats": {
