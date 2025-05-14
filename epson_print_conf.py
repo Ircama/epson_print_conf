@@ -1208,6 +1208,8 @@ class EpsonPrinter:
                 )
                 return None, False
             return self.mib_dict[mib]
+        if not self.hostname:
+            return None, False
         if (
             self.hostname, self.port, self.timeout, self.retries
         ) != self.used_net_val:
@@ -1226,12 +1228,9 @@ class EpsonPrinter:
             self.used_net_val = (
                 self.hostname, self.port, self.timeout, self.retries
             )
-        if not self.hostname or not self.snmp_conf:
+        if not self.snmp_conf:
             return None, False
-        iterator = getCmd(
-            *self.snmp_conf,
-            (mib, None)
-        )
+        iterator = getCmd(*self.snmp_conf, (mib, None))
         for response in iterator:
             errorIndication, errorStatus, errorIndex, varBinds = response
             if errorIndication:
