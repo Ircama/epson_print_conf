@@ -958,6 +958,8 @@ class EpsonPrinter:
     hostname: str
     parm: dict
     mib_dict: dict = {}
+    used_net_val: tuple = ()
+    snmp_conf: object = None
 
     def __init__(
             self,
@@ -1206,23 +1208,28 @@ class EpsonPrinter:
                 )
                 return None, False
             return self.mib_dict[mib]
-        if not self.hostname:
-            return None, False
-        try:
-            utt = UdpTransportTarget(
-                    (self.hostname, self.port),
+        if (
+            self.hostname, self.port, self.timeout, self.retries
+        ) != self.used_net_val:
+            try:
+                self.snmp_conf = (
+                    SnmpDispatcher(),
+                    CommunityData('public', mpModel=0),
+                    UdpTransportTarget(
+                        (self.hostname, self.port, self.timeout, self.retries)
+                    )
                 )
-        except Exception as e:
-            logging.critical("snmp_mib invalid address: %s", e)
+            except Exception as e:
+                logging.critical("snmp_mib invalid address: %s", e)
+                self.used_net_val = ()
+                return None, False
+            self.used_net_val = (
+                self.hostname, self.port, self.timeout, self.retries
+            )
+        if not self.hostname or not self.snmp_conf:
             return None, False
-        if self.timeout is not None:
-            utt.timeout = self.timeout
-        if self.retries is not None:
-            utt.retries = self.retries
         iterator = getCmd(
-            SnmpDispatcher(),
-            CommunityData('public', mpModel=0),
-            utt,
+            *self.snmp_conf,
             (mib, None)
         )
         for response in iterator:
