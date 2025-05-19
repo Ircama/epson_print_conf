@@ -2,40 +2,47 @@
 
 This document compares pure Python SNMP libraries, with the goal of performing unauthenticated, sequential SNMPv1 queries to a single Epson printer.
 
-We aim to use libraries implemented entirely in Python to avoid the complexity and overhead of wrappers around native libraries, while maintaining acceptable performance.
+The approach to use libraries implemented entirely in Python has the goal to avoid the complexity and overhead of wrappers around native libraries, while maintaining acceptable performance.
 
-For our use case, that is interfacing with Epson printers, synchronous SNMP simplifies development and maintenance without compromising performance.
+For the use case of this repository, that is interfacing with Epson printers, synchronous SNMP simplifies development and maintenance without compromising performance.
 
-We compared:
+Compared libraries and architectures:
 
 - Ilya Etingof’s [etingof/pysnmp](https://github.com/etingof/pysnmp) project (unmaintained) in synchronous mode,
 - [pysnmplib](https://github.com/pysnmp/pysnmp) in synchronous mode,
-- [lextudio](https://github.com/lextudio/pysnmp/) v5.1 synchronous mode,
-- [lextudio](https://github.com/lextudio/pysnmp/) v7.1 asynchronous mode,
+- [pysnmp v5.1](https://github.com/lextudio/pysnmp/) synchronous mode,
+- [pysnmp v7.1](https://github.com/lextudio/pysnmp/) asynchronous mode,
+- [pysnmp v7.1 with pysnmp-sync-adapter](https://github.com/Ircama/pysnmp-sync-adapter) synchronous wrapper,
 - raw socket SNMPv1 implementation (synchronous mode).
+- Pure python implementation using the [asn1](https://github.com/andrivet/python-asn1) and the default socket libraries.
+- [py-snmp-sync](https://github.com/Ircama/py-snmp-sync) synchronous client implemented over PySNMP.
 
-To compare implementations, we developed a trivial benchmark that performs 100 SNMPv1 GET requests of the same OID to the same printer, measuring total execution time. We used OID `1.3.6.1.2.1.25.3.2.1.3.1` (`sysName`).
+The comparison exploits a trivial benchmark that performs 100 SNMPv1 GET requests of the same OID to the same printer, measuring total execution time. The used OID is `1.3.6.1.2.1.25.3.2.1.3.1` (`sysName`).
 
-Benchmark results show that older libraries with reduced abstraction layers tend to offer better performance and simpler, more readable code with fewer lines: the legacy synchronous backend `pysnmp.hlapi.v1arch` from [etingof/pysnmp](https://github.com/etingof/pysnmp) performs on par with the most efficient asynchronous implementation. In contrast, newer versions such as `pysnmp.hlapi` from [pysnmplib](https://github.com/pysnmp/pysnmp) or `pysnmp==5.1.0` from [lextudio](https://docs.lextudio.com/snmp/) introduce approximately 40% performance overhead compared to `v1arch`.
+Benchmark results of this use case show that the legacy synchronous backend `pysnmp.hlapi.v1arch` from [etingof/pysnmp](https://github.com/etingof/pysnmp) delivers performance comparable to the most efficient asynchronous implementations.
 
-In our current codebase, we use the unmaintained `etingof/pysnmp`, specifically the `v1arch` synchronous mode, which performs well due to:
+The current codebase of epson_print_conf still relies on this unmaintained `etingof/pysnmp`, specifically its `v1arch` synchronous HLAPI, which remains performant due to:
 
-* A streamlined architecture (e.g., no SNMP engine instantiation per request)
-* Minimal overhead in request dispatch
+- A streamlined architecture that avoids per-request SNMP engine instantiation
+- Minimal overhead in dispatching SNMP requests
 
-However, `etingof/pysnmp` is not available on PyPI. To support PyPI installation, we would need to switch to a newer version such as `pysnmp` or `pysnmplib`.
+However, `etingof/pysnmp` is not published on PyPI. For PyPI-based distribution and dependency management, a switch to a maintained variant such as [`pysnmp`](https://pypi.org/project/pysnmp) or [`pysnmplib`](https://pypi.org/project/pysnmplib) would be necessary.
 
-Older versions of `pysnmp` supported both synchronous and asynchronous modes. However, recent versions have removed synchronous support, leaving only asynchronous interfaces. This evolution mirrors broader industry tensions between legacy compatibility and modern performance demands. While `pysnmp` v7+'s async-only architecture theoretically enables better resource utilization, it imposes significant refactoring costs for traditional SNMPv1 workflows.
+Earlier versions of `pysnmp` supported both synchronous and asynchronous APIs. In contrast, recent versions (v7+) have removed synchronous support in favor of an asyncio-only architecture. While this enables more scalable and resource-efficient SNMP operations, it introduces significant migration complexity for legacy codebases built around blocking SNMPv1 workflows.
 
-The most suboptimal implementation strategy for sequential SNMPv1 operations involves forcibly adapting asynchronous pysnmp architectures to synchronous workflows through repeated asyncio.run() invocations. This anti-pattern incurs catastrophic performance degradation due to fundamental resource management failures:
+A naïve approach to restoring synchronous behavior, e.g., by wrapping each async call in `asyncio.run()`, leads to severe performance degradation. This pattern repeatedly creates and tears down the asyncio event loop and transport stack, incurring massive overhead.
 
-- Event loop thrashing due to each iteration, that recreates and destroys the entire asyncio infrastructure; calling `asyncio.run()` 100 times results in excessive overhead, as each iteration initializes and tears down the event loop.
-- Protocol engine reinitialization, where essential SNMP components get recreated per-request, like `SnmpDispatcher()`.
-- Concurrency opportunity cost, that forces sequential execution despite async capabilities: sequential use of async code negates the benefits of concurrency and parallelism.
+To mitigate this, several approaches have been explored:
 
-The evaluations reported below reveal a stark contrast between implementation strategies using `pysnmp 7.1`. The simulated synchronous approach (artificially forcing async-to-sync behavior through sequential `asyncio.run()` calls) required 13.5-13.8 seconds for 100 requests. By comparison, a native asynchronous implementation using identical library versions completed the same workload in 0.47-0.49 seconds, demonstrating a 28× throughput improvement.
+* [`pysnmp-sync-adapter`](https://github.com/Ircama/pysnmp-sync-adapter): a lightweight compatibility layer wrapping `pysnmp.hlapi.v1arch.asyncio` and `pysnmp.hlapi.v3arch.asyncio` with blocking equivalents (e.g., `get_cmd_sync`). It reuses the asyncio event loop and transport targets, avoiding per-call overhead and achieving optimal performance while maintaining a synchronous API.
 
-This performance disparity comes with significant architectural consequences, as the examples can show.
+* [`py-snmp-sync`](https://github.com/Ircama/py-snmp-sync): offers even better performance by bypassing the asyncio-based API entirely. Instead, it directly uses the lower-level shared components of `pysnmp` that support both sync and async execution. It implements a custom `SyncUdpTransportTarget` based on raw sockets. However, it currently supports only a specialized form of `get_cmd`, limiting general HLAPI compatibility.
+
+* A separate low-level implementation using ASN.1 and sockets directly is also tested. This approach shows excellent performance for the `get_cmd` request/response pattern but is significantly more complex to maintain and does not support the full SNMP operation set.
+
+Each approach offers trade-offs between generality, maintainability, and performance. For applications requiring full HLAPI compatibility with minimal refactoring, `pysnmp-sync-adapter` is a practical and efficient choice. For tightly optimized use cases the raw variants can provide superior throughput.
+
+---
 
 ## Code used for the benchmarks
 
@@ -144,7 +151,7 @@ if __name__ == '__main__':
     # --- 1.0969550609588623 seconds ---
 ```
 
-### Usage of https://github.com/lextudio/pysnmp 7.1 simulating sync behaviour
+### Usage of https://github.com/lextudio/pysnmp 7.1 simulating sync behaviour (inefficient)
 
 ```python
 # Usage of https://github.com/lextudio/pysnmp 7.1
@@ -354,6 +361,75 @@ if __name__ == '__main__':
     # --- 0.4908156394958496 seconds ---
 ```
 
+### Usage of https://github.com/Ircama/pysnmp-sync-adapter
+
+```python
+# pip uninstall pysnmplib
+# pip install pysnmp-sync-adapter
+
+import sys
+import time
+import asyncio
+import platform
+from pysnmp.hlapi.v1arch.asyncio import *
+from pysnmp_sync_adapter import (
+    get_cmd_sync, next_cmd_sync, set_cmd_sync, bulk_cmd_sync,
+    walk_cmd_sync, bulk_walk_cmd_sync, create_transport
+)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python script.py <host>")
+        sys.exit(1)
+
+    if platform.system()=='Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    host = sys.argv[1]
+    oid_str = '1.3.6.1.2.1.25.3.2.1.3.1'
+    community = 'public'
+
+    # Pre-create the engine once
+    dispatcher = SnmpDispatcher()
+
+    # Pre-create the transport once
+    transport = create_transport(UdpTransportTarget, (host, 161), timeout=1)
+
+    # Pre-create oid and CommunityData once
+    auth_data = CommunityData(community, mpModel=0)
+    oid_t = ObjectType(ObjectIdentity(oid_str))
+
+    start = time.time()
+    for _ in range(100):
+        try:
+            error_ind, error_status, error_index, var_binds = get_cmd_sync(
+                dispatcher,
+                auth_data,
+                transport,
+                oid_t
+            )
+            if error_ind:
+                raise RuntimeError(f"SNMP error: {error_ind}")
+            elif error_status:
+                raise RuntimeError(
+                    f'{error_status.prettyPrint()} at {error_index and var_binds[int(error_index) - 1][0] or "?"}'
+                )
+            else:
+                for oid, val in var_binds:
+                    print(val.prettyPrint())
+        except Exception as e:
+            print("Request failed:", e)
+
+    print(f"--- {time.time() - start:.3f} seconds ---")
+
+if __name__ == '__main__':
+    main()
+
+# --- 1.217 seconds ---
+# --- 1.290 seconds ---
+# --- 1.234 seconds ---
+```
+
 ### Usage of the oneliner package, being deprecated in newer versions of pysnmp
 
 ```python
@@ -407,7 +483,7 @@ print("--- %s seconds ---" % (time.time() - start_time))
 # --- 1.0130093097686768 seconds ---
 ```
 
-### Raw Python implementation of the SNMPv protocol
+### Raw Python implementation of the SNMPv1 protocol
 
 ```python
 # Pure Python implementation of the SNMPv1 basic GetRequest/GetResponse
@@ -631,6 +707,195 @@ if __name__ == '__main__':
     # --- 0.7131996154785156 seconds ---
 ```
 
+### Pure python implementation using the asn1 and the default socket libraries.
+
+```python
+# Pure python implementation using the asn1 and the default socket libraries.
+
+# pip install asn1
+
+# Code Complexity: low
+# Performance: excellent
+# Protocol Compliance: decent
+# Maintenance: decent
+
+import socket
+import time
+import sys
+import logging
+import asn1
+
+def main_performance():
+    if len(sys.argv) < 2:
+        print("Usage: python script.py <hostname>")
+        sys.exit(1)
+        
+    host = sys.argv[1]
+    oid = '1.3.6.1.2.1.25.3.2.1.3.1'
+    request_id = 1
+    start_time = time.time()
+
+    # Create and reuse the socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(1)
+
+    try:
+        for _ in range(100):
+            # Encode the SNMP GetRequest using asn1 library
+            encoder = asn1.Encoder()
+            encoder.start()
+            
+            # Main SNMP message sequence
+            encoder.enter(asn1.Numbers.Sequence)
+            encoder.write(0, asn1.Numbers.Integer)  # SNMP version 0 (v1)
+            encoder.write(b'public', asn1.Numbers.OctetString)  # community
+
+            # GetRequest PDU (context-specific tag 0)
+            encoder.enter(0, cls=asn1.Classes.Context)  # Generate 0xA0
+            encoder.write(request_id, asn1.Numbers.Integer)
+            encoder.write(0, asn1.Numbers.Integer)  # error-status
+            encoder.write(0, asn1.Numbers.Integer)  # error-index
+            
+            # Variable bindings sequence
+            encoder.enter(asn1.Numbers.Sequence)
+            encoder.enter(asn1.Numbers.Sequence)  # Single var-bind
+            encoder.write(oid, asn1.Numbers.ObjectIdentifier)  # OID
+            encoder.write(None, asn1.Numbers.Null)  # Null value
+            encoder.leave()  # Exit var-bind
+            encoder.leave()  # Exit variable bindings
+            
+            encoder.leave()  # Exit PDU
+            encoder.leave()  # Exit main sequence
+            
+            request = encoder.output()
+            logging.debug("REQ: %s", request.hex(' '))
+
+            # Send request
+            sock.sendto(request, (host, 161))
+            
+            try:
+                # Receive and decode response
+                response, _ = sock.recvfrom(65536)
+                logging.debug("RES: %s", response.hex(' '))
+                decoder = asn1.Decoder()
+                decoder.start(response)
+                #_, value = decoder.read(); print("DECODED", value); continue
+
+                # Decode top-level sequence
+                decoder.enter()
+                _, version = decoder.read()
+                _, community = decoder.read()
+                
+                # Verify GetResponse PDU (context-specific tag 2)
+                tag = decoder.peek()
+                if tag.cls != asn1.Classes.Context or tag.nr != 2:  # if decoder.peek().nr != 0xA2:
+                    raise ValueError("Expected GetResponse PDU")
+                decoder.enter()  # Enter PDU content
+                
+                # Read response fields
+                _, resp_id = decoder.read()
+                _, error_status = decoder.read()
+                _, error_index = decoder.read()
+                logging.debug(
+                    "version: %s, community: %s, resp_id: %s,"
+                    " error_status: %s, error_index: %s",
+                    version, community, resp_id, error_status, error_index
+                )
+                
+                # Process variable bindings
+                decoder.enter()
+                decoder.enter()  # var-bind sequence
+                _, resp_oid = decoder.read()
+                value_type, value = decoder.read()
+                
+                # Handle different value types
+                if value_type == asn1.Numbers.OctetString:
+                    decoded_value = value.decode('utf-8')
+                elif value_type == asn1.Numbers.Integer:
+                    decoded_value = value
+                else:
+                    decoded_value = value  # Fallback to raw bytes
+                
+                print("decoded_value:", decoded_value)
+                
+            except (asn1.Error, ValueError) as e:
+                print(f"Decoding error: {e}")
+
+            request_id += 1
+
+    finally:
+        sock.close()
+
+    print(f"--- {time.time() - start_time} seconds ---")
+
+if __name__ == '__main__':
+    main_performance()
+
+# --- 1.0287363529205322 seconds ---
+# --- 0.937241792678833 seconds ---
+# --- 1.0431180000305176 seconds ---
+```
+
+### https://github.com/Ircama/py-snmp-sync over PySNMP.
+
+```python
+# pip uninstall pysnmplib
+# pip install py-snmp-sync
+
+import sys
+import time
+from py_snmp_sync import (
+    SyncUdpTransportTarget, sync_get_cmd, ObjectIdentity, CommunityData
+)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python script.py <host>")
+        sys.exit(1)
+
+    host = sys.argv[1]
+    oid_str = '1.3.6.1.2.1.25.3.2.1.3.1'
+    community = 'public'
+
+    # Pre-create the transport once
+    target = SyncUdpTransportTarget((host, 161))
+
+    # Pre-create oid and CommunityData once
+    auth_data = CommunityData(community, mpModel=0)
+    oid = ObjectIdentity(oid_str)
+
+    start = time.time()
+    for _ in range(100):
+        try:
+            error_ind, error_status, error_index, var_binds = sync_get_cmd(
+                CommunityData("public", mpModel=0),
+                target,
+                oid
+            )
+            if error_ind:
+                raise RuntimeError(f"SNMP error: {error_ind}")
+            elif error_status:
+                raise RuntimeError(
+                    f'{error_status.prettyPrint()} at {error_index and var_binds[int(error_index) - 1][0] or "?"}'
+                )
+            else:
+                for _, val in var_binds:
+                    print(val.prettyPrint())
+        except Exception as e:
+            print("Request failed:", e)
+
+    print(f"--- {time.time() - start:.3f} seconds ---")
+
+if __name__ == '__main__':
+    main()
+
+# --- 1.125 seconds ---
+# --- 1.197 seconds ---
+# --- 1.145 seconds ---
+```
+
+--------------------------------------------------------------------------------
+
 ## EPSON SNMP Protocol analysis
 
 The EPSON printer uses **SNMPv1** with basic read-only community string authentication and no security features. It implements standard and proprietary MIBs.
@@ -644,23 +909,55 @@ The EPSON printer uses **SNMPv1** with basic read-only community string authenti
 
 Full decoding of the SNMP request for the OID `1.3.6.1.2.1.25.3.2.1.3.1`.
 
-#### Raw Bytes (hex):
+#### Raw Bytes of the Request (hex):
 
 ```
+30 29 02 01 00 04 06
+70 75 62 6c 69 63                                       [Public]
+a0 1c 02 01 26 02 01 00 02 01 00 30 11 30 0f 06 0b
+2b 06 01 02 01 19 03 02 01 03 01                        [1.3.6.1.2.1.25.3.2.1.3.1]
+05 00
+
 0)  30 29
 2)  02 01 00
-5)  04 06 70 75 62 6c 69 63
+5)  04 06 70 75 62 6c 69 63                             [Public]
 11) a0 1c
 13) 02 01 26
 16) 02 01 00
 19) 02 01 00
 22) 30 11
-24) 30 0d
-26) 06 0b 2b 06 01 02 01 19 03 02 01 03 01
+24) 30 0f
+26) 06 0b 2b 06 01 02 01 19 03 02 01 03 01              [1.3.6.1.2.1.25.3.2.1.3.1]
 39) 05 00
 ```
 
-#### Breakdown (SNMPv1 Structure):
+String                    |Hex representation
+--------------------------|-----------------------------------
+Public                    | 70 75 62 6c 69 63
+1.3.6.1.2.1.25.3.2.1.3.1  | 2b 06 01 02 01 19 03 02 01 03 01
+
+SNMPv1 PDU Tags:
+- 0xA0: GetRequest
+- 0xA1: GetNextRequest
+- 0xA2: GetResponse
+- 0xA3: SetRequest
+- 0xA4: Trap
+
+```
+SNMP Message (SEQUENCE, 41 bytes)
+├─ Version (INTEGER): 0 (SNMPv1)
+├─ Community (OCTET STRING): "public"
+└─ GetRequest-PDU (0xA0, 28 bytes = 0x1C)
+   ├─ Request-ID (INTEGER): 38 (0x26)
+   ├─ Error-Status (INTEGER): 0 (noError)
+   ├─ Error-Index (INTEGER): 0
+   └─ Variable-Bindings (SEQUENCE, 17 bytes = 0x11)
+      └─ VarBind (SEQUENCE, 15 bytes = 0x0f)
+         ├─ OID (OBJECT IDENTIFIER): 1.3.6.1.2.1.25.3.2.1.3.1
+         └─ Value (NULL) (no value)
+```
+
+#### Request Breakdown (SNMPv1 Structure):
 
 1. **SNMP Message (SEQUENCE)**: `30 29`  
    - Tag: `0x30` (SEQUENCE)  
@@ -699,23 +996,61 @@ Full decoding of the SNMP request for the OID `1.3.6.1.2.1.25.3.2.1.3.1`.
    - Tag: `0x30` (SEQUENCE)  
    - Length: `0x11` (17 bytes).
 
-    - **VarBind Entry (SEQUENCE)**: `30 0d`  
+    - **VarBind Entry (SEQUENCE)**: `30 0f`  
       - Tag: `0x30` (SEQUENCE)  
-      - Length: `0x0D` (13 bytes).
+      - Length: `0x0f` (15 bytes).
 
-      - **OID (OBJECT IDENTIFIER)**: `06 0b 2b 06 01 02 01 19 03 02 01 03 01`  
-        - Tag: `0x06` (OID)  
-        - Length: `0x0B` (11 bytes)  
-        - Encoded OID: `2b 06 01 02 01 19 03 02 01 03 01`  
-          - Decoded: `1.3.6.1.2.1.25.3.2.1.3.1` (matches your target OID).
+        - **OID (OBJECT IDENTIFIER)**: `06 0b 2b 06 01 02 01 19 03 02 01 03 01`  
+          - Tag: `0x06` (OID)  
+          - Length: `0x0B` (11 bytes)  
+          - Encoded OID: `2b 06 01 02 01 19 03 02 01 03 01`  
+            - Decoded: `1.3.6.1.2.1.25.3.2.1.3.1` (matches your target OID).
 
-      - **Value (NULL)**: `05 00`  
-        - Tag: `0x05` (NULL)  
-        - Length: `0x00` (no value).
+        - **Value (NULL)**: `05 00`  
+          - Tag: `0x05` (NULL)  
+          - Length: `0x00` (no value).
 
 ### Full decoding of the SNMPv1 response
 
+Full decoding of the SNMP response for the OID `1.3.6.1.2.1.25.3.2.1.3.1` returning `EPSON XP-205 207 Series`.
+
+#### Raw Bytes of the Response (hex):
+
 ```plaintext
+30 40 02 01 00 04 06
+70 75 62 6c 69 63                                                       [Public]
+a2 33 02 01 01 02 01 00 02 01 00 30 28 30 26 06 0b
+2b 06 01 02 01 19 03 02 01 03 01                                        [1.3.6.1.2.1.25.3.2.1.3.1], 11 bytes
+04 17
+45 50 53 4f 4e 20 58 50 2d 32 30 35 20 32 30 37 20 53 65 72 69 65 73    [EPSON XP-205 207 Series], 23 bytes
+
+0)  30 40
+2)  02 01 00
+5)  04 06 70 75 62 6c 69 63                                             [Public]
+13) a2 33
+15) 02 01 01
+18) 02 01 00
+21) 02 01 00
+24) 30 28
+26) 30 26
+28) 06 0b 2b 06 01 02 01 19 03 02 01 03 01                              [1.3.6.1.2.1.25.3.2.1.3.1], 13 bytes
+41) 04 17 45 50 53 4f 4e 20 58 50 2d 32 30 35 20 32 30 37 20 53 65 72 69 65 73    [EPSON XP-205 207 Series], 25 bytes
+```
+
+String                    |Hex representation
+--------------------------|-----------------------------------
+Public                    | 70 75 62 6c 69 63
+1.3.6.1.2.1.25.3.2.1.3.1  | 2b 06 01 02 01 19 03 02 01 03 01
+EPSON XP-205 207 Series   | 45 50 53 4f 4e 20 58 50 2d 32 30 35 20 32 30 37 20 53 65 72 69 65 73
+
+SNMPv1 PDU Tags:
+- 0xA0: GetRequest
+- 0xA1: GetNextRequest
+- 0xA2: GetResponse
+- 0xA3: SetRequest
+- 0xA4: Trap
+
+```
 SNMP Message (SEQUENCE, 64 bytes)
 ├─ Version (INTEGER): 0 (SNMPv1)
 ├─ Community (OCTET STRING): "public"
@@ -723,13 +1058,13 @@ SNMP Message (SEQUENCE, 64 bytes)
    ├─ Request-ID (INTEGER): 100
    ├─ Error-Status (INTEGER): 0 (noError)
    ├─ Error-Index (INTEGER): 0
-   └─ Variable-Bindings (SEQUENCE, 40 bytes)
-      └─ VarBind (SEQUENCE, 38 bytes)
+   └─ Variable-Bindings (SEQUENCE, 40 bytes = 0x28)
+      └─ VarBind (SEQUENCE, 38 bytes = 0x26)
          ├─ OID (OBJECT IDENTIFIER): 1.3.6.1.2.1.25.3.2.1.3.1
          └─ Value (OCTET STRING): "EPSON XP-205 207 Series"
 ```
 
-#### Step-by-Step Breakdown:
+#### Response Breakdown (SNMPv1 Structure):
 
 1. **SNMP Message Header**:
    - **Tag**: `0x30` (SEQUENCE)
@@ -752,7 +1087,7 @@ SNMP Message (SEQUENCE, 64 bytes)
 5. **Request-ID**:
    - **Tag**: `0x02` (INTEGER)
    - **Length**: `0x01` (1 byte)
-   - **Value**: `0x64` → 100
+   - **Value**: `0x01` → 1
 
 6. **Error-Status**:
    - **Tag**: `0x02` (INTEGER)
