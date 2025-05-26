@@ -44,7 +44,7 @@ Each approach offers trade-offs between generality, maintainability, and perform
 
 ---
 
-## Code used for the benchmarks
+## Code used for the benchmarks and results
 
 ### Usage of https://github.com/etingof/pysnmp
 
@@ -104,8 +104,8 @@ if __name__ == '__main__':
 # Usage of https://github.com/pysnmp/pysnmp
 
 # pip uninstall pysnmp
-# pip uninstall pysnmplib
 # pip install pyasn1==0.4.8
+# pip install pysnmplib
 
 # Alternative working library: pip install pysnmp==5.1.0 (https://docs.lextudio.com/snmp/)
 
@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
 ```python
 # Usage of https://github.com/lextudio/pysnmp 7.1
-# Simulate sync behaviour in an extremely inefficient and slow mode
+# Simulate sync behaviour via asyncio.run() (extremely inefficient and slow mode)
 
 # pip uninstall pysnmplib
 # pip uninstall pyasn1==0.4.8
@@ -217,7 +217,7 @@ if __name__ == '__main__':
 
 ```python
 # Usage of https://github.com/lextudio/pysnmp
-# Same as mytest4, but single ObjectType in get_cmd
+# Using asyncio.gather() for 100 asynch tasks. Single ObjectType in get_cmd
 
 # pip uninstall pysnmplib
 # pip uninstall pysnmp # git+https://github.com/etingof/pysnmp.git@master#egg=pysnmp
@@ -285,7 +285,8 @@ if __name__ == '__main__':
 
 ```python
 # Usage of https://github.com/lextudio/pysnmp
-# Max performance (same as mytest3, but multiple ObjectType in get_cmd)
+# Multiple ObjectType in get_cmd
+# Using asyncio.gather() for 10 asynch tasks, each including a PDU of 10 OIDs.
 
 # pip uninstall pysnmplib
 # pip uninstall pysnmp # git+https://github.com/etingof/pysnmp.git@master#egg=pysnmp

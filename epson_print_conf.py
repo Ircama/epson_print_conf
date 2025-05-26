@@ -6,6 +6,7 @@ Epson Printer Configuration via SNMP (TCP/IP)
 """
 
 import itertools
+from itertools import chain
 import re
 from typing import Any, List
 import datetime
@@ -17,19 +18,11 @@ import os
 import yaml
 from pathlib import Path
 import pickle
+import abc
 
-# The pysnmp module uses functionality from importlib.util and 
-# importlib.machinery, which were seperated from the importlib module
-# in python>=3.11
-try:
-    import importlib.util
-    import importlib.machinery
-except ImportError:
-    pass
-from pysnmp.hlapi.v1arch import *  # this imports UdpTransportTarget
-
+from pysnmp.hlapi.v1arch.asyncio import *
 from pyasn1.type.univ import OctetString as OctetStringType
-from itertools import chain
+from pysnmp_sync_adapter.legacy_wrappers import UdpTransportTarget, getCmd
 
 
 class EpsonPrinter:
@@ -1848,14 +1841,11 @@ class EpsonPrinter:
             return None
         if "wifi_mac_address" not in self.parm:
             return None
-        try:
-            return '-'.join(
-                octet.upper() for octet in self.read_eeprom_many(
-                    self.parm["wifi_mac_address"], label="get_wifi_mac_address"
-                )
+        return '-'.join(
+            octet.upper() for octet in self.read_eeprom_many(
+                self.parm["wifi_mac_address"], label="get_wifi_mac_address"
             )
-        except Exception:
-            return False
+        )
 
     def get_stats(self, stat_name: str = None) -> str:
         """Return printer statistics."""
