@@ -8,7 +8,7 @@ Epson Printer Configuration via SNMP (TCP/IP)
 import itertools
 from itertools import chain
 import re
-from typing import Any, List
+from typing import Any, List, Tuple, Union
 import datetime
 import time
 import textwrap
@@ -22,7 +22,12 @@ import abc
 
 from pysnmp.hlapi.v1arch.asyncio import *
 from pyasn1.type.univ import OctetString as OctetStringType
-from pysnmp_sync_adapter.legacy_wrappers import UdpTransportTarget, getCmd
+from pysnmp_sync_adapter import (
+    get_cmd_sync,
+    parallel_get_sync,
+    create_transport
+)
+from pysnmp.proto.errind import RequestTimedOut
 
 
 class EpsonPrinter:
@@ -1189,84 +1194,157 @@ class EpsonPrinter:
         else:
             return write_op
 
-    def snmp_mib(self, mib: str, label: str = "unknown") -> (str, Any):
-        """Generic SNMP query, returning value of a MIB."""
+    def snmp_mib(
+        self,
+        oid: Union[str, List[Union[str, List[str]]]],
+        label: str = "unknown"
+    ) -> Union[
+        Tuple[str, Any],
+        List[Tuple[str, Any]]
+    ]:
+        """
+        Query one or more OIDs and return their values.
+
+        - If oid is a single string, returns (type_name, value).
+        - If oid is a list of strings or list-of-lists, returns a list of
+          (type_name, value) in the same order.
+
+        Lists of strings are grouped into a single PDU; top-level list runs
+        in parallel using parallel_get_sync.
+        """
+        # Config‐file overrides
         if self.mib_dict:
-            if mib not in self.mib_dict:
-                logging.error(
-                    "MIB '%s' not valued in the configuration file. "
-                    "Operation: %s",
-                    mib,
-                    label
-                )
-                return None, False
-            return self.mib_dict[mib]
+            # single‐OID case only
+            if isinstance(oid, str):
+                if oid not in self.mib_dict:
+                    logging.error(
+                        "MIB '%s' not in config. Operation: %s", oid, label
+                    )
+                    return None, False
+                return self.mib_dict[oid]
+            else:
+                # list case: map through dict
+                results = []
+                for element in oid:
+                    if isinstance(element, str):
+                        if element not in self.mib_dict:
+                            logging.error(
+                                "MIB '%s' missing in config. Operation: %s",
+                                element, label
+                            )
+                            results.append((None, False))
+                        else:
+                            results.append(self.mib_dict[element])
+                    else:
+                        # inner list grouping not supported by config
+                        results.append((None, False))
+                return results
+
+        # Build or reuse SNMP network config
         if not self.hostname:
             return None, False
-        if (
-            self.hostname, self.port, self.timeout, self.retries
-        ) != self.used_net_val:
+
+        net_val = (self.hostname, self.port, self.timeout, self.retries)
+        if net_val != self.used_net_val:
             try:
                 self.snmp_conf = (
                     SnmpDispatcher(),
-                    CommunityData('public', mpModel=0),
-                    UdpTransportTarget(
-                        (self.hostname, self.port, self.timeout, self.retries)
+                    CommunityData("public", mpModel=0),
+                    create_transport(
+                        UdpTransportTarget,
+                        (self.hostname, self.port),
+                        timeout=self.timeout, retries=self.retries
                     )
                 )
             except Exception as e:
                 logging.critical("snmp_mib invalid address: %s", e)
                 self.used_net_val = ()
                 return None, False
-            self.used_net_val = (
-                self.hostname, self.port, self.timeout, self.retries
-            )
+
+            self.used_net_val = net_val
+
         if not self.snmp_conf:
             return None, False
-        iterator = getCmd(*self.snmp_conf, (mib, None))
-        for response in iterator:
-            errorIndication, errorStatus, errorIndex, varBinds = response
-            if errorIndication:
-                logging.info(
-                    "snmp_mib error: %s. MIB: %s. Operation: %s",
-                    errorIndication, mib, label
-                )
-                if " timed out" in errorIndication:
-                    raise TimeoutError(errorIndication)
-                return None, False
-            elif errorStatus:
-                logging.info(
-                    'snmp_mib PDU error: %s at %s. MIB: %s. Operation: %s',
-                    errorStatus.prettyPrint(),
-                    errorIndex and varBinds[int(errorIndex) - 1][0] or '?',
-                    mib,
-                    label
-                )
-                return None, False
-            else:
-                for varBind in varBinds:
-                    if isinstance(varBind[1], OctetStringType):
-                        return(
-                            varBind[1].__class__.__name__,
-                            varBind[1].asOctets()
-                        )
-                    else:
-                        return(
-                            varBind[1].__class__.__name__,
-                            varBind[1].prettyPrint()
-                        )
-            logging.info(
-                "snmp_mib value error: invalid multiple data. "
-                "MIB: %s. Operation: %s",
-                mib,
-                label
+
+        # SNMP lookup
+        def _single_lookup(single_oid: str) -> Tuple[str, Any]:
+            """
+            Internal helper to perform one get_cmd_sync.
+            """
+            engine, auth, transport = self.snmp_conf
+            errorInd, errorStat, errorIdx, varBinds = get_cmd_sync(
+                engine, auth, transport,
+                ObjectType(ObjectIdentity(single_oid)),
+                timeout=self.timeout
             )
-            return None, False
-        logging.info(
-            "snmp_mib value error: invalid data. MIB: %s. Operation: %s",
-            label
+            # error handling
+            if errorInd:
+                logging.info("snmp_mib error: %s. OID: %s. Label: %s",
+                             errorInd, single_oid, label)
+                if isinstance(errorInd, RequestTimedOut):
+                    raise TimeoutError(errorInd)
+                return None, False
+
+            if errorStat:
+                # locate offending OID
+                bad = (
+                    errorIdx and varBinds[int(errorIdx) - 1][0]
+                ) or "?"
+                logging.info("snmp_mib PDU error: %s at %s. OID: %s. Label: %s",
+                             errorStat.prettyPrint(), bad, single_oid, label)
+                return None, False
+
+            # extract first varBind
+            oid_name, val = varBinds[0]
+            if isinstance(val, OctetStringType):
+                return val.__class__.__name__, val.asOctets()
+            return val.__class__.__name__, val.prettyPrint()
+
+        # Dispatch single vs batch
+        if isinstance(oid, str):
+            return _single_lookup(oid)
+
+        # list of queries
+        # normalize list elements → either str or [str,...]
+        queries = []
+        for elt in oid:
+            if isinstance(elt, str):
+                queries.append([elt])      # single‐OID PDU
+            elif isinstance(elt, (list, tuple)):
+                queries.append(list(elt))  # grouped‐OID PDU
+            else:
+                queries.append([])
+
+        # run parallel_get_sync: each inner list packs into one PDU, all run in parallel
+        engine, auth, transport = self.snmp_conf
+        # build ObjectType lists
+        wrapped_queries = [
+            [ ObjectType(ObjectIdentity(x)) for x in group ]
+            for group in queries
+        ]
+
+        raw_results = parallel_get_sync(
+            engine,
+            auth,
+            transport,
+            queries=wrapped_queries,
+            max_parallel=5
         )
-        return None, False
+
+        # raw_results is a list of SNMP tuples; map them through the same extraction logic
+        final = []
+        for (errI, errS, errX, vbs) in raw_results:
+            if isinstance(errI, RequestTimedOut):
+                raise TimeoutError(errI)
+            if errI or errS:
+                final.append((None, False))
+            else:
+                val = vbs[0][1]
+                if isinstance(val, OctetStringType):
+                    final.append((val.__class__.__name__, val.asOctets()))
+                else:
+                    final.append((val.__class__.__name__, val.prettyPrint()))
+        return final
 
     def invalid_response(self, response):
         if response is False:
@@ -1274,55 +1352,102 @@ class EpsonPrinter:
         return len(response) < 2 or response[0] != 0 or response[-1] != 12
 
     def read_eeprom(
-            self,
-            oid: int,
-            label: str = "unknown method") -> str:
-        """Read a single byte from the Epson EEPROM address 'oid'."""
-        logging.debug(
-            f"EEPROM_DUMP {label}:\n"
-            f"  ADDRESS: "
-            f"{self.eeprom_oid_read_address(oid, label=label)}\n"
-            f"  OID: {oid}={hex(oid)}"
+        self,
+        oid: Union[int, str, List[Union[int,str]]],
+        label: str = "unknown method"
+    ) -> Union[str, List[Union[str,None]]]:
+        """
+        Read one or more EEPROM bytes at the given OID(s).
+        
+        - Single int/str → returns the two-hex-digit string or None.
+        - List of int/str → returns a list of those strings/None, in order.
+        """
+        def _process_response(
+            tag: Any, response: Any, oid_val: int
+        ) -> Union[str, None]:
+            """Extract and validate the 'EE:xxxxxx' payload for one response."""
+            if not response or self.invalid_response(response):
+                logging.error("Invalid response for OID %s (%s): %r", oid_val, label, response)
+                return None
+
+            # find the EE:xxxxxx substring
+            try:
+                txt = response.decode() if isinstance(
+                    response, (bytes, bytearray)
+                ) else response
+                match = re.search(r"EE:([0-9A-Fa-f]{6})", txt)
+                payload = match.group(1)
+            except Exception:
+                logging.info(
+                    "Invalid read key for OID %s (%s)", oid_val, label
+                )
+                return None
+
+            # split into address + value
+            addr_hex, val_hex = payload[:4], payload[4:]
+            if int(addr_hex, 16) != oid_val:
+                logging.critical(
+                    "EEPROM address mismatch: expected %04x != returned %s; %s",
+                    oid_val, addr_hex, label
+                )
+                return None
+
+            return val_hex.upper()
+
+        # Build the address for SNMP
+        def _addr(o):
+            return self.eeprom_oid_read_address(o, label=label)
+
+        # Call snmp_mib (single or batch)
+        resp = self.snmp_mib(
+            _addr(oid) if not isinstance(oid, list) else [
+                _addr(o) for o in oid
+            ],
+            label=label
         )
-        tag, response = self.snmp_mib(
-            self.eeprom_oid_read_address(oid, label=label), label=label
-        )
-        if not response:
-            return None
-        if self.invalid_response(response):
-            logging.error(
-                f"Invalid response: '%s' for oid %s (%s)",
-                repr(response), oid, label
-            )
-            return None
-        logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(response))
-        try:
-            response = re.findall(
-                r"EE:[0-9a-fA-F]{6}", response.decode())[0][3:]
-        except (TypeError, IndexError):
-            logging.info(f"Invalid read key.")
-            return None
-        chk_addr = response[0:4]
-        value = response[4:6]
-        if int(chk_addr, 16) != oid:
-            raise ValueError(
-                f"Address and response address are"
-                f" not equal: {oid} != {chk_addr}"
-            )
-        return value
+
+        # Single-OID case
+        if not isinstance(resp, list):
+            tag, response = resp
+            return _process_response(tag, response, int(oid))
+
+        # Batch case: resp is a list of (tag, response)
+        results: List[Union[str,None]] = []
+        for o, entry in zip(oid, resp):
+            tag, response = entry
+            results.append(_process_response(tag, response, int(o)))
+
+        return results
 
     def read_eeprom_many(
-            self,
-            oids: list,
-            label: str = "unknown method") -> list:
+        self,
+        oids: Union[range, List[Union[int,str]]],
+        label: str = "unknown method"
+    ) -> List[Union[str,None]]:
         """
-        Read a list of bytes from the list of Epson EEPROM addresses 'oids'.
+        Read a list of bytes from the Epson EEPROM at addresses in `oids`,
+        using a single parallel batch SNMP query.
+
+        Accepts a list of ints/strs or a range() of ints.
+
+        Returns a list of two-hex-digit strings (e.g. "A3") or None,
+        for each OID, preserving order.
+
+        If any element is None, returns [None].
         """
-        response = [self.read_eeprom(oid, label=label) for oid in oids]
-        for i in response:
-            if i is None:
-                return [None]
-        return response
+        # Normalize a range into a list of ints
+        if isinstance(oids, range):
+            oids = list(oids)
+
+        # Delegate to read_eeprom (which handles both single and lists)
+        results = self.read_eeprom(oids, label=label)
+        if not isinstance(results, list):
+            results = [results]
+
+        if any(r is None for r in results):
+            return [None]
+
+        return results
 
     def write_eeprom(
             self,
@@ -2143,16 +2268,34 @@ class EpsonPrinter:
             logging.error("Cartridge value error: %s.\n%s", e, cartridges)
             return None
 
-    def dump_eeprom(self, start: int = 0, end: int = 0xFF):
+    def dump_eeprom(self, start: int = 0, end: int = 0xFF) -> dict[int, int]:
         """
-        Dump EEPROM data from start to end (less significant byte).
+        Dump EEPROM data from `start` to `end` (inclusive) in a single
+        parallel SNMP batch read.
+
+        Returns a dict mapping each address → int value. If any read fails,
+        that address maps to None.
         """
-        d = {}
-        for oid in range(start, end + 1):
-            d[oid] = int(
-                self.read_eeprom(oid, label="dump_eeprom") or "-0x1",
-                16
-            )
+        # Build the list of OIDs
+        oids = list(range(start, end + 1))
+
+        # Fire one parallel batch read
+        #    read_eeprom(list) now returns List[str|None]
+        hex_results = self.read_eeprom(oids, label="dump_eeprom")
+
+        # If the batch call itself errored out (None), fall back or return empty
+        if hex_results is None:
+            # All failed; return empty or map everything to None
+            return {oid: None for oid in oids}
+
+        # Map each hex‐string (or None) to an int (or None)
+        d: dict[int, int] = {}
+        for oid, hx in zip(oids, hex_results):
+            if hx is None:
+                d[oid] = None
+            else:
+                # hx is like "5A" → int("5A",16)
+                d[oid] = int(hx, 16)
         return d
 
     def update_parameter(
@@ -2888,15 +3031,14 @@ if __name__ == "__main__":
                 )
         if args.dump_eeprom:
             print_opt = True
-            for addr, val in printer.dump_eeprom(
-                        int(ast.literal_eval(args.dump_eeprom[0])),
-                        int(ast.literal_eval(args.dump_eeprom[1]))
-                    ).items():
-                print(
-                    f"EEPROM_ADDR {hex(addr).rjust(4)} = "
-                    f"{str(addr).rjust(3)}: "
-                    f"{val:#04x} = {str(val).rjust(3)}"
-                )
+            start = int(ast.literal_eval(args.dump_eeprom[0]))
+            end   = int(ast.literal_eval(args.dump_eeprom[1]))
+            for addr, val in printer.dump_eeprom(start, end).items():
+                if val is None:
+                    disp_val = "  --"
+                else:
+                    disp_val = f"{val:#04x}"  # 0x00 … 0xFF
+                print(f"EEPROM_ADDR 0x{addr:02X} = {addr:3d}: {disp_val}")
         if args.query:
             print_opt = True
             if ("stats" in printer.parm and
