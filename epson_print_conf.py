@@ -1195,7 +1195,7 @@ class EpsonPrinter:
         else:
             return write_op
 
-    def snmp_mib(
+    def get_snmp_values(
         self,
         oid: Union[str, List[Union[str, List[str]]]],
         label: str = "unknown"
@@ -1258,7 +1258,7 @@ class EpsonPrinter:
                     )
                 )
             except Exception as e:
-                logging.critical("snmp_mib invalid address: %s", e)
+                logging.critical("get_snmp_values invalid address: %s", e)
                 self.used_net_val = ()
                 return None, False
 
@@ -1282,7 +1282,7 @@ class EpsonPrinter:
             if isinstance(errorInd, RequestTimedOut):
                 raise TimeoutError(errorInd)
             elif errorInd is not None:
-                logging.info("snmp_mib error: %s. OID: %s. Label: %s",
+                logging.info("get_snmp_values error: %s. OID: %s. Label: %s",
                              errorInd, single_oid, label)
                 return None, False
 
@@ -1291,7 +1291,7 @@ class EpsonPrinter:
                 # find offending OID
                 bad_oid = varBinds[int(errorIdx) - 1][0] if errorIdx else "?"
                 logging.info(
-                    "snmp_mib PDU error: %s at %s. OID: %s. Label: %s",
+                    "get_snmp_values PDU error: %s at %s. OID: %s. Label: %s",
                     errorStat.prettyPrint(), bad_oid, single_oid, label
                 )
                 return None, False
@@ -1328,13 +1328,13 @@ class EpsonPrinter:
             [ ObjectType(ObjectIdentity(x)) for x in group ]
             for group in queries
         ]
-        #wrapped_queries = chunk_queries(wrapped_queries, max_per_pdu=5)
+        wrapped_queries = chunk_queries(wrapped_queries, max_per_pdu=3)
         raw_results = parallel_get_sync(
             engine,
             auth,
             transport,
             queries=wrapped_queries,
-            max_parallel=3
+            max_parallel=5
         )
 
         # raw_results is a list of SNMP tuples; map them through the same extraction logic
@@ -1414,8 +1414,8 @@ class EpsonPrinter:
         def _addr(o):
             return self.eeprom_oid_read_address(o, label=label)
 
-        # Call snmp_mib (single or batch)
-        resp = self.snmp_mib(
+        # Call get_snmp_values (single or batch)
+        resp = self.get_snmp_values(
             _addr(oid) if not isinstance(oid, list) else [
                 _addr(o) for o in oid
             ],
@@ -1485,7 +1485,7 @@ class EpsonPrinter:
             f"  OID: {oid}={hex(oid)}\n"
             f"  VALUE: {value} = {hex(int(value))}"
         )
-        tag, response = self.snmp_mib(oid_string, label=label)[0]
+        tag, response = self.get_snmp_values(oid_string, label=label)[0]
         if response:
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(response))
         if not self.dry_run and response and not ":OK;" in repr(response):
@@ -1887,7 +1887,9 @@ class EpsonPrinter:
                 f"SNMP_DUMP {name}:\n"
                 f"  ADDRESS: {oid}"
             )
-            tag, result = self.snmp_mib(oid, label="get_snmp_info " + name)[0]
+            tag, result = self.get_snmp_values(
+                oid, label="get_snmp_info " + name
+            )[0]
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(result))
 
             if name == "Power Off Timer" and result and result.find(
@@ -2050,7 +2052,7 @@ class EpsonPrinter:
             f"SNMP_DUMP {label}:\n"
             f"  ADDRESS: {oid}"
         )
-        tag, firmware_string = self.snmp_mib(oid, label=label)[0]
+        tag, firmware_string = self.get_snmp_values(oid, label=label)[0]
         if not firmware_string:
             return None
         if self.invalid_response(firmware_string):
@@ -2075,7 +2077,7 @@ class EpsonPrinter:
             f"SNMP_DUMP {label}:\n"
             f"  ADDRESS: {oid}"
         )
-        tag, cartridges_string = self.snmp_mib(oid, label=label)[0]
+        tag, cartridges_string = self.get_snmp_values(oid, label=label)[0]
         if self.invalid_response(cartridges_string):
             logging.error(
                 f"Invalid response for %s: '%s'",
@@ -2122,7 +2124,9 @@ class EpsonPrinter:
         """
         address = f"{self.EEPROM_LINK}.115.116.1.0.1"  # 73 74 01 00 01
         logging.debug(f"PRINTER_STATUS:\n  ADDRESS: {address}")
-        tag, result = self.snmp_mib(address, label="get_printer_status")[0]
+        tag, result = self.get_snmp_values(
+            address, label="get_printer_status"
+        )[0]
         if not result:
             return None
         logging.debug("  TAG: %s\n  RESPONSE: %s...\n%s",
@@ -2181,7 +2185,7 @@ class EpsonPrinter:
                 f"Cartridge {i}:\n"
                 f"  ADDRESS: {mib}"
             )
-            tag, cartridge = self.snmp_mib(
+            tag, cartridge = self.get_snmp_values(
                 mib, label="get_cartridge_information"
             )[0]
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(cartridge))
