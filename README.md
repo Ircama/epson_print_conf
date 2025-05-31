@@ -183,6 +183,7 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 - [ET-2850, ET-2851, ET-2853, ET-2855, ET-2856](https://github.com/Ircama/epson_print_conf/issues/26)
 - [ET-4800](https://github.com/Ircama/epson_print_conf/issues/29) with new firmware (older firmware might work)
 - [L3250](https://github.com/Ircama/epson_print_conf/issues/35)
+- [L3260](https://github.com/Ircama/epson_print_conf/issues/66) with firmware version 05.23.XE21P2
 - [L18050](https://github.com/Ircama/epson_print_conf/issues/47)
 - [EcoTank ET-2862 with firmware 05.18.XF12OB dated 12/11/2024](https://github.com/Ircama/epson_print_conf/discussions/58) and possibly ET-2860 / 2861 / 2863 / 2865 series.
 
