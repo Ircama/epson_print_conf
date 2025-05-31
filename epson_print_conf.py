@@ -928,6 +928,8 @@ class EpsonPrinter:
         "IP Address": f"{MIB_EPSON}.1.1.3.1.4.19.1.3.1",
         "IPP_URL_path": f"{MIB_EPSON}.1.1.3.1.4.19.1.4.1",
         "IPP_URL": f"{MIB_EPSON}.1.1.3.1.4.46.1.2.1",
+        "LPR_URL": "1.3.6.1.4.1.2699.1.2.1.3.1.1.4.1.1",
+        "Driver": "1.3.6.1.4.1.1248.1.1.3.1.29.3.1.27.0",
         "WiFi": f"{MIB_EPSON}.1.1.3.1.29.2.1.9.0",
         "MAC Addr": f"{MIB_EPSON}.1.1.3.1.1.5.0",
         "device_id": f"{MIB_OID_ENTERPRISE}.11.2.3.9.1.1.7.0",
@@ -1195,7 +1197,7 @@ class EpsonPrinter:
         else:
             return write_op
 
-    def get_snmp_values(
+    def fetch_oid_values(
         self,
         oid: Union[str, List[Union[str, List[str]]]],
         label: str = "unknown"
@@ -1258,7 +1260,7 @@ class EpsonPrinter:
                     )
                 )
             except Exception as e:
-                logging.critical("get_snmp_values invalid address: %s", e)
+                logging.critical("fetch_oid_values invalid address: %s", e)
                 self.used_net_val = ()
                 return None, False
 
@@ -1282,7 +1284,7 @@ class EpsonPrinter:
             if isinstance(errorInd, RequestTimedOut):
                 raise TimeoutError(errorInd)
             elif errorInd is not None:
-                logging.info("get_snmp_values error: %s. OID: %s. Label: %s",
+                logging.info("fetch_oid_values error: %s. OID: %s. Label: %s",
                              errorInd, single_oid, label)
                 return None, False
 
@@ -1291,7 +1293,7 @@ class EpsonPrinter:
                 # find offending OID
                 bad_oid = varBinds[int(errorIdx) - 1][0] if errorIdx else "?"
                 logging.info(
-                    "get_snmp_values PDU error: %s at %s. OID: %s. Label: %s",
+                    "fetch_oid_values PDU error: %s at %s. OID: %s. Label: %s",
                     errorStat.prettyPrint(), bad_oid, single_oid, label
                 )
                 return None, False
@@ -1414,8 +1416,8 @@ class EpsonPrinter:
         def _addr(o):
             return self.eeprom_oid_read_address(o, label=label)
 
-        # Call get_snmp_values (single or batch)
-        resp = self.get_snmp_values(
+        # Call fetch_oid_values (single or batch)
+        resp = self.fetch_oid_values(
             _addr(oid) if not isinstance(oid, list) else [
                 _addr(o) for o in oid
             ],
@@ -1485,7 +1487,7 @@ class EpsonPrinter:
             f"  OID: {oid}={hex(oid)}\n"
             f"  VALUE: {value} = {hex(int(value))}"
         )
-        tag, response = self.get_snmp_values(oid_string, label=label)[0]
+        tag, response = self.fetch_oid_values(oid_string, label=label)[0]
         if response:
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(response))
         if not self.dry_run and response and not ":OK;" in repr(response):
@@ -1887,7 +1889,7 @@ class EpsonPrinter:
                 f"SNMP_DUMP {name}:\n"
                 f"  ADDRESS: {oid}"
             )
-            tag, result = self.get_snmp_values(
+            tag, result = self.fetch_oid_values(
                 oid, label="get_snmp_info " + name
             )[0]
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(result))
@@ -2052,7 +2054,7 @@ class EpsonPrinter:
             f"SNMP_DUMP {label}:\n"
             f"  ADDRESS: {oid}"
         )
-        tag, firmware_string = self.get_snmp_values(oid, label=label)[0]
+        tag, firmware_string = self.fetch_oid_values(oid, label=label)[0]
         if not firmware_string:
             return None
         if self.invalid_response(firmware_string):
@@ -2077,7 +2079,7 @@ class EpsonPrinter:
             f"SNMP_DUMP {label}:\n"
             f"  ADDRESS: {oid}"
         )
-        tag, cartridges_string = self.get_snmp_values(oid, label=label)[0]
+        tag, cartridges_string = self.fetch_oid_values(oid, label=label)[0]
         if self.invalid_response(cartridges_string):
             logging.error(
                 f"Invalid response for %s: '%s'",
@@ -2124,7 +2126,7 @@ class EpsonPrinter:
         """
         address = f"{self.EEPROM_LINK}.115.116.1.0.1"  # 73 74 01 00 01
         logging.debug(f"PRINTER_STATUS:\n  ADDRESS: {address}")
-        tag, result = self.get_snmp_values(
+        tag, result = self.fetch_oid_values(
             address, label="get_printer_status"
         )[0]
         if not result:
@@ -2185,7 +2187,7 @@ class EpsonPrinter:
                 f"Cartridge {i}:\n"
                 f"  ADDRESS: {mib}"
             )
-            tag, cartridge = self.get_snmp_values(
+            tag, cartridge = self.fetch_oid_values(
                 mib, label="get_cartridge_information"
             )[0]
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(cartridge))

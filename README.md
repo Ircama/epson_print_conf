@@ -471,7 +471,7 @@ Generic query of the status of the printer (regardless of the model):
 from epson_print_conf import EpsonPrinter
 import pprint
 printer = EpsonPrinter(hostname="192.168.1.87")
-pprint.pprint(printer.status_parser(printer.get_snmp_values("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
+pprint.pprint(printer.status_parser(printer.fetch_snmp_values("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
 ```
 
 ### Byte sequences
