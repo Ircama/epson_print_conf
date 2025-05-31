@@ -26,7 +26,7 @@ from pysnmp_sync_adapter import (
     get_cmd_sync,
     parallel_get_sync,
     create_transport,
-    chunk_queries
+    cluster_varbinds
 )
 from pysnmp.proto.errind import RequestTimedOut
 
@@ -1328,7 +1328,7 @@ class EpsonPrinter:
             [ ObjectType(ObjectIdentity(x)) for x in group ]
             for group in queries
         ]
-        wrapped_queries = chunk_queries(wrapped_queries, max_per_pdu=3)
+        wrapped_queries = cluster_varbinds(wrapped_queries, max_per_pdu=3)
         raw_results = parallel_get_sync(
             engine,
             auth,
