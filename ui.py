@@ -37,7 +37,7 @@ from find_printers import PrinterScanner
 from text_console import TextConsole
 
 
-VERSION = "5.3.6"
+VERSION = "6.0.0"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
@@ -126,12 +126,12 @@ class EpcTextConsole(TextConsole):
                 "self.printer.model\n"
                 "self.printer.reverse_caesar(b'Hpttzqjv')\n"
                 'self.printer.reverse_caesar(bytes.fromhex("48 62 7B 62 6F 6A 62 2B"))\n'
-                'import pprint;pprint.pprint(self.printer.status_parser(self.printer.snmp_mib("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))\n'
+                'import pprint;pprint.pprint(self.printer.status_parser(self.printer.fetch_snmp_values("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))\n'
                 "self.printer.read_eeprom_many([0])\n"
                 "self.printer.read_eeprom(0)\n"
                 "self.printer.reset_waste_ink_levels()\n"
-                "self.printer.snmp_mib(self.printer.eeprom_oid_read_address(0))\n"
-                "self.printer.snmp_mib('1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.25.7.65.190.160.0.0')\n"
+                "self.printer.fetch_snmp_values(self.printer.eeprom_oid_read_address(0))\n"
+                "self.printer.fetch_snmp_values('1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.25.7.65.190.160.0.0')\n"
                 "self.get_ti_date(cursor=True)"
             )
         )
@@ -715,11 +715,11 @@ class EpsonPrinterUI(tk.Tk):
         row_n += 1
         button_frame = ttk.Frame(main_frame, padding=PAD)
         button_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
-        button_frame.columnconfigure((0, 1, 2), weight=1)  # expand columns
+        button_frame.columnconfigure((0, 1, 2, 3), weight=1)  # expand columns
 
         # Query Printer Status
         self.status_button = ttk.Button(
-            button_frame, text="Printer Status",
+            button_frame, text="Printer\nStatus",
             command=self.printer_status,
             style="Centered.TButton"
         )
@@ -730,7 +730,7 @@ class EpsonPrinterUI(tk.Tk):
         # Query list of cartridge types
         self.web_interface_button = ttk.Button(
             button_frame,
-            text="Printer Web interface",
+            text="Printer\nWeb interface",
             command=self.web_interface,
             style="Centered.TButton"
         )
@@ -741,12 +741,23 @@ class EpsonPrinterUI(tk.Tk):
         # Detect configuration values
         self.detect_configuration_button = ttk.Button(
             button_frame,
-            text="Detect Configuration",
+            text="Detect\nConfiguration",
             command=self.detect_configuration,
             style="Centered.TButton"
         )
         self.detect_configuration_button.grid(
             row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
+        # Temporary Reset Waste Ink Levels
+        self.detect_configuration_button = ttk.Button(
+            button_frame,
+            text="Temporary Reset\nWaste Ink Levels",
+            command=self.temp_reset_waste_ink,
+            style="Centered.TButton"
+        )
+        self.detect_configuration_button.grid(
+            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # [row 4] Tweak Buttons
@@ -1523,6 +1534,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.update_idletasks()
 
     def get_current_eeprom_values(self, values, label):
+        values = list(values)
         try:
             org_values = ', '.join(
                 "" if v is None else f"{k}: {int(v, 16)}" for k, v in zip(
@@ -1759,7 +1771,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             list_ser_num = [pr_ser_num]
         for i in list_ser_num:
             try:
-                if not self.get_current_eeprom_values(i, "Printer Serial Number"):
+                if not self.get_current_eeprom_values(
+                    i, "Printer Serial Number"
+                ):
                     self.config(cursor="")
                     self.update_idletasks()
                     return
@@ -3001,6 +3015,63 @@ Web site: https://github.com/Ircama/epson_print_conf
                     " Waste ink levels have been reset."
                     " Perform a power cycle of the printer now.\n"
                 )
+            except Exception as e:
+                self.handle_printer_error(e)
+        else:
+            self.status_text.insert(
+                tk.END, f"[WARNING] Waste ink levels reset aborted.\n"
+            )
+        self.config(cursor="")
+        self.update_idletasks()
+
+    def temp_reset_waste_ink(self, cursor=True):
+        if cursor:
+            self.config(cursor="watch")
+            self.update()
+            current_function_name = inspect.stack()[0][3]
+            method_to_call = getattr(self, current_function_name)
+            self.after(100, lambda: method_to_call(cursor=False))
+            return
+        self.show_status_text_view()
+        ip_address = self.ip_var.get()
+        if (
+            not self._is_valid_ip(ip_address)
+            or not self.printer
+            or not self.printer.parm
+            or "read_key" not in self.printer.parm
+            or "write_key" not in self.printer.parm
+        ):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        if not self.printer:
+            return
+        msg = (
+            "Confirm Action",
+            "This feature temporarily bypasses the ink waste tank full warning,"
+            " which would otherwise disable printing. "
+            "\n\nThis setting does not persist a reboot. "
+            "\n\nAre you sure you want to proceed?"
+        )
+        response = messagebox.askyesno(*msg, default='no')
+        if response:
+            try:
+                if self.printer.temporary_reset_waste():
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END,
+                        " Waste ink levels have been temporarily reset."
+                        " You can now print.\n"
+                    )
+                else:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
+                    self.status_text.insert(
+                        tk.END,
+                        " Failed to perform the temporary reset of the "
+                        "waste ink levels."
+                    )
             except Exception as e:
                 self.handle_printer_error(e)
         else:

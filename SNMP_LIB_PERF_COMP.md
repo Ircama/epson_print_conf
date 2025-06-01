@@ -13,6 +13,7 @@ Compared libraries and architectures:
 - [pysnmp v5.1](https://github.com/lextudio/pysnmp/) synchronous mode,
 - [pysnmp v7.1](https://github.com/lextudio/pysnmp/) asynchronous mode,
 - [pysnmp v7.1 with pysnmp-sync-adapter](https://github.com/Ircama/pysnmp-sync-adapter) synchronous wrapper,
+- [pysnmp v7.1 with pysnmp-sync-adapter and cluster_varbinds](https://github.com/Ircama/pysnmp-sync-adapter#cluster_varbinds) for highest performances,
 - raw socket SNMPv1 implementation (synchronous mode).
 - Pure python implementation using the [asn1](https://github.com/andrivet/python-asn1) and the default socket libraries.
 - [py-snmp-sync](https://github.com/Ircama/py-snmp-sync) synchronous client implemented over PySNMP.
@@ -36,15 +37,17 @@ To mitigate this, several approaches have been explored:
 
 * [`pysnmp-sync-adapter`](https://github.com/Ircama/pysnmp-sync-adapter): a lightweight compatibility layer wrapping `pysnmp.hlapi.v1arch.asyncio` and `pysnmp.hlapi.v3arch.asyncio` with blocking equivalents (e.g., `get_cmd_sync`). It reuses the asyncio event loop and transport targets, avoiding per-call overhead and achieving optimal performance while maintaining a synchronous API.
 
-* [`py-snmp-sync`](https://github.com/Ircama/py-snmp-sync): offers even better performance by bypassing the asyncio-based API entirely. Instead, it directly uses the lower-level shared components of `pysnmp` that support both sync and async execution. It implements a custom `SyncUdpTransportTarget` based on raw sockets. However, it currently supports only a specialized form of `get_cmd`, limiting general HLAPI compatibility.
+* [`py-snmp-sync`](https://github.com/Ircama/py-snmp-sync): offers high performance by bypassing the asyncio-based API entirely. Instead, it directly uses the lower-level shared components of `pysnmp` that support both sync and async execution. It implements a custom `SyncUdpTransportTarget` based on raw sockets. However, it currently supports only a specialized form of `get_cmd`, limiting general HLAPI compatibility.
 
 * A separate low-level implementation using ASN.1 and sockets directly is also tested. This approach shows excellent performance for the `get_cmd` request/response pattern but is significantly more complex to maintain and does not support the full SNMP operation set.
 
 Each approach offers trade-offs between generality, maintainability, and performance. For applications requiring full HLAPI compatibility with minimal refactoring, `pysnmp-sync-adapter` is a practical and efficient choice. For tightly optimized use cases the raw variants can provide superior throughput.
 
+Optimal performance is achieved using the `cluster_varbinds` utility from `pysnmp-sync-adapter`, which provides possibly the simplest synchronous interface and includes optimized parallel processing which wraps `asyncio` under the hood.
+
 ---
 
-## Code used for the benchmarks
+## Code used for the benchmarks and results
 
 ### Usage of https://github.com/etingof/pysnmp
 
@@ -104,8 +107,8 @@ if __name__ == '__main__':
 # Usage of https://github.com/pysnmp/pysnmp
 
 # pip uninstall pysnmp
-# pip uninstall pysnmplib
 # pip install pyasn1==0.4.8
+# pip install pysnmplib
 
 # Alternative working library: pip install pysnmp==5.1.0 (https://docs.lextudio.com/snmp/)
 
@@ -155,7 +158,7 @@ if __name__ == '__main__':
 
 ```python
 # Usage of https://github.com/lextudio/pysnmp 7.1
-# Simulate sync behaviour in an extremely inefficient and slow mode
+# Simulate sync behaviour via asyncio.run() (extremely inefficient and slow mode)
 
 # pip uninstall pysnmplib
 # pip uninstall pyasn1==0.4.8
@@ -217,7 +220,7 @@ if __name__ == '__main__':
 
 ```python
 # Usage of https://github.com/lextudio/pysnmp
-# Same as mytest4, but single ObjectType in get_cmd
+# Using asyncio.gather() for 100 asynch tasks. Single ObjectType in get_cmd
 
 # pip uninstall pysnmplib
 # pip uninstall pysnmp # git+https://github.com/etingof/pysnmp.git@master#egg=pysnmp
@@ -285,7 +288,8 @@ if __name__ == '__main__':
 
 ```python
 # Usage of https://github.com/lextudio/pysnmp
-# Max performance (same as mytest3, but multiple ObjectType in get_cmd)
+# Multiple ObjectType in get_cmd
+# Using asyncio.gather() for 10 asynch tasks, each including a PDU of 10 OIDs.
 
 # pip uninstall pysnmplib
 # pip uninstall pysnmp # git+https://github.com/etingof/pysnmp.git@master#egg=pysnmp
@@ -428,6 +432,77 @@ if __name__ == '__main__':
 # --- 1.217 seconds ---
 # --- 1.290 seconds ---
 # --- 1.234 seconds ---
+```
+
+### https://github.com/Ircama/pysnmp-sync-adapter#cluster_varbinds over PySNMP.
+
+This simple approach offers the best performances among all tests.
+
+```python
+# pip uninstall pysnmplib
+# pip install pysnmp-sync-adapter
+
+import sys
+import time
+import asyncio
+import platform
+from pysnmp.hlapi.v1arch.asyncio import *
+from pysnmp_sync_adapter import (
+    parallel_get_sync, create_transport, cluster_varbinds
+)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python script.py <host>")
+        sys.exit(1)
+
+    if platform.system()=='Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    host = sys.argv[1]
+    oid_str = '1.3.6.1.2.1.25.3.2.1.3.1'
+    community = 'public'
+
+    # Pre-create the engine once
+    dispatcher = SnmpDispatcher()
+
+    # Pre-create the transport once
+    transport = create_transport(UdpTransportTarget, (host, 161), timeout=1)
+
+    # Pre-create CommunityData once
+    auth_data = CommunityData(community, mpModel=0)
+    oid_t = ObjectType(ObjectIdentity(oid_str))
+
+    # Create 100 queries using optimized PDU composition
+    wrapped_queries = [ObjectType(ObjectIdentity(oid_str)) for _ in range(100)]
+    wrapped_queries = cluster_varbinds(wrapped_queries, max_per_pdu=10)
+
+    start = time.time()
+    for error_ind, error_status, error_index, var_binds in parallel_get_sync(
+        dispatcher,
+        auth_data,
+        transport,
+        queries=wrapped_queries
+    ):
+        if error_ind:
+            print(f"SNMP error: {error_ind}")
+            quit()
+        elif error_status:
+            print(f'{error_status.prettyPrint()} at {error_index and var_binds[int(error_index) - 1][0] or "?"}')
+            quit()
+        else:
+            for oid, val in var_binds:
+                print(val.prettyPrint())
+
+    print(f"--- {time.time() - start:.3f} seconds ---")
+
+if __name__ == '__main__':
+    main()
+
+# --- 0.410 seconds ---
+# --- 0.424 seconds ---
+# --- 0.360 seconds ---
+# --- 0.423 seconds ---
 ```
 
 ### Usage of the oneliner package, being deprecated in newer versions of pysnmp

@@ -32,9 +32,8 @@ COPY . .
 
 RUN pip install --no-cache-dir \
     pyyaml \
-    pyasn1==0.4.8 \
-    git+https://github.com/etingof/pysnmp.git@master#egg=pysnmp \
-    pyasyncore \
+    pysnmp \
+    pysnmp_sync_adapter \
     tkcalendar \
     pyperclip \
     black \

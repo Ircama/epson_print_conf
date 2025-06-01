@@ -20,18 +20,33 @@ The software also includes a configurable printer dictionary, which can be easil
     start with `@BDC [SP] ST2 [CR] [LF]` ...). @BDC ST2 is used to convey various aspects of the status of the printer, such as errors, paper status, ink and more. The element fields of this format may vary depending on the printer model. The *Epson Printer Configuration Tool* can decode all element fields found in publicly available Epson Programming Manuals of various printer models (a relevant subset of fields used by the Epson printers).
 
 - __Advanced Maintenance Functions__:
+
     - Open the Web interface of the printer (via the default browser).
+
+    - Temporary reset of the ink waste counter.
+
+      The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. The "Printer status" button includes information showing the levels of the waste ink tanks; specifically, two sections are relevant: "Maintenance box information" ("maintenance_box_...") and "Waste Ink Levels" ("waste_ink_levels"). The former has a counter associated for each tank, which indicates the number of temporary resets performed by the user to temporarily restore a disabled printer.
+
+      The feature to temporarily reset the ink waste counter is effective if the Maintenance box information reports that the Maintenance Box is full; it temporarily bypasses the ink waste tank full warning, which would otherwise disable printing. It is important to know that this setting is reset upon printer reboot (it does not affect the EEPROM) and can be repeated. Each time the Maintenance box status switches from "full" to "not full", the "ink replacement cleaning counter" is increased. A pad maintenance or tank replacement has to be programmed meanwhile.
+
     - Reset the ink waste counter.
 
-      The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. Resetting the ink waste counter extends the printer operation while a pad maintenance or tank replacement is programmed (operation that shall necessarily be pefromed).
+      This feature permanently resets the ink waste counter.
+
+      Resetting the ink waste counter extends the printer operation while a physical pad maintenance or tank replacement is programmed (operation that shall necessarily be pefromed).
+
     - Adjust the power-off timer (for energy efficiency).
+
     - Change the _First TI Received Time_,
 
       The *First TI Received Time* in Epson printers typically refers to the timestamp of the first transmission instruction to the printer. This feature tracks when the printer first operated.
 
     - Change the printer WiFi MAC address and the printer serial number (typically used in specialized scenarios where specific device identifiers are required).
+
     - Read and write to EEPROM addresses.
+
     - Dump and analyze sets of EEPROM addresses.
+
     - Detect the access key (*read_key* and *write_key*) and some attributes of the printer configuration.
 
       The GUI includes some features that attempt to detect the attributes of an Epson printer whose model is not included in the configuration; such features can also be used with known printers, to detect additional parameters.
@@ -84,12 +99,7 @@ cd epson_print_conf
 pip install -r requirements.txt
 ```
 
-Notes (at the time of writing):
-
-- [before pysnmp, install pyasn1 with version 0.4.8 and not 0.5](https://github.com/etingof/pysnmp/issues/440#issuecomment-1544341598)
-- [pull pysnmp from the GitHub master branch, not from PyPI](https://stackoverflow.com/questions/54868134/snmp-reading-from-an-oid-with-three-libraries-gives-different-execution-times#comment96532761_54869361)
-
-This program exploits [pysnmp](https://github.com/etingof/pysnmp), basing on the related [documentation](https://pysnmp.readthedocs.io/).
+This program exploits [pysnmp v7+](https://github.com/lextudio/pysnmp) and [pysnmp-sync-adapter](https://github.com/Ircama/pysnmp-sync-adapter).
 
 It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
@@ -188,10 +198,12 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 - [ET-2850, ET-2851, ET-2853, ET-2855, ET-2856](https://github.com/Ircama/epson_print_conf/issues/26)
 - [ET-4800](https://github.com/Ircama/epson_print_conf/issues/29) with new firmware (older firmware might work)
 - [L3250](https://github.com/Ircama/epson_print_conf/issues/35)
+- [L3260](https://github.com/Ircama/epson_print_conf/issues/66) with firmware version 05.23.XE21P2
 - [L18050](https://github.com/Ircama/epson_print_conf/issues/47)
 - [EcoTank ET-2862 with firmware 05.18.XF12OB dated 12/11/2024](https://github.com/Ircama/epson_print_conf/discussions/58) and possibly ET-2860 / 2861 / 2863 / 2865 series.
+- [XP-2200 with firmware 06.58.IU05P2](https://github.com/Ircama/epson_print_conf/issues/51)
 
-For model XP-2200, check https://github.com/Ircama/epson_print_conf/issues/51
+The button "Temporary Reset Waste Ink Levels" should still work with these printers.
 
 ### Using the command-line tool
 
@@ -475,7 +487,7 @@ Generic query of the status of the printer (regardless of the model):
 from epson_print_conf import EpsonPrinter
 import pprint
 printer = EpsonPrinter(hostname="192.168.1.87")
-pprint.pprint(printer.status_parser(printer.snmp_mib("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
+pprint.pprint(printer.status_parser(printer.fetch_snmp_values("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
 ```
 
 ### Byte sequences
