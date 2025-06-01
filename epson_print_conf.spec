@@ -93,6 +93,7 @@ a = Analysis(
         'babel.numbers',
         # The following modules are needed by "black": https://github.com/pyinstaller/pyinstaller/issues/8270
         '30fcd23745efe32ce681__mypyc',
+        '3c22db458360489351e4__mypyc',
         '6b397dd64e00b5aff23d__mypyc', 'click', 'json', 'platform',
         'mypy_extensions', 'pathspec', '_black_version', 'platformdirs'
     ] + black_submodules + blib2to3_submodules,  # the last two required by black
