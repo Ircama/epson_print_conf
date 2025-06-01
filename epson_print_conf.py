@@ -19,6 +19,7 @@ import yaml
 from pathlib import Path
 import pickle
 import abc
+import hashlib
 
 from pysnmp.hlapi.v1arch.asyncio import *
 from pyasn1.type.univ import OctetString as OctetStringType
@@ -525,8 +526,8 @@ class EpsonPrinter:
             "write_key": b'Wakatobi',
             "printer_head_id_h": range(122, 126),
             "printer_head_id_f": [129],
-            "main_waste": {"oids": [24, 25, 30], "divider": 69},
-            "borderless_waste": {"oids": [26, 27, 34], "divider": 32.53},
+            "main_waste": {"oids": [24, 25], "divider": 69},
+            "borderless_waste": {"oids": [26, 27], "divider": 32.53},
             "serial_number": range(192, 202),
             "stats": {
                 "Manual cleaning counter": [147],
@@ -541,10 +542,12 @@ class EpsonPrinter:
                 "Power off timer": [359, 358],
             },
             "raw_waste_reset": {
-                24: 0, 25: 0, 30: 0,  # Data of 1st counter
-                28: 0, 29: 0,  # another store of 1st counter
+                24: 0, 25: 0,  # Data of 1st waste ink level
+                30: 0,  # First maintenance box reset counter
+                28: 0, 29: 0,  # another store of 1st waste ink level
                 46: 94,  # Maintenance required level of 1st counter
-                26: 0, 27: 0, 34: 0,  # Data of 2nd counter
+                26: 0, 27: 0,  # Data of 2nd waste ink level
+                34: 0,  # Second maintenance box reset counter
                 47: 94,  # Maintenance required level of 2st counter
                 49: 0  # ?
             },
@@ -2365,6 +2368,21 @@ class EpsonPrinter:
                 return False
             return True
         return False
+
+    def temporary_reset_waste(self, dry_run=False) -> bool:
+        """
+        Thanks to https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250
+        """
+        serial = self.get_serial_number()
+        sha1 = hashlib.sha1(serial.encode())
+        sequence = [114, 119, 22, 0, 1, 0] + [i for i in sha1.digest()]
+        oid = "1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1." + ".".join(
+            str(i) for i in sequence
+        )
+        if dry_run:
+            return True
+        answer = self.fetch_oid_values(oid, label="temp_reset_waste")[0]
+        return answer == ('OctetString', b'\x00@BDC PS\r\nrw:01:OK;\x0c')
 
     def reset_waste_ink_levels(self, dry_run=False) -> bool:
         """
