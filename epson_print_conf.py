@@ -20,6 +20,7 @@ from pathlib import Path
 import pickle
 import abc
 import hashlib
+import struct
 
 from pysnmp.hlapi.v1arch.asyncio import *
 from pyasn1.type.univ import OctetString as OctetStringType
@@ -931,7 +932,7 @@ class EpsonPrinter:
     MIB_OID_ENTERPRISE = "1.3.6.1.4.1"
     MIB_EPSON = MIB_OID_ENTERPRISE + ".1248"
     OID_PRV_CTRL = "1.2.2.44.1.1.2"
-    EEPROM_LINK = f'{MIB_EPSON}.{OID_PRV_CTRL}.1'
+    D4_TO_OID = f'{MIB_EPSON}.{OID_PRV_CTRL}.1'
 
     MIB_INFO = {
         "Model": f"{MIB_MGMT}.1.25.3.2.1.3.1",
@@ -967,7 +968,6 @@ class EpsonPrinter:
         "MAC Addr": f"{MIB_EPSON}.1.1.3.1.1.5.0",
         "device_id": f"{MIB_OID_ENTERPRISE}.11.2.3.9.1.1.7.0",
         "Epson device id": f"{MIB_EPSON}.1.2.2.1.1.1.1.1",
-        "Power Off Timer": f"{EEPROM_LINK}.111.116.2.0.1.1"
     }
 
     MIB_INFO_ADVANCED = {
@@ -1034,6 +1034,9 @@ class EpsonPrinter:
                     ]
                     if not values['alias']:
                         del values['alias']
+        self.MIB_INFO["Power Off Timer"] = self.epctrl_snmp_oid(
+            "ot", b"\x01\x01"
+        )  # ".111.116.2.0.1.1" (off timer)
         self.model = model
         self.hostname = hostname
         self.port = port
@@ -1140,8 +1143,10 @@ class EpsonPrinter:
                 logging.info(f"No value for method '{method}'.")
         return stat_set
 
-    def caesar(self, key, hex=False):
+    def caesar(self, key, hex=False, list=False):
         """Convert the string write key to a sequence of numbers"""
+        if list:
+            return [ 0 if b == 0 else b + 1 for b in key ]
         if hex:
             return " ".join(
                 '00' if b == 0 else '{0:02x}'.format(b + 1) for b in key
@@ -1180,14 +1185,14 @@ class EpsonPrinter:
             return None
         if 'read_key' not in self.parm:
             return None
-        return (
-            f"{self.EEPROM_LINK}"
-            ".124.124"  # || (7C 7C)
-            ".7.0"  # read (07 00)
-            f".{self.parm['read_key'][0]}"
-            f".{self.parm['read_key'][1]}"
-            ".65.190.160"
-            f".{oid}.{msb}"
+        return self.epctrl_snmp_oid(
+            "||",  # (7C 7C); "||" stands for EEPROM
+            [
+                self.parm['read_key'][0],
+                self.parm['read_key'][1],
+                65, 190, 160,  # (read)
+                oid, msb
+            ]
         )
 
     def eeprom_oid_write_address(
@@ -1214,15 +1219,14 @@ class EpsonPrinter:
             'write_key' not in self.parm
                 or 'read_key' not in self.parm):
             return None
-        write_op = (
-            f"{self.EEPROM_LINK}"
-            ".124.124"  # || 7C 7C
-            ".16.0"  # write (10 00)
-            f".{self.parm['read_key'][0]}"
-            f".{self.parm['read_key'][1]}"
-            ".66.189.33"  # 42 BD 21
-            f".{oid}.{msb}.{value}"
-            f".{self.caesar(self.parm['write_key'])}"
+        write_op = self.epctrl_snmp_oid(
+            "||",  # (7C 7C); "||" stands for EEPROM
+            [
+                self.parm['read_key'][0],
+                self.parm['read_key'][1],
+                66, 189, 33,  # 42 BD 21 (write)
+                oid, msb, value
+            ] + self.caesar(self.parm['write_key'], list=True)
         )
         if self.dry_run:
             logging.warning("WRITE_DRY_RUN: %s", write_op)
@@ -2093,7 +2097,10 @@ class EpsonPrinter:
         Return firmware version.
         Query firmware version: 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.118.105.1.0.0
         """
-        oid = f"{self.EEPROM_LINK}.118.105.1.0.0"  # 76 69 01 00 00
+        oid = self.epctrl_snmp_oid(
+            "vi",  # This command stands for Version Information.
+            0
+        )
         label = "get_firmware_version"
         logging.debug(
             f"SNMP_DUMP {label}:\n"
@@ -2116,9 +2123,30 @@ class EpsonPrinter:
         return firmware + " " + datetime.datetime(
             year, month, day).strftime('%d %b %Y')
 
+    def get_device_identification(self) -> str:
+        oid = self.epctrl_snmp_oid("di", 1)  # di = device identification
+        label = "get_device_identification"
+        logging.debug(
+            f"SNMP_DUMP {label}:\n"
+            f"  ADDRESS: {oid}"
+        )
+        tag, device_id = self.fetch_oid_values(oid, label=label)[0]
+        key_map = {
+            "MFG": "Manufacturer",
+            "CMD": "Commands",
+            "MDL": "Model",
+            "CLS": "Class",
+            "DES": "Description"
+        }
+        return {
+            key_map.get(k, k): [v for v in vals if v]
+            for i in device_id.decode()[10:].split(";") if i
+            for k, *vals in [i.split(":")]
+        }
+
     def get_cartridges(self) -> str:
         """Return list of cartridge types."""
-        oid = f"{self.EEPROM_LINK}.105.97.1.0.0"  # 69 61 01 00 00
+        oid = self.epctrl_snmp_oid("ia", 0)  # ".105.97.1.0.0"  # 69 61 01 00 00 (ink accessories)
         label = "get_cartridges"
         logging.debug(
             f"SNMP_DUMP {label}:\n"
@@ -2169,7 +2197,7 @@ class EpsonPrinter:
         Query printer status: 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.115.116.1.0.1
         or 1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1
         """
-        address = f"{self.EEPROM_LINK}.115.116.1.0.1"  # 73 74 01 00 01
+        address = self.epctrl_snmp_oid("st", 1)  # ".115.116.1.0.1"  # 73 74 01 00 01 (status)
         logging.debug(f"PRINTER_STATUS:\n  ADDRESS: {address}")
         tag, result = self.fetch_oid_values(
             address, label="get_printer_status"
@@ -2230,7 +2258,7 @@ class EpsonPrinter:
         """Return list of cartridge properties."""
         response = []
         for i in range(1, 9):
-            mib = f"{self.EEPROM_LINK}.105.105.2.0.1." + str(i)  # 69 69 02 00 01
+            mib = self.epctrl_snmp_oid("ii", b"\x01" + bytes([i]))  # ".105.105.2.0.1." + str(i)  # 69 69 02 00 01 (ink information)
             logging.debug(
                 f"Cartridge {i}:\n"
                 f"  ADDRESS: {mib}"
@@ -2414,15 +2442,32 @@ class EpsonPrinter:
             return True
         return False
 
+    def epctrl_snmp_oid(self, command, payload):
+        """
+        Build the full OID based on EPSON-CTRL D4 (END4) encapsulation
+        (IEEE1284.4 or Dot4 by Epson encapsulated into an SNMP OID)
+        http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html
+        """
+        assert len(command) == 2
+        if isinstance(payload, int):
+            payload = bytearray([payload])
+        elif isinstance(payload, list):
+            payload = bytes(payload)
+        cmd = command.encode() + struct.pack('<H', len(payload)) + payload
+        return self.D4_TO_OID + "." + ".".join(
+            str(int(i)) for i in cmd
+        )
+
     def temporary_reset_waste(self, dry_run=False) -> bool:
         """
         Thanks to https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250
         """
         serial = self.get_serial_number()
         sha1 = hashlib.sha1(serial.encode())
-        sequence = [114, 119, 22, 0, 1, 0] + [i for i in sha1.digest()]
-        oid = "1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1." + ".".join(
-            str(i) for i in sequence
+        oid = self.epctrl_snmp_oid(
+            "rw",  # This command stands for "reset waste".
+            b'\x01\x00' +  # Unknown \x01\x00 (2 bytes)
+            sha1.digest()  # Serial SHA1 hash. Always 20 bytes.
         )
         if dry_run:
             return True
