@@ -3066,7 +3066,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                         " You can now print.\n"
                     )
                 else:
-                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
                         " Failed to perform the temporary reset of the "

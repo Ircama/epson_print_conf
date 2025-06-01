@@ -813,6 +813,36 @@ class EpsonPrinter:
             "serial_number": range(1604, 1614),
             "alias": ["XP-2100", "XP-2151", "XP-2155"],
         },
+        "XP-2200": {  # 06.51.IU19M506.58.IU05P2
+            "read_key": [75, 54],
+            "write_key": b"Kenjeran",
+            "main_waste": {"oids": [337, 338, 336], "divider": 69.0},
+            "borderless_waste": {"oids": [339, 340, 336], "divider": 30.49},
+            "raw_waste_reset": {
+                336: 0, 337: 0, 338: 0, 339: 0, 340: 0, 341: 0, 343: 94,
+                342: 0, 344: 94, 28: 0
+            },
+            "stats": {
+                "First TI received time": [9, 8],
+                "Manual cleaning counter": [203],
+                "Timer cleaning counter": [205],
+                "Total print pass counter": [133, 132, 131, 130],
+                "Total scan counter": [1843, 1842, 1841, 1840],
+                "Total print page counter": [792, 791, 790, 789],
+                "Ink replacement counter - Black": [554],
+                "Ink replacement counter - Cyan": [555],
+                "Ink replacement counter - Magenta": [556],
+                "Ink replacement counter - Yellow": [557],
+                "Maintenance required level of 1st waste ink counter": [343],
+                "Maintenance required level of 2nd waste ink counter": [344],
+                "Power off timer 1": [230, 229],
+                "Power off timer 2": [231, 230],
+                "Power off timer 3": [262, 261],
+            },
+            "serial_number": range(1604, 1614),
+            "wifi_mac_address": range(1920, 1926),
+            "alias": ["XP-2205"],
+        },
         "ET-2500": {
             "read_key": [68, 1],
             "write_key": b"Gerbera*",
@@ -1945,11 +1975,14 @@ class EpsonPrinter:
                 left_val = val
             return left_val
         else:
-            return "".join(
-                chr(int(value or "0x3f", 16))  # "0x3f" --> "?"
-                for value in self.read_eeprom_many(
-                    self.parm["serial_number"], label="serial_number")
-            )
+            try:
+                return "".join(
+                    chr(int(value or "0x3f", 16))  # "0x3f" --> "?"
+                    for value in self.read_eeprom_many(
+                        self.parm["serial_number"], label="serial_number")
+                )
+            except Exception:
+                return None
 
     def get_printer_brand(self) -> str:
         """Return the producer name of the printer ("EPSON")."""
@@ -1958,12 +1991,15 @@ class EpsonPrinter:
             return None
         if "brand_name" not in self.parm:
             return None
-        return ''.join(
-            [chr(int(i or "0x3f", 16))
-            for i in self.read_eeprom_many(
-                self.parm["brand_name"], label="get_brand_name"
-            ) if i != '00']
-        )
+        try:
+            return ''.join(
+                [chr(int(i or "0x3f", 16))
+                for i in self.read_eeprom_many(
+                    self.parm["brand_name"], label="get_brand_name"
+                ) if i != '00']
+            )
+        except Exception:
+            return None
 
     def get_printer_model(self) -> str:
         """Return the model name of the printer."""
@@ -1972,12 +2008,15 @@ class EpsonPrinter:
             return None
         if "model_name" not in self.parm:
             return None
-        return ''.join(
-            [chr(int(i or "0x3f", 16))
-            for i in self.read_eeprom_many(
-                self.parm["model_name"], label="get_model_name"
-            ) if i != '00']
-        )
+        try:
+            return ''.join(
+                [chr(int(i or "0x3f", 16))
+                for i in self.read_eeprom_many(
+                    self.parm["model_name"], label="get_model_name"
+                ) if i != '00']
+            )
+        except Exception:
+            return None
 
     def get_wifi_mac_address(self) -> str:
         """Return the WiFi MAC address of the printer."""
@@ -1986,11 +2025,14 @@ class EpsonPrinter:
             return None
         if "wifi_mac_address" not in self.parm:
             return None
-        return '-'.join(
-            octet.upper() for octet in self.read_eeprom_many(
-                self.parm["wifi_mac_address"], label="get_wifi_mac_address"
+        try:
+            return '-'.join(
+                octet.upper() for octet in self.read_eeprom_many(
+                    self.parm["wifi_mac_address"], label="get_wifi_mac_address"
+                )
             )
-        )
+        except Exception:
+            return None
 
     def get_stats(self, stat_name: str = None) -> str:
         """Return printer statistics."""
@@ -2176,10 +2218,13 @@ class EpsonPrinter:
             return None
         if "last_printer_fatal_errors" not in self.parm:
             return None
-        return self.read_eeprom_many(
-            self.parm["last_printer_fatal_errors"],
-            label="last_printer_fatal_errors"
-        )
+        try:
+            return self.read_eeprom_many(
+                self.parm["last_printer_fatal_errors"],
+                label="last_printer_fatal_errors"
+            )
+        except Exception:
+            return None
 
     def get_cartridge_information(self) -> str:
         """Return list of cartridge properties."""
@@ -2382,7 +2427,7 @@ class EpsonPrinter:
         if dry_run:
             return True
         answer = self.fetch_oid_values(oid, label="temp_reset_waste")[0]
-        return answer == ('OctetString', b'\x00@BDC PS\r\nrw:01:OK;\x0c')
+        return b"rw:01:OK;" in answer[1]
 
     def reset_waste_ink_levels(self, dry_run=False) -> bool:
         """
@@ -2499,6 +2544,8 @@ class EpsonPrinter:
         hex_bytes = self.read_eeprom_many(
             eeprom_range, label="detect_serial_number"
         )
+        if hex_bytes is [None]:
+            return hex_bytes, None
         # Convert the hex bytes to characters
         sequence = ''.join(chr(int(byte, 16)) for byte in hex_bytes)
         # Serial number pattern (10 consecutive uppercase letters or digits)
