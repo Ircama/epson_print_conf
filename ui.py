@@ -132,7 +132,8 @@ class EpcTextConsole(TextConsole):
                 "self.printer.reset_waste_ink_levels()\n"
                 "self.printer.fetch_snmp_values(self.printer.eeprom_oid_read_address(0))\n"
                 "self.printer.fetch_snmp_values('1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.25.7.65.190.160.0.0')\n"
-                "self.get_ti_date(cursor=True)"
+                'self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("vi", 0))\n'
+                "self.get_ti_date(cursor=True)\n"
             )
         )
         help_text.config(state="disabled")  # Make the text read-only

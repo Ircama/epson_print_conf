@@ -1190,7 +1190,7 @@ class EpsonPrinter:
             [
                 self.parm['read_key'][0],
                 self.parm['read_key'][1],
-                65, 190, 160,  # (read)
+                65, 190, 160,  # (65 = 'A' = read)
                 oid, msb
             ]
         )
@@ -1224,7 +1224,7 @@ class EpsonPrinter:
             [
                 self.parm['read_key'][0],
                 self.parm['read_key'][1],
-                66, 189, 33,  # 42 BD 21 (write)
+                66, 189, 33,  # 42 BD 21 (66 = 'B' = write)
                 oid, msb, value
             ] + self.caesar(self.parm['write_key'], list=True)
         )
@@ -2445,12 +2445,70 @@ class EpsonPrinter:
     def epctrl_snmp_oid(self, command, payload):
         """
         Build the full OID based on EPSON-CTRL D4 (END4) encapsulation
-        (IEEE1284.4 or Dot4 by Epson encapsulated into an SNMP OID)
+        (EPSON’s Remote Mode encapsulated into an SNMP OID)
         http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html
+
+        Implemented commands: rw, ot, ||, vi 0, di 1, ia 0, st 1, ii
+
+        Other commands:
+
+        cx
+        ht
+
+        # set timer 08H 00H 00H YYYY MM DD hh mm ss
+        ti
+
+        ex (Set Vertical Print Page Line Mode, Roll Paper Mode)
+
+        # Firmware load. Enter recovery mode
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("fl", 1))
+
+        # cs (?)
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cs", 0))
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cs", 1))
+
+        # cd (?)
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cd", 0))
+
+        # ei (?)
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("ei", 0))
+
+        # pe (paper ?)
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("pe", 1))
+
+        # rp (serial number ? )
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("rp", 0))
+
+        # xi (?)
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("xi", 1))
+
+        # Print Meter
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("pm", 1))
+
+        # rs (?)
+        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("rs", 1))
+
+        # Pause and resume jobs
+        pj:00
+        rj
+
+        # Detect all commands:
+        ec_sequences = [
+            decoded
+            for i in range(0x10000)
+            if (b := i.to_bytes(2, 'big'))[0] and b[1]
+            and (decoded := b.decode('utf-8', errors='ignore')).encode('utf-8') == b
+        ]
+        for i in ec_sequences:
+            if len(i) != 2:
+                continue
+            r = self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid(i, 0))
+            if r[0][1] != b'\x00' + i.encode() + b':;\x0c':
+                print(r)
         """
         assert len(command) == 2
         if isinstance(payload, int):
-            payload = bytearray([payload])
+            payload = bytes([payload])
         elif isinstance(payload, list):
             payload = bytes(payload)
         cmd = command.encode() + struct.pack('<H', len(payload)) + payload
@@ -2468,7 +2526,7 @@ class EpsonPrinter:
         sha1 = hashlib.sha1(serial.encode())
         oid = self.epctrl_snmp_oid(
             "rw",  # This command stands for "reset waste".
-            struct.pack('<H', mode) +  # Unknown \x01\x00 (2 bytes)
+            struct.pack('<H', mode) +  # Unknown \x01\x00 (2 bytes); the first byte must be 0x01 to work
             sha1.digest()  # Serial SHA1 hash. Always 20 bytes.
         )
         if dry_run:
