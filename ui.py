@@ -37,7 +37,7 @@ from find_printers import PrinterScanner
 from text_console import TextConsole
 
 
-VERSION = "6.0.1"
+VERSION = "6.0.2"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
@@ -3102,6 +3102,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.detect_button.config(state=tk.DISABLED)  # disable button while processing
         self.show_status_text_view()
         try:
+            # [{'ip': '...', 'hostname': '...', 'name': '...'}]
             printers = self.printer_scanner.get_all_printers(
                 self.ip_var.get().strip()
             )
