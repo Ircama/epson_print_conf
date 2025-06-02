@@ -2146,7 +2146,7 @@ class EpsonPrinter:
 
     def get_cartridges(self) -> str:
         """Return list of cartridge types."""
-        oid = self.epctrl_snmp_oid("ia", 0)  # ".105.97.1.0.0"  # 69 61 01 00 00 (ink accessories)
+        oid = self.epctrl_snmp_oid("ia", 0)  # ".105.97.1.0.0"  # 69 61 01 00 00 (ink actuator)
         label = "get_cartridges"
         logging.debug(
             f"SNMP_DUMP {label}:\n"
@@ -2458,21 +2458,26 @@ class EpsonPrinter:
             str(int(i)) for i in cmd
         )
 
-    def temporary_reset_waste(self, dry_run=False) -> bool:
+    def temporary_reset_waste(self, mode=1, dry_run=False) -> bool:
         """
         Thanks to https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250
         """
         serial = self.get_serial_number()
+        if not serial:
+            return None
         sha1 = hashlib.sha1(serial.encode())
         oid = self.epctrl_snmp_oid(
             "rw",  # This command stands for "reset waste".
-            b'\x01\x00' +  # Unknown \x01\x00 (2 bytes)
+            struct.pack('<H', mode) +  # Unknown \x01\x00 (2 bytes)
             sha1.digest()  # Serial SHA1 hash. Always 20 bytes.
         )
         if dry_run:
             return True
         answer = self.fetch_oid_values(oid, label="temp_reset_waste")[0]
-        return b"rw:01:OK;" in answer[1]
+        status = b"rw:01:OK;" in answer[1]
+        if not status:
+            print(answer)
+        return status
 
     def reset_waste_ink_levels(self, dry_run=False) -> bool:
         """
