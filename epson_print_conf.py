@@ -1190,7 +1190,9 @@ class EpsonPrinter:
             [
                 self.parm['read_key'][0],
                 self.parm['read_key'][1],
-                65, 190, 160,  # (65 = 'A' = read)
+                ord('A'), #  -> 65 ('A' = read)
+                ~ord('A') & 0xff,  # -> 190
+                (ord('A')>>1 & 0x7f) | (ord('A')<<7 & 0x80),  # -> 160
                 oid, msb
             ]
         )
@@ -1224,7 +1226,9 @@ class EpsonPrinter:
             [
                 self.parm['read_key'][0],
                 self.parm['read_key'][1],
-                66, 189, 33,  # 42 BD 21 (66 = 'B' = write)
+                ord('B'),  # -> 66 ('B' = write)
+                ~ord('B') & 0xff,  # -> 189
+                (ord('B')>>1 & 0x7f) | (ord('B')<<7 & 0x80),  # -> 33
                 oid, msb, value
             ] + self.caesar(self.parm['write_key'], list=True)
         )
@@ -2958,14 +2962,16 @@ if __name__ == "__main__":
         action="store",
         help='Printer model. Example: -m XP-205'
         ' (use ? to print all supported models)',
-        required=True)
+        required=True
+    )
     parser.add_argument(
         '-a',
         '--address',
         dest='hostname',
         action="store",
         help='Printer host name or IP address. (Example: -a 192.168.1.87)',
-        required=True)
+        required=True
+    )
     parser.add_argument(
         '-p',
         '--port',
@@ -2973,13 +2979,15 @@ if __name__ == "__main__":
         type=auto_int,
         default=161,
         action="store",
-        help='Printer port (default is 161)')
+        help='Printer port (default is 161)'
+    )
     parser.add_argument(
         '-i',
         '--info',
         dest='info',
         action='store_true',
-        help='Print all available information and statistics (default option)')
+        help='Print all available information and statistics (default option)'
+    )
     parser.add_argument(
         '-q',
         '--query',
@@ -2989,18 +2997,27 @@ if __name__ == "__main__":
         nargs=1,
         metavar='QUERY_NAME',
         help='Print specific information.'
-        ' (Use ? to list all available queries)')
+        ' (Use ? to list all available queries)'
+    )
     parser.add_argument(
         '--reset_waste_ink',
         dest='reset_waste_ink',
         action='store_true',
-        help='Reset all waste ink levels to 0')
+        help='Reset all waste ink levels to 0'
+    )
+    parser.add_argument(
+        '--temp_reset_waste_ink',
+        dest='temporary_reset_waste',
+        action='store_true',
+        help='Temporary reset waste ink levels'
+    )
     parser.add_argument(
         '-d',
         '--debug',
         dest='debug',
         action='store_true',
-        help='Print debug information')
+        help='Print debug information'
+    )
     parser.add_argument(
         '--write-first-ti-received-time',
         dest='ftrt',
@@ -3021,7 +3038,8 @@ if __name__ == "__main__":
         '--dry-run',
         dest='dry_run',
         action='store_true',
-        help='Dry-run change operations')
+        help='Dry-run change operations'
+    )
     parser.add_argument(
         '-R',
         '--read-eeprom',
@@ -3031,7 +3049,8 @@ if __name__ == "__main__":
         nargs=1,
         metavar='ADDRESS_SET',
         help='Read the values of a list of printer EEPROM addreses.'
-        ' Format is: address [, ...]')
+        ' Format is: address [, ...]'
+    )
     parser.add_argument(
         '-W',
         '--write-eeprom',
@@ -3041,7 +3060,8 @@ if __name__ == "__main__":
         nargs=1,
         metavar='ADDRESS_VALUE_SET',
         help='Write related values to a list of printer EEPROM addresses.'
-        ' Format is: address: value [, ...]')
+        ' Format is: address: value [, ...]'
+    )
     parser.add_argument(
         '-e',
         '--eeprom-dump',
@@ -3050,12 +3070,14 @@ if __name__ == "__main__":
         type=str,
         nargs=2,
         metavar=('FIRST_ADDRESS', 'LAST_ADDRESS'),
-        help='Dump EEPROM')
+        help='Dump EEPROM'
+    )
     parser.add_argument(
         "--detect-key",
         dest='detect_key',
         action='store_true',
-        help="Detect the read_key via brute force")
+        help="Detect the read_key via brute force"
+    )
     parser.add_argument(
         '-S',
         '--write-sequence-to-string',
@@ -3189,6 +3211,12 @@ if __name__ == "__main__":
                 print("Reset waste ink levels done.")
             else:
                 print("Failed to reset waste ink levels. Check configuration.")
+        if args.temporary_reset_waste:
+            print_opt = True
+            if printer.temporary_reset_waste():
+                print("Temporary reset waste ink levels done.")
+            else:
+                print("Failed to temporarily reset waste ink levels.")
         if args.detect_key:
             print_opt = True
             read_key = printer.brute_force_read_key()
