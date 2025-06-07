@@ -269,11 +269,18 @@ class EpsonPrinterUI(tk.Tk):
         hostname: str = None,
         conf_dict = {},
         replace_conf=False
-        ):
-        super().__init__()
+    ):
+        try:
+            super().__init__()
+        except Exception as e:
+            logging.critical("Cannot start program: %s", e)
+            quit()
         self.title("Epson Printer Configuration - v" + VERSION)
         self.geometry("500x500")
-        self.minsize(550, 600)
+        if self.call('tk', 'windowingsystem') == "x11":
+            self.minsize(600, 600)
+        else:
+            self.minsize(550, 600)
         self.printer_scanner = PrinterScanner()
         self.ip_list = []
         self.ip_list_cycle = None

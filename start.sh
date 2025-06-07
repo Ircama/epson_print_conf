@@ -1,4 +1,12 @@
 #!/bin/bash
+set -e
+
+# Update repo at runtime
+if [ ! -d /app/.git ]; then
+    git clone https://github.com/Ircama/epson_print_conf.git /app
+else
+    cd /app && git pull
+fi
 
 echo "Starting Xvfb virtual display..."
 Xvfb :99 -screen 0 1280x800x24 &
@@ -21,4 +29,4 @@ x11vnc -display :99 -forever -nopw -bg -rfbport 5990 &
 sleep 2
 
 echo "Starting Tkinter application..."
-exec python ui.py
+exec python3 ui.py

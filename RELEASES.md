@@ -37,3 +37,12 @@ git ls-remote --tags https://github.com/Ircama/epson_print_conf # list remote ta
 ```
 
 Then follow the tagging procedure again to add the tag to the latest commit.
+
+# Pushing the docker container
+
+```shell
+sudo docker login
+sudo docker buildx build --platform linux/amd64,linux/arm64 -t ircama/epson_print_conf --push .
+
+sudo docker run --publish 5990:5990 ircama/epson_print_conf
+```

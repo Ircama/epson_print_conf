@@ -1,6 +1,8 @@
 # Use the official Python slim image
 FROM python:3.11-slim
 
+USER root
+
 # Install system dependencies including Tkinter, Xvfb, and X11 utilities
 RUN apt update && apt install -y \
     git \
@@ -21,7 +23,7 @@ RUN apt update && apt install -y \
     fluxbox \
     && rm -rf /var/lib/apt/lists/*
 
-
+# Set working directory
 WORKDIR /app
 
 RUN     mkdir ~/.vnc
@@ -29,25 +31,22 @@ RUN     x11vnc -storepasswd 1234 ~/.vnc/passwd
 
 COPY . .
 
-
-RUN pip install --no-cache-dir \
+# Install Python dependencies
+RUN pip install --break-system-packages --no-cache-dir \
     pyyaml \
     pysnmp \
-    pysnmp_sync_adapter \
     tkcalendar \
     pyperclip \
     black \
     tomli \
-    text-console
+    text-console \
+    pysnmp_sync_adapter
 
 # Set the DISPLAY environment variable for Xvfb
 ENV DISPLAY=:99
-
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
 
 # Expose the VNC port
 EXPOSE 5990
 
 # Set the entrypoint to automatically run the script
-ENTRYPOINT ["/start.sh"]
+ENTRYPOINT ["bash", "/app/start.sh"]
