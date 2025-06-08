@@ -932,7 +932,7 @@ class EpsonPrinter:
     MIB_OID_ENTERPRISE = "1.3.6.1.4.1"
     MIB_EPSON = MIB_OID_ENTERPRISE + ".1248"
     OID_PRV_CTRL = "1.2.2.44.1.1.2"
-    D4_TO_OID = f'{MIB_EPSON}.{OID_PRV_CTRL}.1'
+    EPSON_CTRL_TO_OID = f'{MIB_EPSON}.{OID_PRV_CTRL}.1'
 
     MIB_INFO = {
         "Model": f"{MIB_MGMT}.1.25.3.2.1.3.1",
@@ -2448,67 +2448,8 @@ class EpsonPrinter:
 
     def epctrl_snmp_oid(self, command, payload):
         """
-        Build the full OID based on EPSON-CTRL D4 (END4) encapsulation
-        (EPSON’s Remote Mode encapsulated into an SNMP OID)
-        http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html
-
-        Implemented commands: rw, ot, ||, vi 0, di 1, ia 0, st 1, ii
-
-        Other commands:
-
-        cx
-        ht
-
-        # set timer 08H 00H 00H YYYY MM DD hh mm ss
-        ti
-
-        ex (Set Vertical Print Page Line Mode, Roll Paper Mode)
-
-        # Firmware load. Enter recovery mode
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("fl", 1))
-
-        # cs (?)
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cs", 0))
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cs", 1))
-
-        # cd (?)
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cd", 0))
-
-        # ei (?)
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("ei", 0))
-
-        # pe (paper ?)
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("pe", 1))
-
-        # rp (serial number ? )
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("rp", 0))
-
-        # xi (?)
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("xi", 1))
-
-        # Print Meter
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("pm", 1))
-
-        # rs (?)
-        self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("rs", 1))
-
-        # Pause and resume jobs
-        pj:00
-        rj
-
-        # Detect all commands:
-        ec_sequences = [
-            decoded
-            for i in range(0x10000)
-            if (b := i.to_bytes(2, 'big'))[0] and b[1]
-            and (decoded := b.decode('utf-8', errors='ignore')).encode('utf-8') == b
-        ]
-        for i in ec_sequences:
-            if len(i) != 2:
-                continue
-            r = self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid(i, 0))
-            if r[0][1] != b'\x00' + i.encode() + b':;\x0c':
-                print(r)
+        Convert END4 EPSON-CTRL messages into OID
+        (EPSON’s Remote Mode)
         """
         assert len(command) == 2
         if isinstance(payload, int):
@@ -2516,7 +2457,7 @@ class EpsonPrinter:
         elif isinstance(payload, list):
             payload = bytes(payload)
         cmd = command.encode() + struct.pack('<H', len(payload)) + payload
-        return self.D4_TO_OID + "." + ".".join(
+        return self.EPSON_CTRL_TO_OID + "." + ".".join(
             str(int(i)) for i in cmd
         )
 

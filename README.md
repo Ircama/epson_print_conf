@@ -510,9 +510,15 @@ printer = EpsonPrinter(hostname="192.168.1.87")
 pprint.pprint(printer.status_parser(printer.fetch_snmp_values("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
 ```
 
-### Byte sequences
+## END4 EPSON-CTRL commands over SNMP
 
-Header:
+END4 commands (totally undocumented) might be a limited set of bidirectional remote commands that can be sent without establishing a D4 connection.
+
+END4 EPSON-CTRL commands can be converted into OIDs and sent via SNMP.
+
+Ref. excellent analysis from [ciprian](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1660026) and [dger](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250).
+
+OID Header:
 
 ```
 1.3.6.1.4.1. [SNMP_OID_ENTERPRISE]
@@ -522,9 +528,55 @@ Header:
 1.
 ```
 
-Full header sequence: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.`
+Full OID header sequence: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.`
 
-Read EEPROM (EPSON-CTRL), after the header:
+Subsequent digits:
+
+- Two ASCII characters that identify the command (e.g., "st", "ex"). These are command identifiers of the END4 EPSON-CTRL messages (Remote Mode)
+- 2-byte little-endian length field (gives the number of bytes in the parameter section that follows)
+- payload (a block of bytes that are specific to the command).
+
+END4 commands partially overlap with Epson’s Remote Mode bi-directional printer-control language, though they are not strictly equivalent. Comprehensive, unified documentation for Epson’s Remote Mode commands does not exist: support varies by model, and command references are scattered across service manuals, programming guides and third-party sources (for example, the [Developer's Guide to Gutenprint](https://gimp-print.sourceforge.io/reference-html/x952.html) or [GIMP-Print - ESC/P2 Remote Mode Commands](http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html)). Some END4 instructions implement subsets of Epson’s Remote Mode protocol, while others are proprietary extensions and lie outside Epson’s published command set.
+
+The following is the list of END4 commands supported by the XP-205.
+
+Two-bytes|Description | Notes | Parameters
+:--:| ---------------------------------------------- | ----------------| -------------
+\|\| | EEPROM access | Implemented in this program, not supported by new printer firmwares | (A, B); see examples below
+cd | | | (0)
+cs |  | | (0 or 1)
+cx | | |
+di | Device Identification ("di" 01H 00H 01H) | Implemented in this program | (1)
+ei | | | (0)
+ex | Set Vertical Print Page Line Mode, Roll Paper Mode | - EX BC=6 00 00 00 00 0x14 xx (Set Vertical Print Page Line Mode. xx=00 is off, xx=01 is on. If turned on, this prints vertical trim lines at the left and right margins).<br> - EX BC=6 00 00 00 00 0x05 xx (Set Roll Paper Mode. If xx is 0, roll paper mode is off; if xx is 1, roll paper mode is on).<br> - EX BC=3 00 xx yy (Appears to be a synonym for the SN command described above.) |
+fl | Firmware load. Enter recovery mode | |
+ht | Horizontal tab | |
+ia | List of cartridge types | Implemented in this program | (0)
+ii | List cartridge properties | Implemented in this program | (1 + cartridge number)
+ot | Power Off Timer | Implemented in this program | (1, 1)
+pe | (paper ?) | | (1)
+pj | Pause jobs (?) | |
+pm | Select control language ("PM" 02H 00H 00H m1m1=0(ESC/P), 2(IBM 238x Plus emulation) | | (1)
+rj | Resume jobs (?)  | |
+rp | (serial number ? ) | | (0)
+rs | Initialize | | (1)
+rw | Reset Waste | Implemented in this program | (1, 0) + Serial SHA1 hash (20 bytes)
+st | Get printer status ("st" 01H 00H 01H) | Implemented in this program | (1)
+ti | Set printer time | (" TI" 08H 00H 00H YYYY MM DD hh mm ss) |
+vi | Version Information | Implemented in this program | (0)
+xi | | | (1)
+
+### Examples for EEPROM access
+
+#### Read EEPROM
+
+- 124.124: "||" = Read EEPROM (EPSON-CTRL)
+- 7.0: Two-byte payload length = 7 bytes
+- two bytes for the read key
+- 65: 'A' = read
+- 190: Take the bitwise NOT of the ASCII value of 'A' = read, then mask to the lowest 8 bits. The result is 190.
+- 160: Shift the ASCII value of 'A' (read) right by 1 and mask to 7 bits, then OR it with the highest bit of the value shifted left by 7. The result is 160.
+- two bytes for the EEPROM address
 
 ```
 124.124.7.0. [7C 7C 07 00]
@@ -535,7 +587,17 @@ Read EEPROM (EPSON-CTRL), after the header:
 
 Example: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.73.8.65.190.160.48.0`
 
-Write EEPROM, after the header:
+#### Write EEPROM
+
+- 124.124: "||" = Read EEPROM (EPSON-CTRL)
+- 16.0: Two-byte payload length = 16 bytes
+- two bytes for the read key
+- 66: 'B' = write
+- 189: Take the bitwise NOT of the ASCII value of 'B' = write, then mask to the lowest 8 bits. The result is 189.
+- 33: Shift the ASCII value of 'B' (write) right by 1 and mask to 7 bits, then OR it with the highest bit of the value shifted left by 7. The result is 33.
+- two bytes for the EEPROM address
+- one byte for the value
+- 8 bytes for the write key
 
 ```
 7C 7C 10 00 [124.124.16.0.]
@@ -548,6 +610,8 @@ Write EEPROM, after the header:
 
 Example: `7C 7C 10 00 49 08 42 BD 21 30 00 1A 42 73 62 6F 75 6A 67 70`
 
+#### Returned data
+
 Example of Read EEPROM (@BDC PS):
 
 ```
@@ -556,6 +620,154 @@ EE: = EEPROM Read
 0032 = Memory address
 AC = Value
 ```
+
+### Related API
+
+#### epctrl_snmp_oid()
+
+`self.epctrl_snmp_oid(two-char-command, payload)` converts an END4 EPSON-CTRL Remote command into a SNMP OID format suitable for use in SNMP operations.
+
+**Parameters**
+
+* `command` (`str`):
+  A two-character string representing the EPSON Remote Mode command.
+
+* `payload` (`int | list[int] | bytes`):
+  The payload to send with the command. It can be:
+
+  * An integer, representing a single byte-argument.
+  * A list of integers (converted to bytes)
+  * A `bytes` object (used as-is)
+
+It returns a SNMP OID string to be used by `self.printer.fetch_oid_values()`.
+
+`self.epctrl_snmp_oid("ei", 0)` is equivalent to `self.epctrl_snmp_oid("ei", [0])` or `self.epctrl_snmp_oid("ei", b'\x00')`.
+
+`self.epctrl_snmp_oid("st", [1, 0, 1])` is equivalent to `self.epctrl_snmp_oid("ei", b'\x01\x00\x01')`.
+
+#### fetch_oid_values()
+
+`self.fetch_oid_values(oid)` fetches the oid value. When oid is a string, it returns a list of a single element consisting of a tuple: data type (generally 'OctetString') and data value in bytes.
+
+To return the value of the OID query: `self.fetch_oid_values(oid)[0][1]`.
+
+### Testing END4 remote commands
+
+Open the *epson_print_conf* application, set printer model and IP address, test printer connection. Then: Settings > Debug Shell.
+
+The following are examples of instructions to test the END4 commands:
+
+```python
+# cs
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cs", 0))[0][1]
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cs", 1))[0][1]
+
+# cd
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("cd", 0))[0][1]
+
+# ex
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("ex", [0, 0, 0, 0, 25, 0]))[0][1]
+
+from datetime import datetime
+now = datetime.now()
+data = bytearray()
+data = b'\x00'
+data += now.year.to_bytes(2, 'big')  # Year
+data += bytes([now.month, now.day, now.hour, now.minute, now.second])
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("ti", data))[0][1]
+
+# Firmware load. Enter recovery mode
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("fl", 1))[0][1]
+
+# ei
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("ei", 0))[0][1]
+
+# pe
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("pe", 1))[0][1]
+
+# rp (serial number ? )
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("rp", 0))[0][1]
+
+# xi (?)
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("xi", 1))[0][1]
+
+# Print Meter
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("pm", 1))[0][1]
+
+# rs
+self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid("rs", 1))[0][1]
+
+# Detect all commands:
+ec_sequences = [
+    decoded
+    for i in range(0x10000)
+    if (b := i.to_bytes(2, 'big'))[0] and b[1]
+    and (decoded := b.decode('utf-8', errors='ignore')).encode('utf-8') == b
+]
+for i in ec_sequences:
+    if len(i) != 2:
+        continue
+    r = self.printer.fetch_oid_values(self.printer.epctrl_snmp_oid(i, 0))
+    if r[0][1] != b'\x00' + i.encode() + b':;\x0c':
+        print(r)
+```
+
+Examples of commands ("CH" = Clean Heads and "NC" = Nozzle Check) that are not included in the END4 set, so they have to be delivered via TCP (port 9100 or port 515) and cannot be mapped to SNMP.
+
+- CH BC=2 00 xx Perform a head cleaning cycle. "00" cleans all heads
+
+    | Name                    | Bytes (hex)                                                      | Purpose                                                                                           |
+    | ----------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+    | EXIT\_PACKET\_MODE  | `00 00 00 1B 01 40 45 4A 4C 20 31 32 38 34 2E 34 0A 40 45 4A 4C` | Exit packet mode. |
+    | ENTER\_REMOTE\_MODE | `1B 40 1B 40 1B 28 52 08 00 00 52 45 4D 4F 54 45 31`             | Put the device into "remote" control mode.   |
+    | SET\_CLOCK          | `54 49 08 00 00 07 E9 06 08 17 0E 22`                            | "TI": Write the internal real-time clock to 2025-06-08 17:14:34.                                        |
+    | CLEAN\_HEADS        | `43 48 02 00 00 00`                                              | "CH": trigger print-head cleaning cycle.                                        |
+    | EXIT\_REMOTE\_MODE  | `1B 00 00 00`                                                    | Exit remote control mode.                                          |
+    | JOB\_END            | `4A 45 01 00 00`                                                 | Finalize the maintenance job.                    |
+
+- NC BC=2 00 00 Print a nozzle check pattern
+
+    | Name                     | Bytes (hex)                              | Purpose                                                        |
+    | ------------------------ | ---------------------------------------- | -------------------------------------------------------------- |
+    | EXIT\_PACKET\_MODE  | `00 00 00 1B 01 40 45 4A 4C 20 31 32 38 34 2E 34 0A 40 45 4A 4C` | Exit packet mode. |
+    | ENTER\_REMOTE\_MODE | `1B 40 1B 40 1B 28 52 08 00 00 52 45 4D 4F 54 45 31`             | Put the device into "remote" control mode.   |
+    | PRINT\_NOZZLE\_CHECK | `4E 43 02 00 00 00`                      | "NC": issue nozzle-check print pattern.        |
+    | EXIT\_REMOTE\_MODE   | `1B 00 00 00`                            | Exit remote control mode.                         |
+    | JOB\_END             | `4A 45 01 00 00`                         | Finalize the maintenance job. |
+
+
+## ST2 Status Reply Codes
+
+ST2 Status Reply Codes that are decoded by *epson_print_conf*; they are mentioned in various Epson programming guides:
+
+Staus code | Description
+:---------:|-------------
+01 | Status code
+02 | Error code
+03 | Self print code
+04 | Warning code
+06 | Paper path
+07 | Paper mismatch error
+0c | Cleaning time information
+0d | Maintenance tanks
+0e | Replace cartridge information
+0f | Ink information
+10 | Loading path information
+13 | Cancel code
+14 | Cutter information
+18 | Stacker(tray) open status
+19 | Current job name information
+1c | Temperature information
+1f | Serial
+35 | Paper jam error information
+36 | Paper count information
+37 | Maintenance box information
+3d | Printer I/F status
+40 | Serial No. information
+45 | Ink replacement counter (TBV)
+46 | Maintenance_box_replacement_counter (TBV)
+
+Many printers return additional codes whose meanings are unknown and not documented.
 
 ## API Interface
 
