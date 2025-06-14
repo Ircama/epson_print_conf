@@ -37,7 +37,7 @@ from find_printers import PrinterScanner
 from text_console import TextConsole
 
 
-VERSION = "6.0.2"
+VERSION = "6.1.0"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
@@ -45,7 +45,7 @@ NO_CONF_ERROR = (
 )
 
 CONFIRM_MESSAGE = (
-            "Confirm Action",
+            "EEPROM update - Confirm Action",
             "Please copy and save the codes in the [NOTE] shown on the screen."
             " They can be used to restore the initial configuration"
             " in case of problems.\n\n"
@@ -723,7 +723,7 @@ class EpsonPrinterUI(tk.Tk):
         row_n += 1
         button_frame = ttk.Frame(main_frame, padding=PAD)
         button_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
-        button_frame.columnconfigure((0, 1, 2, 3), weight=1)  # expand columns
+        button_frame.columnconfigure((0, 1, 2, 3, 4), weight=1)  # expand columns
 
         # Query Printer Status
         self.status_button = ttk.Button(
@@ -746,6 +746,17 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=1, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
+        # Clean nozzles
+        self.clean_nozzles_button = ttk.Button(
+            button_frame,
+            text="Clean\nNozzles",
+            command=self.clean_nozzles,
+            style="Centered.TButton"
+        )
+        self.clean_nozzles_button.grid(
+            row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
         # Detect configuration values
         self.detect_configuration_button = ttk.Button(
             button_frame,
@@ -754,18 +765,18 @@ class EpsonPrinterUI(tk.Tk):
             style="Centered.TButton"
         )
         self.detect_configuration_button.grid(
-            row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # Temporary Reset Waste Ink Levels
-        self.detect_configuration_button = ttk.Button(
+        self.temp_reset_ink_waste_button = ttk.Button(
             button_frame,
             text="Temporary Reset\nWaste Ink Levels",
             command=self.temp_reset_waste_ink,
             style="Centered.TButton"
         )
-        self.detect_configuration_button.grid(
-            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        self.temp_reset_ink_waste_button.grid(
+            row=0, column=4, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # [row 4] Tweak Buttons
@@ -984,9 +995,10 @@ class EpsonPrinterUI(tk.Tk):
         )
         if not file_path:
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f"[WARNING] File save operation aborted.\n"
+                f" File save operation aborted.\n"
             )
             return
         # Ensure the file has the desired extension
@@ -1025,9 +1037,10 @@ class EpsonPrinterUI(tk.Tk):
             self.config(cursor="")
             self.update_idletasks()
             self.show_status_text_view()
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f"[WARNING] File load operation aborted.\n"
+                f" File load operation aborted.\n"
             )
             return
         if type == 0:
@@ -1225,6 +1238,8 @@ Web site: https://github.com/Ircama/epson_print_conf
         ToolTip(self.set_mac_addr, "")
         ToolTip(self.read_eeprom_button, "")
         ToolTip(self.detect_configuration_button, "")
+        ToolTip(self.clean_nozzles_button, "")
+        ToolTip(self.temp_reset_ink_waste_button, "")
         ToolTip(self.write_eeprom_button, "")
         ToolTip(self.reset_button, "")
         if self.ip_var.get():
@@ -1238,6 +1253,8 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.reset_button.state(["disabled"])
             self.status_button.state(["disabled"])
             self.read_eeprom_button.state(["disabled"])
+            self.clean_nozzles_button.state(["disabled"])
+            self.temp_reset_ink_waste_button.state(["disabled"])
             self.detect_configuration_button.state(["disabled"])
             self.write_eeprom_button.state(["disabled"])
             self.web_interface_button.state(["disabled"])
@@ -1260,10 +1277,20 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.read_eeprom_button,
                 "Feature not defined in the printer configuration."
             )
+            self.temp_reset_ink_waste_button.state(["disabled"])
+            ToolTip(
+                self.temp_reset_ink_waste_button,
+                "Select the printer first."
+            )
+            self.clean_nozzles_button.state(["disabled"])
+            ToolTip(
+                self.clean_nozzles_button,
+                "Select the printer first."
+            )
             self.detect_configuration_button.state(["disabled"])
             ToolTip(
                 self.detect_configuration_button,
-                "Feature not defined in the printer configuration."
+                "Select the printer first."
             )
             self.write_eeprom_button.state(["disabled"])
             ToolTip(
@@ -1274,8 +1301,12 @@ Web site: https://github.com/Ircama/epson_print_conf
                 if "read_key" in self.printer.parm:
                     self.read_eeprom_button.state(["!disabled"])
                     ToolTip(self.read_eeprom_button, "")
+                    self.clean_nozzles_button.state(["!disabled"])
+                    self.temp_reset_ink_waste_button.state(["!disabled"])
                     self.detect_configuration_button.state(["!disabled"])
                     ToolTip(self.detect_configuration_button, "")
+                    ToolTip(self.clean_nozzles_button, "")
+                    ToolTip(self.temp_reset_ink_waste_button, "")
                 if "write_key" in self.printer.parm:
                     self.write_eeprom_button.state(["!disabled"])
                     ToolTip(
@@ -1355,6 +1386,8 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_button.state(["disabled"])
             self.read_eeprom_button.state(["disabled"])
             self.detect_configuration_button.state(["disabled"])
+            self.clean_nozzles_button.state(["disabled"])
+            self.temp_reset_ink_waste_button.state(["disabled"])
             self.write_eeprom_button.state(["disabled"])
 
             self.po_timer_entry.state(["disabled"])
@@ -1642,8 +1675,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             except Exception as e:
                 self.handle_printer_error(e)
         else:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f"[WARNING] Set Power off timer aborted.\n"
+                tk.END, f" Set Power off timer aborted.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -1684,8 +1718,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             "if you are very sure of what you do.\n\n",
             default='no')
         if not response:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, "[WARNING] Operation aborted.\n"
+                tk.END, " Operation aborted.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1710,8 +1745,9 @@ Web site: https://github.com/Ircama/epson_print_conf
         )
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if not response:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, "[WARNING] Operation aborted.\n"
+                tk.END, " Operation aborted.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1797,8 +1833,9 @@ Web site: https://github.com/Ircama/epson_print_conf
         )
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if not response:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, "[WARNING] Operation aborted.\n"
+                tk.END, " Operation aborted.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1943,9 +1980,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             except Exception as e:
                 self.handle_printer_error(e)
         else:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f"[WARNING] Change of 'First TI received time' aborted.\n",
+                f" Change of 'First TI received time' aborted.\n",
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -2571,6 +2609,8 @@ Web site: https://github.com/Ircama/epson_print_conf
                         f'{self.printer.PRINTER_CONFIG[DETECTED]}.\n'
                     )
                 self.detect_configuration_button.state(["!disabled"])
+                self.clean_nozzles_button.state(["!disabled"])
+                self.temp_reset_ink_waste_button.state(["!disabled"])
                 self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
                     tk.END, " Detect operation completed.\n"
@@ -2595,7 +2635,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             return
         response = messagebox.askyesno(
-            "Confirm Action",
+            "Detect Access Keys - Confirm Action",
             "Warning: this is a brute force operation, which takes several\n"
             "minutes to complete.\n\n"
             "Results will be shown in the status box.\n\n"
@@ -2614,11 +2654,17 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.update()
             self.after(100, lambda: run_detection())
         else:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f"[WARNING] Detect access key aborted.\n"
+                tk.END, f" Detect access key aborted.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
+
+    def set_cursor(self, widget, cursor_type):
+        widget.config(cursor=cursor_type)
+        for child in widget.winfo_children():
+            self.set_cursor(child, cursor_type)
 
     def web_interface(self, cursor=True):
         if cursor:
@@ -2658,6 +2704,195 @@ Web site: https://github.com/Ircama/epson_print_conf
         finally:
             self.config(cursor="")
             self.update_idletasks()
+
+    def clean_nozzles(self):
+        """
+        Initiates nozzles cleaning routine with optional power clean.
+        Displays a dialog to select a nozzle group and power clean option.
+        """
+
+        def show_clean_dialog():
+            # Define groups
+            groups = [
+                "Clean all nozzles",
+                "Cyan + Vivid Magenta",
+                "Photo Black + Matte Black + Light Black",
+                "Orange + Green",
+                "Light Light Black + Yellow",
+                "Vivid Light Magenta + Light Cyan"
+            ]
+
+            # Create modal dialog
+            dialog = tk.Toplevel(self)
+            dialog.title("Clean Nozzles Options")
+            dialog.transient(self)
+            dialog.grab_set()
+            dialog.focus_force()
+
+            introduction = (
+                'The printer performs nozzles cleaning by flushing excess ink '
+                'through the nozzles.'
+            )
+            tk.Label(
+                dialog,
+                text=introduction,
+                wraplength=400,
+                justify='left',
+                foreground='gray30'
+            ).pack(padx=10)
+
+            # Label
+            tk.Label(dialog, text="Select Nozzle Group:").pack(
+                padx=10, pady=(10, 0)
+            )
+
+            # Compute width in characters for combobox
+            max_len = max(len(item) for item in groups)
+            combo_var = tk.StringVar()
+            combo = ttk.Combobox(
+                dialog,
+                textvariable=combo_var,
+                values=groups,
+                state="readonly",
+                width=max_len
+            )
+            combo.current(0)
+            combo.configure(justify='center')  # Center the displayed text in the combobox
+            combo.pack(padx=10, pady=5)
+            combo.pack(padx=10, pady=5)
+            combo.focus_set()
+
+            note = (
+                'The default action is to clean all nozzles.\n'
+                'Other actions might not be supported on your printer.'
+            )
+            tk.Label(
+                dialog,
+                text=note,
+                wraplength=400,
+                justify='left',
+                foreground='gray30'
+            ).pack(padx=10, pady=(10, 5))
+
+            # Checkbutton for power clean
+            power_var = tk.BooleanVar(value=False)
+            chk = ttk.Checkbutton(
+                dialog, text="Power Clean", variable=power_var
+            )
+            chk.pack(padx=10, pady=5)
+
+            # Warning message for power clean ink usage
+            warning_text = (
+                "Power Clean uses a significant amount of ink "
+                "to flush the nozzles, "
+                "and more rapidly fills the internal waste ink tank, "
+                "which collects "
+                "the excess ink used during the cleaning process."
+            )
+            msg = tk.Message(
+                dialog,
+                text=warning_text, width=(max_len+2)*8,
+                foreground='gray30'
+            )
+            msg.pack(padx=10, pady=(2, 5))
+
+            # Container for buttons
+            btn_frame = ttk.Frame(dialog)
+            btn_frame.pack(padx=10, pady=(5, 10), fill=tk.X)
+            btn_frame.columnconfigure((0, 1), weight=1)
+
+            result = {'value': None}
+
+            def on_confirm(event=None):
+                sel = combo.current()
+                if sel < 0:
+                    return
+                result['value'] = (sel, power_var.get())
+                dialog.destroy()
+
+            def on_cancel(event=None):
+                dialog.destroy()
+
+            # Confirm and Cancel buttons
+            confirm_btn = ttk.Button(
+                btn_frame, text="Confirm", command=on_confirm
+            )
+            cancel_btn = ttk.Button(
+                btn_frame, text="Cancel", command=on_cancel
+            )
+            confirm_btn.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+            cancel_btn.grid(row=0, column=1, sticky=tk.EW)
+
+            # Highlight Cancel as default and bind keys
+            cancel_btn.focus_set()
+            dialog.bind('<Return>', on_confirm)
+            dialog.bind('<Escape>', on_cancel)
+
+            # Center dialog
+            dialog.update_idletasks()
+            w = dialog.winfo_reqwidth()
+            h = dialog.winfo_reqheight()
+            x = self.winfo_x() + (self.winfo_width() - w) // 2
+            y = self.winfo_y() + (self.winfo_height() - h) // 2
+            dialog.geometry(f"{w}x{h}+{x}+{y}")
+
+            dialog.wait_window()
+            return result['value']
+
+        def run_cleaning(group_index, power_clean):
+            try:
+                ret = self.printer.clean_nozzles(group_index, power_clean)
+            except Exception as e:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
+                self.status_text.insert(
+                    tk.END, f" Clean nozzless failure: {e}\n"
+                )
+            if ret is None:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
+                self.status_text.insert(
+                    tk.END, f" clean_nozzles internal error.\n"
+                )
+            elif ret is False:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
+                self.status_text.insert(
+                    tk.END, f" Printer is unreachable or offline.\n"
+                )
+            else:
+                self.status_text.insert(tk.END, '[INFO]', "info")
+                self.status_text.insert(tk.END,
+                    f" Initiated cleaning of nozzles.\n"
+                )
+            self.set_cursor(self, "")
+            self.update_idletasks()
+
+        ip_address = self.ip_var.get()
+        if not self._is_valid_ip(ip_address):
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(tk.END, NO_CONF_ERROR)
+            self.set_cursor(self, "")
+            self.update_idletasks()
+            return
+
+        if not self.printer:
+            return
+
+        # Call the dialog
+        selection = show_clean_dialog()
+        if selection is None:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
+            self.status_text.insert(
+                tk.END,
+                f" Nozzles cleaning operation aborted.\n"
+            )
+            self.set_cursor(self, "")
+            self.update_idletasks()
+            return  # User cancelled
+
+        group_index, power_clean = selection
+
+        self.set_cursor(self, "watch")
+        self.update_idletasks()
+        self.after(100, lambda: run_cleaning(group_index, power_clean))
 
     def detect_configuration(self, cursor=True):
         def detect_sequence(eeprom, sequence):
@@ -2928,8 +3163,9 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update()
                 self.after(200, lambda: write_eeprom_values(dict_addr_val))
             else:
+                self.status_text.insert(tk.END, '[WARNING]', "warn")
                 self.status_text.insert(
-                    tk.END, f"[WARNING] Write EEPROM aborted.\n"
+                    tk.END, f" Write EEPROM aborted.\n"
                 )
                 self.config(cursor="")
                 self.update_idletasks()
@@ -2973,6 +3209,24 @@ Web site: https://github.com/Ircama/epson_print_conf
             current_function_name = inspect.stack()[0][3]
             method_to_call = getattr(self, current_function_name)
             self.after(100, lambda: method_to_call(cursor=False))
+            return
+        msg = (
+            "Reset Waste Ink Levels - Confirm Action",
+            "This feature permanently resets the ink waste tank full counters."
+            "\n\nAlways replace the waste ink pads before "
+            "continuing. Carefully monitor the ink flow and "
+            "consider risks of ink overflow into printer internals and "
+            "also environmental contamination that possibly cannot be cleaned."
+            "\n\nAre you sure you want to proceed?"
+        )
+        response = messagebox.askyesno(*msg, default='no')
+        if not response:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
+            self.status_text.insert(
+                tk.END, f" Waste ink levels reset aborted.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
@@ -3026,8 +3280,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             except Exception as e:
                 self.handle_printer_error(e)
         else:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f"[WARNING] Waste ink levels reset aborted.\n"
+                tk.END, f" Waste ink levels reset aborted.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -3057,10 +3312,14 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not self.printer:
             return
         msg = (
-            "Confirm Action",
-            "This feature temporarily bypasses the ink waste tank full warning,"
-            " which would otherwise disable printing. "
+            "Temporary Bypass of the Waste Ink Lock - Confirm Action",
+            "This feature temporarily bypasses the ink waste tank full"
+            "  message, which would otherwise disable printing. "
             "\n\nThis setting does not persist a reboot. "
+            "\n\nAlways replace the waste ink pads before "
+            "continuing. Carefully monitor the ink flow and "
+            "consider risks of ink overflow into printer internals and "
+            "also environmental contamination that possibly cannot be cleaned."
             "\n\nAre you sure you want to proceed?"
         )
         response = messagebox.askyesno(*msg, default='no')
@@ -3070,21 +3329,23 @@ Web site: https://github.com/Ircama/epson_print_conf
                     self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
-                        " Waste ink levels have been temporarily reset."
+                        " Waste ink levels have been temporarily bypassed."
                         " You can now print.\n"
                     )
                 else:
                     self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        " Failed to perform the temporary reset of the "
+                        " Failed to perform the temporary bypass of the "
                         "waste ink levels."
                     )
             except Exception as e:
                 self.handle_printer_error(e)
         else:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f"[WARNING] Waste ink levels reset aborted.\n"
+                tk.END,
+                " Temporary bypass of the waste ink levels aborted.\n"
             )
         self.config(cursor="")
         self.update_idletasks()

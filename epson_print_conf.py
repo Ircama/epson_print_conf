@@ -21,6 +21,7 @@ import pickle
 import abc
 import hashlib
 import struct
+import socket
 
 from pysnmp.hlapi.v1arch.asyncio import *
 from pyasn1.type.univ import OctetString as OctetStringType
@@ -31,6 +32,72 @@ from pysnmp_sync_adapter import (
     cluster_varbinds
 )
 from pysnmp.proto.errind import RequestTimedOut
+
+
+class EpsonLpr:
+    """
+    Interface for sending Epson LPR commands over RAW (port 9100)
+    """
+
+    def __init__(self,
+                 hostname: str,
+                 port: int = 9100,
+                 timeout: float = 5.0,
+                 recv_buffer: int = 4096):
+        self.hostname = hostname
+        self.port = port
+        self.timeout = timeout
+        self.recv_buffer = recv_buffer
+        self.sock: Optional[socket.socket] = None
+
+        # Define Epson sequences
+        self.LF = b'\x0a'
+        self.FF = b'\x0c'  # flush buffer
+        self.EXIT_PACKET_MODE = (
+            b'\x00\x00\x00\x1b\x01@EJL 1284.4\n@EJL     ' +
+            self.LF
+        )
+        self.INITIALIZE_PRINTER = b'\x1b@'
+        self.REMOTE_MODE = b'\x1b' + self.remote_cmd("(R", b'\x00REMOTE1')
+        self.ENTER_REMOTE_MODE = (
+            self.INITIALIZE_PRINTER +
+            self.INITIALIZE_PRINTER +
+            self.REMOTE_MODE
+        )
+        self.EXIT_REMOTE_MODE = b'\x1b\x00\x00\x00'
+        self.JOB_START = self.remote_cmd("JS", b'\x00\x00\x00\x00')
+        self.JOB_END = self.remote_cmd("JE", b'\x00')
+        self.PRINT_NOZZLE_CHECK = self.remote_cmd("NC", b'\x00\x00')
+        self.VERSION_INFORMATION = self.remote_cmd("VI", b'\x00\x00')
+        self.LD = self.remote_cmd("LD", b'')
+
+    def connect(self) -> None:
+        """Establish a TCP connection to the printer."""
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect((self.hostname, self.port))
+
+    def disconnect(self) -> None:
+        """Shutdown and close the socket."""
+        if self.sock:
+            try:
+                self.sock.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            self.sock.close()
+            self.sock = None
+
+    def send(self, data: bytes) -> None:
+        """Send raw bytes to the printer."""
+        if not self.sock:
+            raise RuntimeError("Not connected to printer")
+        self.sock.sendall(data)
+
+    def remote_cmd(self, cmd, args):
+        "Generate a Remote Mode command."
+        if len(cmd) != 2:
+            raise ValueError("command should be 2 bytes")
+        return cmd.encode() + struct.pack('<H', len(args)) + args
 
 
 class EpsonPrinter:
@@ -2509,6 +2576,71 @@ class EpsonPrinter:
             if not self.write_eeprom(oid, 0, label="borderless_waste"):
                 return False
         return True
+
+    def check_nozzles(self):
+        """
+        Print nozzle-check pattern.
+        """
+        if not self.hostname:
+            return None
+        status = True
+        lpr = EpsonLpr(self.hostname)
+
+        # Sequence list
+        commands = [
+            lpr.EXIT_PACKET_MODE,    # Exit packet mode
+            lpr.ENTER_REMOTE_MODE,   # Engage remote mode commands
+            lpr.PRINT_NOZZLE_CHECK,  # Issue nozzle-check print pattern
+            lpr.EXIT_REMOTE_MODE,    # Disengage remote control
+            lpr.JOB_END              # Mark maintenance job complete
+        ]
+        try:
+            lpr.connect()
+            resp = lpr.send(b"".join(commands))
+        except Exception as e:
+            status = False
+        finally:
+            lpr.disconnect()
+        return status
+
+    def clean_nozzles(self, group_index, power_clean=False):
+        """
+        Initiates nozzles cleaning routine with optional power clean.
+        """
+        if not self.hostname:
+            return None
+        if group_index > 5 or group_index < 0:
+            return None
+        status = True
+        lpr = EpsonLpr(self.hostname)
+
+        now = datetime.datetime.now()
+        t_data = bytearray()
+        t_data = b'\x00'
+        t_data += now.year.to_bytes(2, 'big')  # Year
+        t_data += bytes([now.month, now.day, now.hour, now.minute, now.second])
+
+        group = group_index  # https://github.com/abrasive/x900-otsakupuhastajat/blob/master/emanage.py#L148-L154
+        if power_clean:
+            group |= 0x10  # https://github.com/abrasive/x900-otsakupuhastajat/blob/master/emanage.py#L220
+
+        # Sequence list
+        commands = [
+            lpr.EXIT_PACKET_MODE,                            # Exit packet mode
+            lpr.ENTER_REMOTE_MODE,                           # Engage remote mode commands
+            lpr.remote_cmd("TI", t_data),                    # Synchronize RTC
+            lpr.remote_cmd("CH", b'\x00' + bytes([group])),  # Run print-head cleaning
+            lpr.EXIT_REMOTE_MODE,                            # Disengage remote control
+            lpr.JOB_END                                      # Mark maintenance job complete
+        ]
+        try:
+            lpr.connect()
+            resp = lpr.send(b"".join(commands))
+        except Exception as e:
+            status = False
+        finally:
+            lpr.disconnect()
+        return status
 
     def write_first_ti_received_time(
             self, year: int, month: int, day: int) -> bool:

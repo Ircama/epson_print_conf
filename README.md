@@ -23,6 +23,14 @@ The software also includes a configurable printer dictionary, which can be easil
 
     - Open the Web interface of the printer (via the default browser).
 
+    - Clean Nozzles.
+    
+      Performs a standard cleaning cycle on the selected nozzle group.
+
+    - Power Clean of the nozzles.
+
+      Uses a higher quantity of ink to perform a deeper cleaning cycle. Power cleaning also consumes more ink and fills the waste ink tank more quickly. It should only be used when normal cleaning is insufficient.
+
     - Temporary reset of the ink waste counter.
 
       The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. The "Printer status" button includes information showing the levels of the waste ink tanks; specifically, two sections are relevant: "Maintenance box information" ("maintenance_box_...") and "Waste Ink Levels" ("waste_ink_levels"). The former has a counter associated for each tank, which indicates the number of temporary resets performed by the user to temporarily restore a disabled printer.
@@ -510,13 +518,23 @@ printer = EpsonPrinter(hostname="192.168.1.87")
 pprint.pprint(printer.status_parser(printer.fetch_snmp_values("1.3.6.1.4.1.1248.1.2.2.1.1.1.4.1")[1]))
 ```
 
-## END4 EPSON-CTRL commands over SNMP
+## EPSON-CTRL commands over SNMP
 
-END4 commands (totally undocumented) might be a limited set of bidirectional remote commands that can be sent without establishing a D4 connection.
+[Communication between PC and Printer can be done by several transport protocols](https://github.com/lion-simba/reink/blob/master/reink.c#L79C5-L85): ESCP/2, EJL, D4. And in addition SNMP, END4. “D4” (or “Dot 4”) is an abbreviated form of the IEEE-1284.4 specification: it provides a bi-directional, packetized link with multiple logical “sockets”. The two primary Epson-defined channels are:
 
-END4 EPSON-CTRL commands can be converted into OIDs and sent via SNMP.
+- EPSON-CTRL
+  – Carries printer-control commands, status queries, configuration
+  - Structure: 2 lowercase letters + length + payload
+  – Also tunneled via END4
+  - undocumented commands.
 
-Ref. excellent analysis from [ciprian](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1660026) and [dger](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250).
+- EPSON-DATA
+  – Carries the actual print-job content: raster image streams, font/download data, macros, etc.
+  - Allow "Remote Mode" commands, entered and terminated via a special sequence (`ESC (R BC=8 00 R E M O T E 1`, `ESC 00 00 00`); [remote mode commands](https://gimp-print.sourceforge.io/reference-html/x952.html) are partially documented and have a similar structure as EPSON-CTRL (2 letters + length + payload), but the letters are uppercase and cannot be mapped to SNMP.
+
+EPSON-CTRL can be transported over D4, or encapsulated in SNMP OIDs. Some EPSON-CTRL instructions implement a subset of Epson’s Remote Mode protocol, while others are proprietary.
+
+END4 is a proprietary protocol to transport EPSON-CTRL commands [over the standard print channel](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1660026), without using the EPSON-CTRL channel.
 
 OID Header:
 
@@ -532,13 +550,11 @@ Full OID header sequence: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.`
 
 Subsequent digits:
 
-- Two ASCII characters that identify the command (e.g., "st", "ex"). These are command identifiers of the END4 EPSON-CTRL messages (Remote Mode)
+- Two ASCII characters that identify the command (e.g., "st", "ex"). These are command identifiers of the EPSON-CTRL messages (Remote Mode)
 - 2-byte little-endian length field (gives the number of bytes in the parameter section that follows)
 - payload (a block of bytes that are specific to the command).
 
-END4 commands partially overlap with Epson’s Remote Mode bi-directional printer-control language, though they are not strictly equivalent. Comprehensive, unified documentation for Epson’s Remote Mode commands does not exist: support varies by model, and command references are scattered across service manuals, programming guides and third-party sources (for example, the [Developer's Guide to Gutenprint](https://gimp-print.sourceforge.io/reference-html/x952.html) or [GIMP-Print - ESC/P2 Remote Mode Commands](http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html)). Some END4 instructions implement subsets of Epson’s Remote Mode protocol, while others are proprietary extensions and lie outside Epson’s published command set.
-
-The following is the list of END4 commands supported by the XP-205.
+The following is the list of EPSON-CTRL commands supported by the XP-205.
 
 Two-bytes|Description | Notes | Parameters
 :--:| ---------------------------------------------- | ----------------| -------------
@@ -560,8 +576,8 @@ pm | Select control language ("PM" 02H 00H 00H m1m1=0(ESC/P), 2(IBM 238x Plus em
 rj | Resume jobs (?)  | |
 rp | (serial number ? ) | | (0)
 rs | Initialize | | (1)
-rw | Reset Waste | Implemented in this program | (1, 0) + Serial SHA1 hash (20 bytes)
-st | Get printer status ("st" 01H 00H 01H) | Implemented in this program | (1)
+rw | Reset Waste | Implemented in this program | (1, 0) + [Serial SHA1 hash](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250) (20 bytes)
+st | Get printer status ("st" 01H 00H 01H) | Implemented in this program; se below "ST2 Status Reply Codes" | (1)
 ti | Set printer time | (" TI" 08H 00H 00H YYYY MM DD hh mm ss) |
 vi | Version Information | Implemented in this program | (0)
 xi | | | (1)
@@ -574,8 +590,8 @@ xi | | | (1)
 - 7.0: Two-byte payload length = 7 bytes
 - two bytes for the read key
 - 65: 'A' = read
-- 190: Take the bitwise NOT of the ASCII value of 'A' = read, then mask to the lowest 8 bits. The result is 190.
-- 160: Shift the ASCII value of 'A' (read) right by 1 and mask to 7 bits, then OR it with the highest bit of the value shifted left by 7. The result is 160.
+- 190: [Take the bitwise NOT of the ASCII value of 'A' = read, then mask to the lowest 8 bits](https://github.com/lion-simba/reink/blob/master/reink.c#L1414). The result is 190.
+- 160: [Shift the ASCII value of 'A' (read) right by 1 and mask to 7 bits, then OR it with the highest bit of the value shifted left by 7](https://github.com/lion-simba/reink/blob/master/reink.c#L1415). The result is 160.
 - two bytes for the EEPROM address
 
 ```
@@ -625,7 +641,7 @@ AC = Value
 
 #### epctrl_snmp_oid()
 
-`self.epctrl_snmp_oid(two-char-command, payload)` converts an END4 EPSON-CTRL Remote command into a SNMP OID format suitable for use in SNMP operations.
+`self.epctrl_snmp_oid(two-char-command, payload)` converts an EPSON-CTRL Remote command into a SNMP OID format suitable for use in SNMP operations.
 
 **Parameters**
 
@@ -651,7 +667,7 @@ It returns a SNMP OID string to be used by `self.printer.fetch_oid_values()`.
 
 To return the value of the OID query: `self.fetch_oid_values(oid)[0][1]`.
 
-### Testing END4 remote commands
+### Testing EPSON-CTRL commands
 
 Open the *epson_print_conf* application, set printer model and IP address, test printer connection. Then: Settings > Debug Shell.
 
@@ -712,29 +728,11 @@ for i in ec_sequences:
         print(r)
 ```
 
-Examples of commands ("CH" = Clean Heads and "NC" = Nozzle Check) that are not included in the END4 set, so they have to be delivered via TCP (port 9100 or port 515) and cannot be mapped to SNMP.
+## Remote Mode commands
 
-- CH BC=2 00 xx Perform a head cleaning cycle. "00" cleans all heads
+Comprehensive, unified documentation for Epson’s Remote Mode commands does not exist: support varies by model, and command references are scattered across service manuals, programming guides and third-party sources (for example, the [Developer's Guide to Gutenprint](https://gimp-print.sourceforge.io/reference-html/x952.html) or [GIMP-Print - ESC/P2 Remote Mode Commands](http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html)).
 
-    | Name                    | Bytes (hex)                                                      | Purpose                                                                                           |
-    | ----------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-    | EXIT\_PACKET\_MODE  | `00 00 00 1B 01 40 45 4A 4C 20 31 32 38 34 2E 34 0A 40 45 4A 4C` | Exit packet mode. |
-    | ENTER\_REMOTE\_MODE | `1B 40 1B 40 1B 28 52 08 00 00 52 45 4D 4F 54 45 31`             | Put the device into "remote" control mode.   |
-    | SET\_CLOCK          | `54 49 08 00 00 07 E9 06 08 17 0E 22`                            | "TI": Write the internal real-time clock to 2025-06-08 17:14:34.                                        |
-    | CLEAN\_HEADS        | `43 48 02 00 00 00`                                              | "CH": trigger print-head cleaning cycle.                                        |
-    | EXIT\_REMOTE\_MODE  | `1B 00 00 00`                                                    | Exit remote control mode.                                          |
-    | JOB\_END            | `4A 45 01 00 00`                                                 | Finalize the maintenance job.                    |
-
-- NC BC=2 00 00 Print a nozzle check pattern
-
-    | Name                     | Bytes (hex)                              | Purpose                                                        |
-    | ------------------------ | ---------------------------------------- | -------------------------------------------------------------- |
-    | EXIT\_PACKET\_MODE  | `00 00 00 1B 01 40 45 4A 4C 20 31 32 38 34 2E 34 0A 40 45 4A 4C` | Exit packet mode. |
-    | ENTER\_REMOTE\_MODE | `1B 40 1B 40 1B 28 52 08 00 00 52 45 4D 4F 54 45 31`             | Put the device into "remote" control mode.   |
-    | PRINT\_NOZZLE\_CHECK | `4E 43 02 00 00 00`                      | "NC": issue nozzle-check print pattern.        |
-    | EXIT\_REMOTE\_MODE   | `1B 00 00 00`                            | Exit remote control mode.                         |
-    | JOB\_END             | `4A 45 01 00 00`                         | Finalize the maintenance job. |
-
+Check `self.printer.check_nozzles()` and `self.printer.clean_nozzles(0)` for examples of usage of remote commands.
 
 ## ST2 Status Reply Codes
 
@@ -983,11 +981,11 @@ snmpget -v1 -d -c public 192.168.1.87 1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.
 
 ### References
 
+ReInk: <https://github.com/lion-simba/reink> (especially <https://github.com/lion-simba/reink/issues/1>)
+
 epson-printer-snmp: <https://github.com/Zedeldi/epson-printer-snmp> (and <https://github.com/Zedeldi/epson-printer-snmp/issues/1>)
 
 ReInkPy: <https://codeberg.org/atufi/reinkpy/>
-
-ReInk: <https://github.com/lion-simba/reink> (especially <https://github.com/lion-simba/reink/issues/1>)
 
 reink-net: <https://github.com/gentu/reink-net>
 
@@ -996,6 +994,8 @@ epson-l4160-ink-waste-resetter: <https://github.com/nicootto/epson-l4160-ink-was
 epson-l3160-ink-waste-resetter: <https://github.com/k3dt/epson-l3160-ink-waste-resetter>
 
 emanage x900: <https://github.com/abrasive/x900-otsakupuhastajat/>
+
+Reversing Epson printers: <https://github.com/abrasive/epson-reversing/>
 
 ### Other programs
 
