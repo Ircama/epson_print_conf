@@ -43,6 +43,9 @@ jobs:
           #pip install git+https://github.com/pyinstaller/pyinstaller@develop
           pip install pyinstaller
           pip install Pillow
+          pip install --upgrade pysnmp
+          pip install --upgrade pysnmp_sync_adapter
+          pip install --upgrade text-console
           pip install -r requirements.txt --no-cache-dir
 
       - name: Run PyInstaller to create epson_print_conf.exe
