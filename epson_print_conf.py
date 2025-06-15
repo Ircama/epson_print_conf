@@ -76,6 +76,7 @@ class EpsonLpr:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(self.timeout)
         self.sock.connect((self.hostname, self.port))
+        return self
 
     def disconnect(self) -> None:
         """Shutdown and close the socket."""
@@ -86,12 +87,14 @@ class EpsonLpr:
                 pass
             self.sock.close()
             self.sock = None
+        return self
 
     def send(self, data: bytes) -> None:
         """Send raw bytes to the printer."""
         if not self.sock:
             raise RuntimeError("Not connected to printer")
         self.sock.sendall(data)
+        return self
 
     def remote_cmd(self, cmd, args):
         "Generate a Remote Mode command."
@@ -1136,6 +1139,46 @@ class EpsonPrinter:
         of list_methods.
         """
         return(filter(lambda x: x.startswith("get_"), dir(self)))
+
+    def hexdump(self, data: Union[bytes, bytearray], width: int = 16) -> str:
+        """
+        Produce a hex + ASCII dump of the given data.
+
+        Each line shows:
+          - 8-digit hex offset
+          - hex bytes (grouped by width, with extra space every 8 bytes)
+          - printable ASCII (non-printables as '.')
+
+        :param data: Bytes to dump.
+        :param width: Number of bytes per line (default: 16).
+        :return: The formatted hexdump.
+        """
+        lines = []
+        for offset in range(0, len(data), width):
+            chunk = data[offset : offset + width]
+
+            # Hex part, with a space every byte and extra gap at half‑width
+            hex_bytes = ' '.join(f"{b:02X}" for b in chunk)
+            half = width // 2
+            if len(chunk) > half:
+                # insert extra space between halves
+                parts = hex_bytes.split(' ')
+                hex_bytes = (
+                    ' '.join(parts[:half]) + '  ' + ' '.join(parts[half:])
+                )
+
+            # Pad hex part so ASCII column aligns
+            expected_len = width * 2 + (width - 1) + 2  # bytes*2 hex + spaces + extra half‑split
+            hex_part = hex_bytes.ljust(expected_len)
+
+            # ASCII part: printable or '.'
+            ascii_part = (
+                ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
+            )
+
+            lines.append(f"{offset:08X}  {hex_part}  {ascii_part}")
+
+        return "\n".join(lines)
 
     def expand_printer_conf(self, conf):
         """

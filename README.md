@@ -61,6 +61,10 @@ The software also includes a configurable printer dictionary, which can be easil
 
     - Import and export printer configuration datasets in various formats: epson_print_conf pickle, Reinkpy XML, Reinkpy TOML.
 
+    - Interactive Console (API Playground).
+    
+      The application includes an integrated Interactive Console. It allows Python developers to interact with the application's runtime environment, evaluate expressions, test APIs, and inspect variables. This console acts as a live API Playground, ideal for debugging, printer configuration testing and rapid prototyping.
+
     - Access various administrative and debugging options.
 
 - __Available Interfaces__:
@@ -79,6 +83,8 @@ git clone https://github.com/Ircama/epson_print_conf
 cd epson_print_conf
 pip install -r requirements.txt
 ```
+
+On Linux, you might also install the tkinter module: `sudo apt install python3-tk`.
 
 This program exploits [pysnmp v7+](https://github.com/lextudio/pysnmp) and [pysnmp-sync-adapter](https://github.com/Ircama/pysnmp-sync-adapter).
 
@@ -673,7 +679,7 @@ To return the value of the OID query: `self.fetch_oid_values(oid)[0][1]`.
 
 Open the *epson_print_conf* application, set printer model and IP address, test printer connection. Then: Settings > Debug Shell.
 
-The following are examples of instructions to test the END4 commands:
+The following are examples of instructions to test the EPSON-CTRL commands:
 
 ```python
 # cs
@@ -734,7 +740,47 @@ for i in ec_sequences:
 
 Comprehensive, unified documentation for Epson’s Remote Mode commands does not exist: support varies by model, and command references are scattered across service manuals, programming guides and third-party sources (for example, the [Developer's Guide to Gutenprint](https://gimp-print.sourceforge.io/reference-html/x952.html) or [GIMP-Print - ESC/P2 Remote Mode Commands](http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html)).
 
-Check `self.printer.check_nozzles()` and `self.printer.clean_nozzles(0)` for examples of usage of remote commands.
+The `EpsonLpr` class is used for sending Epson LPR commands over a RAW, unidirectional TCP connection on port 9100. This channel does not support receiving responses from the printer.
+
+| **Method**              | **Description**                                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `connect`               | Opens a TCP socket connection to the printer at the specified host and port, with timeout.                                       |
+| `disconnect`            | Gracefully shuts down and closes the socket connection if open.                                                                  |
+| `send(data)`            | Sends raw `bytes` directly to the printer over the socket connection.                                                            |
+| `remote_cmd(cmd, args)` | Constructs a Remote Mode command: 2-byte ASCII command + 2-byte little-endian length + arguments.                                |
+
+Predefined remote mode commands in this class:
+
+| **Command**           | **Description**                                         |
+| --------------------- | ------------------------------------------------------- |
+| `LF`                  | Line Feed (new line).                                   |
+| `FF`                  | Form Feed; flushes the buffer / ejects the page.        |
+| `EXIT_PACKET_MODE`    | Exits IEEE 1284.4 (D4) packet mode.                     |
+| `INITIALIZE_PRINTER`  | Resets printer to default state (ESC @).                |
+| `REMOTE_MODE`         | Enter Epson Remote Command mode.                        |
+| `ENTER_REMOTE_MODE`   | Initialize printer and enter Epson Remote Command mode. |
+| `EXIT_REMOTE_MODE`    | Exits Remote Mode.                                      |
+| `JOB_START`           | Begins a print job (JS).                                |
+| `JOB_END`             | Ends a print job (JE).                                  |
+| `PRINT_NOZZLE_CHECK`  | Triggers a nozzle check print pattern (NC).             |
+| `VERSION_INFORMATION` | Requests firmware or printer version info (VI).         |
+| `LD`                  | (unknown).  |
+
+Check `self.printer.check_nozzles()` and `self.printer.clean_nozzles(0)` for examples of usage. The following code prints the nozzle-check print pattern (copy and paste the code to the Interactive Console after selecting a printer and related host address):
+
+```python
+from epson_print_conf import EpsonLpr
+lpr = EpsonLpr(self.printer.hostname)
+data = (
+    lpr.EXIT_PACKET_MODE +    # Exit packet mode
+    lpr.ENTER_REMOTE_MODE +   # Engage remote mode commands
+    lpr.PRINT_NOZZLE_CHECK +  # Issue nozzle-check print pattern
+    lpr.EXIT_REMOTE_MODE +    # Disengage remote control
+    lpr.JOB_END               # Mark maintenance job complete
+)
+print(f"\nDump of data:\n{self.printer.hexdump(data)}\n")
+lpr.connect().send(data).disconnect()
+```
 
 ## ST2 Status Reply Codes
 

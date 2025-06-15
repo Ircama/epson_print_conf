@@ -37,7 +37,7 @@ from find_printers import PrinterScanner
 from text_console import TextConsole
 
 
-VERSION = "6.2.0"
+VERSION = "6.2.10"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
@@ -55,7 +55,9 @@ CONFIRM_MESSAGE = (
 
 class EpcTextConsole(TextConsole):
 
-    show_about_message = "epson_print_conf Debug Console."
+    show_about_message = (
+        "Epson Printer Configuration Interactive Console (API Playground)."
+    )
 
     def show_help(self):
         """Open a separate window with help text."""
@@ -67,13 +69,15 @@ class EpcTextConsole(TextConsole):
         scrollbar = tk.Scrollbar(help_window)
         scrollbar.pack(side="right", fill="y")
 
-        help_text = tk.Text(help_window, wrap="word", yscrollcommand=scrollbar.set)
+        help_text = tk.Text(
+            help_window, wrap="word", yscrollcommand=scrollbar.set
+        )
         help_text.tag_configure("title", foreground="purple")
         help_text.tag_configure("section", foreground="blue")
 
         help_text.insert(
             tk.END,
-            'Welcome to the epson_print_conf Debug Console\n\n',
+            f'Welcome to the {self.show_about_message}\n\n',
             "title"
         )
         help_text.insert(
@@ -98,7 +102,7 @@ class EpcTextConsole(TextConsole):
         help_text.insert(
             tk.END,
             (
-                "- F7: Open the debug console.\n\n"
+                "- F7: Open the Interactive Console (API Playground).\n\n"
             )
         )
         help_text.insert(
@@ -370,8 +374,8 @@ class EpsonPrinterUI(tk.Tk):
         help_menu.add_command(label="Clear printer list", command=self.clear_printer_list)
         help_menu.entryconfig("Clear printer list", accelerator="F6")
 
-        help_menu.add_command(label="Debug shell", command=self.tk_console)
-        help_menu.entryconfig("Debug shell", accelerator="F7")
+        help_menu.add_command(label="Interactive Console (API Playground)", command=self.tk_console)
+        help_menu.entryconfig("Interactive Console (API Playground)", accelerator="F7")
 
         help_menu.add_command(label="Remove selected printer configuration", command=self.remove_printer_conf)
         help_menu.entryconfig("Remove selected printer configuration", accelerator="F8")
@@ -1186,7 +1190,9 @@ class EpsonPrinterUI(tk.Tk):
             return
 
         self._console_window = tk.Toplevel(self)
-        self._console_window.title("Debug Console")
+        self._console_window.title(
+            "Epson Printer Configuration Interactive Console (API Playground)"
+        )
         self._console_window.geometry("800x400")
 
         console = EpcTextConsole(self, self._console_window)
@@ -3596,7 +3602,7 @@ def main():
     import pickle
 
     parser = argparse.ArgumentParser(
-        epilog='epson_print_conf GUI'
+        epilog='Epson Printer Configuration GUI'
     )
     parser.add_argument(
         '-m',
