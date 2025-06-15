@@ -38,7 +38,7 @@ jobs:
 
       - name: Install Python Requirements
         run: |
-          export GITHUB_RUN_NUMBER=""
+          set GITHUB_RUN_NUMBER=""
           python -m pip install --upgrade pip
           #pip install git+https://github.com/pyinstaller/pyinstaller@develop
           pip install pyinstaller
