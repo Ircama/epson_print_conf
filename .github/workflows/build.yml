@@ -43,7 +43,7 @@ jobs:
           #pip install git+https://github.com/pyinstaller/pyinstaller@develop
           pip install pyinstaller
           pip install Pillow
-          pip install -r requirements.txt
+          pip install -r requirements.txt --no-cache-dir
 
       - name: Run PyInstaller to create epson_print_conf.exe
         run: python -m PyInstaller epson_print_conf.spec -- --default
