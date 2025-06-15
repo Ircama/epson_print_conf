@@ -80,6 +80,8 @@ cd epson_print_conf
 pip install -r requirements.txt
 ```
 
+On Linux, you might also install the tkinter module: `sudo apt install python3-tk`.
+
 This program exploits [pysnmp v7+](https://github.com/lextudio/pysnmp) and [pysnmp-sync-adapter](https://github.com/Ircama/pysnmp-sync-adapter).
 
 It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
