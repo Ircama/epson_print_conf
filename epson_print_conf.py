@@ -2635,7 +2635,7 @@ class EpsonPrinter:
         ]
         try:
             lpr.connect()
-            resp = lpr.send(b"".join(commands))
+            lpr.send(b"".join(commands))
         except Exception as e:
             status = False
         finally:

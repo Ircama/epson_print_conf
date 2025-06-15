@@ -564,23 +564,25 @@ cs |  | | (0 or 1)
 cx | | |
 di | Device Identification ("di" 01H 00H 01H) | Implemented in this program | (1)
 ei | | | (0)
-ex | Set Vertical Print Page Line Mode, Roll Paper Mode | - EX BC=6 00 00 00 00 0x14 xx (Set Vertical Print Page Line Mode. xx=00 is off, xx=01 is on. If turned on, this prints vertical trim lines at the left and right margins).<br> - EX BC=6 00 00 00 00 0x05 xx (Set Roll Paper Mode. If xx is 0, roll paper mode is off; if xx is 1, roll paper mode is on).<br> - EX BC=3 00 xx yy (Appears to be a synonym for the SN command described above.) |
+ex | Set Vertical Print Page Line Mode, Roll Paper Mode | - ex BC=6 00 00 00 00 0x14 xx (Set Vertical Print Page Line Mode. xx=00 is off, xx=01 is on. If turned on, this prints vertical trim lines at the left and right margins).<br> - ex BC=6 00 00 00 00 0x05 xx (Set Roll Paper Mode. If xx is 0, roll paper mode is off; if xx is 1, roll paper mode is on).<br> - ex BC=3 00 xx yy (Appears to be a synonym for the SN command described above.) |
 fl | Firmware load. Enter recovery mode | |
 ht | Horizontal tab | |
 ia | List of cartridge types | Implemented in this program | (0)
-ii | List cartridge properties | Implemented in this program | (1 + cartridge number)
+ii | List cartridge properties | Implemented in this program ("ii\2\0\1\1") | (1 + cartridge number)
 ot | Power Off Timer | Implemented in this program | (1, 1)
 pe | (paper ?) | | (1)
 pj | Pause jobs (?) | |
-pm | Select control language ("PM" 02H 00H 00H m1m1=0(ESC/P), 2(IBM 238x Plus emulation) | | (1)
+pm | Select control language ("pm" 02H 00H 00H m1m1=0(ESC/P), 2(IBM 238x Plus emulation) | | (1)
 rj | Resume jobs (?)  | |
 rp | (serial number ? ) | | (0)
 rs | Initialize | | (1)
 rw | Reset Waste | Implemented in this program | (1, 0) + [Serial SHA1 hash](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250) (20 bytes)
 st | Get printer status ("st" 01H 00H 01H) | Implemented in this program; se below "ST2 Status Reply Codes" | (1)
-ti | Set printer time | (" TI" 08H 00H 00H YYYY MM DD hh mm ss) |
+ti | Set printer time | ("ti" 08H 00H 00H YYYY MM DD hh mm ss) |
 vi | Version Information | Implemented in this program | (0)
 xi | | | (1)
+
+escutil.c also mentions ["ri\2\0\0\0"](https://github.com/echiu64/gutenprint/blob/master/src/escputil/escputil.c#L1944) (Attempt to reset ink).
 
 ### Examples for EEPROM access
 
@@ -996,6 +998,8 @@ epson-l3160-ink-waste-resetter: <https://github.com/k3dt/epson-l3160-ink-waste-r
 emanage x900: <https://github.com/abrasive/x900-otsakupuhastajat/>
 
 Reversing Epson printers: <https://github.com/abrasive/epson-reversing/>
+
+escputil.c: https://github.com/echiu64/gutenprint/blob/master/src/escputil/escputil.c#
 
 ### Other programs
 

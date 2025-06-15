@@ -37,7 +37,7 @@ from find_printers import PrinterScanner
 from text_console import TextConsole
 
 
-VERSION = "6.1.0"
+VERSION = "6.2.0"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
@@ -270,6 +270,11 @@ class EpsonPrinterUI(tk.Tk):
         conf_dict = {},
         replace_conf=False
     ):
+        def plain_fn(event, fn_handler):
+            if event.state:  # Shift | Control | Alt
+                return
+            fn_handler()
+
         try:
             super().__init__()
         except Exception as e:
@@ -359,9 +364,6 @@ class EpsonPrinterUI(tk.Tk):
         help_menu.add_command(label="Show printer keys of the selected model", command=self.key_values)
         help_menu.entryconfig("Show printer keys of the selected model", accelerator="F3")
 
-        help_menu.add_command(label="Remove selected printer configuration", command=self.remove_printer_conf)
-        help_menu.entryconfig("Remove selected printer configuration", accelerator="F4")
-
         help_menu.add_command(label="Keep only selected printer configuration", command=self.keep_printer_conf)
         help_menu.entryconfig("Keep only selected printer configuration", accelerator="F5")
 
@@ -370,6 +372,9 @@ class EpsonPrinterUI(tk.Tk):
 
         help_menu.add_command(label="Debug shell", command=self.tk_console)
         help_menu.entryconfig("Debug shell", accelerator="F7")
+
+        help_menu.add_command(label="Remove selected printer configuration", command=self.remove_printer_conf)
+        help_menu.entryconfig("Remove selected printer configuration", accelerator="F8")
 
         help_menu.add_command(label="Get next local IP addresss", command=lambda: self.next_ip(0))
         help_menu.entryconfig("Get next local IP addresss", accelerator="F9")
@@ -434,14 +439,14 @@ class EpsonPrinterUI(tk.Tk):
         ToolTip(
             self.model_dropdown,
             "Select the model of the printer, or press 'Detect Printers'."
-            " Special features are allowed via F2, F3, F4, F5, or F6.\n"
+            " Special features are allowed via F2, F3, F5, F6, F8, F9.\n"
         )
-        self.bind_all("<F2>", self.printer_config)
-        self.bind_all("<F3>", self.key_values)
-        self.bind_all("<F4>", lambda event: self.remove_printer_conf())
-        self.bind_all("<F5>", lambda event: self.keep_printer_conf())
-        self.bind_all("<F6>", lambda event: self.clear_printer_list())
-        self.bind_all("<F7>", lambda event: self.tk_console())
+        self.bind_all("<F2>", lambda e: plain_fn(e, self.printer_config))
+        self.bind_all("<F3>", lambda e: plain_fn(e, self.key_values))
+        self.bind_all("<F5>", lambda e: plain_fn(e, self.keep_printer_conf))
+        self.bind_all("<F6>", lambda e: plain_fn(e, self.clear_printer_list))
+        self.bind_all("<F7>", lambda e: plain_fn(e, self.tk_console))
+        self.bind_all("<F8>", lambda e: plain_fn(e, self.remove_printer_conf))
 
         # BOX IP address
         ip_frame = ttk.LabelFrame(
@@ -469,7 +474,7 @@ class EpsonPrinterUI(tk.Tk):
         self.ip_entry.grid(
             row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
         )
-        self.ip_entry.bind("<F9>", self.next_ip)
+        self.ip_entry.bind_all("<F9>", self.next_ip)
         ToolTip(
             self.ip_entry,
             "Enter the IP address, or press 'Detect Printers'"
@@ -1169,16 +1174,29 @@ class EpsonPrinterUI(tk.Tk):
         )
 
     def tk_console(self):
-        console_window = tk.Toplevel(self)
-        console_window.title("Debug Console")
-        console_window.geometry("800x400")
+        if hasattr(
+            self, '_console_window'
+        ) and self._console_window.winfo_exists():
+            self._console_window.deiconify()
+            self._console_window.lift()
+            self._console_window.focus_force()
+            # Find the console widget and focus it properly
+            for widget in self._console_window.winfo_children():
+                widget.focus_set()
+            return
 
-        console = EpcTextConsole(self, console_window)
-        console.pack(fill='both', expand=True)  # Use pack within the frame
+        self._console_window = tk.Toplevel(self)
+        self._console_window.title("Debug Console")
+        self._console_window.geometry("800x400")
 
-        # Configure grid resizing for the frame
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
+        console = EpcTextConsole(self, self._console_window)
+        console.focus_set()
+        console.pack(fill='both', expand=True)
+
+        # Optional: handle window close to remove reference
+        def on_close():
+            self._console_window.destroy()
+            self._console_window = None
 
     def open_help_browser(self):
         # Opens a web browser to a help URL
@@ -2714,12 +2732,9 @@ Web site: https://github.com/Ircama/epson_print_conf
         def show_clean_dialog():
             # Define groups
             groups = [
-                "Clean all nozzles",
-                "Cyan + Vivid Magenta",
-                "Photo Black + Matte Black + Light Black",
-                "Orange + Green",
-                "Light Light Black + Yellow",
-                "Vivid Light Magenta + Light Cyan"
+                "Clean all nozzles",  # 0
+                "Clean the black ink nozzle",  # 1
+                "Clean the color ink nozzles",  # 2
             ]
 
             # Create modal dialog
