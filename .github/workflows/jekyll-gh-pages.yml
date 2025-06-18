@@ -42,6 +42,9 @@ jobs:
         with:
           ruby-version: "3.3"
           bundler-cache: true # runs 'bundle install' to install and cache gems
+      - name: Add Google Search Console verification file
+        run: |
+          echo "google-site-verification: googlecef4261bbf37d740.html" > googlecef4261bbf37d740.html
       - name: Add a YAML front matter to README.md
         run: |
           ex README.md <<EOF
