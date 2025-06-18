@@ -117,6 +117,9 @@ callouts:
 # ga_tracking: UA-2709176-10,G-5FG1HLH3XQ
 # ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (true/nil by default)
 
+# Google Tag Manager: GTM-W3MQKRL3
+ga_tracking: G-D8T6QN7MKL
+
 plugins:
   - jekyll-seo-tag
   - jekyll-github-metadata
