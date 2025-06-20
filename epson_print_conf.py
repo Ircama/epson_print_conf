@@ -1245,7 +1245,8 @@ class EpsonPrinter:
     def stats(self):
         """Return all available information about a printer."""
         stat_set = {}
-        for method in self.list_methods:
+        # Run "list(self.printer.list_methods)" to get the list of all methods
+        for method in self.list_methods:  # Run one by one all functions starting with "get_"
             ret = self.__getattribute__(method)()
             if ret:
                 stat_set[method[4:]] = ret
@@ -1374,7 +1375,7 @@ class EpsonPrinter:
                     logging.error(
                         "MIB '%s' not in config. Operation: %s", oid, label
                     )
-                    return None, False
+                    return [(None, False)]
                 return self.mib_dict[oid]
             else:
                 # list case: map through dict
@@ -1396,7 +1397,7 @@ class EpsonPrinter:
 
         # Build or reuse SNMP network config
         if not self.hostname:
-            return None, False
+            return [(None, False)]
 
         net_val = (self.hostname, self.port, self.timeout, self.retries)
         if net_val != self.used_net_val:
@@ -1413,12 +1414,12 @@ class EpsonPrinter:
             except Exception as e:
                 logging.critical("fetch_oid_values invalid address: %s", e)
                 self.used_net_val = ()
-                return None, False
+                return [(None, False)]
 
             self.used_net_val = net_val
 
         if not self.snmp_conf:
-            return None, False
+            return [(None, False)]
 
         # SNMP lookup
         def _single_lookup(single_oid: str) -> Tuple[str, Any]:
@@ -1437,7 +1438,7 @@ class EpsonPrinter:
             elif errorInd is not None:
                 logging.info("fetch_oid_values error: %s. OID: %s. Label: %s",
                              errorInd, single_oid, label)
-                return None, False
+                return [(None, False)]
 
             # SNMP-level errorStatus
             if int(errorStat) != 0:
@@ -1447,7 +1448,7 @@ class EpsonPrinter:
                     "fetch_oid_values PDU error: %s at %s. OID: %s. Label: %s",
                     errorStat.prettyPrint(), bad_oid, single_oid, label
                 )
-                return None, False
+                return [(None, False)]
 
             # unpack the varBinds
             final = []
