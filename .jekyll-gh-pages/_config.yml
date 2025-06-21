@@ -77,7 +77,7 @@ liquid:
 back_to_top: true
 back_to_top_text: "Back to top"
 
-footer_content: 'Copyright &copy; 2023-2024 Ircama. Distributed by an <a href="https://raw.githubusercontent.com/Ircama/epson_print_conf/refs/heads/main/LICENSE">MIT license.</a>'
+footer_content: 'Copyright &copy; 2023-2025 Ircama. Distributed by the <a href="https://raw.githubusercontent.com/Ircama/epson_print_conf/refs/heads/main/LICENSE">EUPL-1.2 License.</a>'
 
 # Footer last edited timestamp
 last_edit_timestamp: true # show or hide edit time - page must have `last_modified_date` defined in the frontmatter

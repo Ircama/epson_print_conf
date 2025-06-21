@@ -53,9 +53,9 @@ class EpsonLpr:
         # Define Epson sequences
         self.LF = b'\x0a'
         self.FF = b'\x0c'  # flush buffer
+        self.UNIVERSAL_EXIT = b'\x00\x00\x00\x1b\x01'  # required by newer printers
         self.EXIT_PACKET_MODE = (
-            b'\x00\x00\x00\x1b\x01@EJL 1284.4\n@EJL     ' +
-            self.LF
+            self.UNIVERSAL_EXIT + b'@EJL 1284.4\n@EJL     ' + self.LF
         )
         self.INITIALIZE_PRINTER = b'\x1b@'
         self.REMOTE_MODE = b'\x1b' + self.remote_cmd("(R", b'\x00REMOTE1')
@@ -70,6 +70,13 @@ class EpsonLpr:
         self.PRINT_NOZZLE_CHECK = self.remote_cmd("NC", b'\x00\x00')
         self.VERSION_INFORMATION = self.remote_cmd("VI", b'\x00\x00')
         self.LD = self.remote_cmd("LD", b'')
+
+    def __enter__(self) -> "EpsonLpr":
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.disconnect()
 
     def connect(self) -> None:
         """Establish a TCP connection to the printer."""
@@ -99,7 +106,7 @@ class EpsonLpr:
     def remote_cmd(self, cmd, args):
         "Generate a Remote Mode command."
         if len(cmd) != 2:
-            raise ValueError("command should be 2 bytes")
+            raise ValueError("command should be exactly 2 characters")
         return cmd.encode() + struct.pack('<H', len(args)) + args
 
 

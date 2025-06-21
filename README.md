@@ -25,8 +25,8 @@ The software also includes a configurable printer dictionary, which can be easil
 
     - Clean Nozzles.
     
-      Performs a standard cleaning cycle on the selected nozzle group.
-
+      Standard cleaning cycle on the selected nozzle group, allowing to select black/color nozzles.
+      
     - Power Clean of the nozzles.
 
       Uses a higher quantity of ink to perform a deeper cleaning cycle. Power cleaning also consumes more ink and fills the waste ink tank more quickly. It should only be used when normal cleaning is insufficient.
@@ -538,7 +538,7 @@ pprint.pprint(printer.status_parser(printer.fetch_snmp_values("1.3.6.1.4.1.1248.
   – Carries the actual print-job content: raster image streams, font/download data, macros, etc.
   - Allow "Remote Mode" commands, entered and terminated via a special sequence (`ESC (R BC=8 00 R E M O T E 1`, `ESC 00 00 00`); [remote mode commands](https://gimp-print.sourceforge.io/reference-html/x952.html) are partially documented and have a similar structure as EPSON-CTRL (2 letters + length + payload), but the letters are uppercase and cannot be mapped to SNMP.
 
-EPSON-CTRL can be transported over D4, or encapsulated in SNMP OIDs. Some EPSON-CTRL instructions implement a subset of Epson’s Remote Mode protocol, while others are proprietary.
+EPSON-CTRL can be transported over D4, or encapsulated in SNMP OIDs. Some EPSON-CTRL instructions implement a subset of Epson’s Remote Mode protocol, while others are proprietary. Such commands are named "Packet Commands" in the Epson printer Service Manuals and specifically the "EPSON LX-300+II and LX-1170II Service manuals" (old impact dot matrix printers) document "di", "st" and also "||" in the "Packet commands" table.
 
 END4 is a proprietary protocol to transport EPSON-CTRL commands [over the standard print channel](https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1660026), without using the EPSON-CTRL channel.
 
@@ -564,7 +564,7 @@ The following is the list of EPSON-CTRL commands supported by the XP-205.
 
 Two-bytes|Description | Notes | Parameters
 :--:| ---------------------------------------------- | ----------------| -------------
-\|\| | EEPROM access | Implemented in this program, not supported by new printer firmwares | (A, B); see examples below
+\|\| | EEPROM access | Implemented in this program, the SNMP OID version is not supported by new printer firmwares | (A, B); see examples below
 cd | | | (0)
 cs |  | | (0 or 1)
 cx | | |
@@ -588,19 +588,13 @@ ti | Set printer time | ("ti" 08H 00H 00H YYYY MM DD hh mm ss) |
 vi | Version Information | Implemented in this program | (0)
 xi | | | (1)
 
-escutil.c also mentions ["ri\2\0\0\0"](https://github.com/echiu64/gutenprint/blob/master/src/escputil/escputil.c#L1944) (Attempt to reset ink).
+escutil.c also mentions [`ri\2\0\0\0`](https://github.com/echiu64/gutenprint/blob/master/src/escputil/escputil.c#L1944) (Attempt to reset ink) in some printer firmwares.
+
+[Other font](https://codeberg.org/KalleMP/reinkpy/src/branch/main/reinkpy/epson/core.py#L22) also mentions `pc:\x01:NA` in some printer firmwares.
 
 ### Examples for EEPROM access
 
 #### Read EEPROM
-
-- 124.124: "||" = Read EEPROM (EPSON-CTRL)
-- 7.0: Two-byte payload length = 7 bytes
-- two bytes for the read key
-- 65: 'A' = read
-- 190: [Take the bitwise NOT of the ASCII value of 'A' = read, then mask to the lowest 8 bits](https://github.com/lion-simba/reink/blob/master/reink.c#L1414). The result is 190.
-- 160: [Shift the ASCII value of 'A' (read) right by 1 and mask to 7 bits, then OR it with the highest bit of the value shifted left by 7](https://github.com/lion-simba/reink/blob/master/reink.c#L1415). The result is 160.
-- two bytes for the EEPROM address
 
 ```
 124.124.7.0. [7C 7C 07 00]
@@ -609,7 +603,23 @@ escutil.c also mentions ["ri\2\0\0\0"](https://github.com/echiu64/gutenprint/blo
 <LSB EEPROM ADDRESS (one byte)>.<MSB EEPROM ADDRESS (one byte)>
 ```
 
-Example: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.73.8.65.190.160.48.0`
+- 124.124: "||" = Read EEPROM (EPSON-CTRL)
+- 7.0: Two-byte payload length = 7 bytes (7 bytes payload length means two-byte EEPROM address, used in recent printers; old printers supported 6 bytes payload length for a single byte EEPROM address).
+- two bytes for the read key (named "R code" in the "EPSON LX-300+II and LX-1170II Service manuals")
+- 65: 'A' = read (41H)
+- 190: [Take the bitwise NOT of the ASCII value of 'A' = read, then mask to the lowest 8 bits](https://github.com/lion-simba/reink/blob/master/reink.c#L1414). The result is 190 (BEH).
+- 160: [Shift the ASCII value of 'A' (read) right by 1 and mask to 7 bits, then OR it with the highest bit of the value shifted left by 7](https://github.com/lion-simba/reink/blob/master/reink.c#L1415). The result is 160 (A0H).
+- two bytes for the EEPROM address (one byte if the payload length is 6 bytes)
+
+From the Epson Service manual of LX-300+II and LX-1170II (single byte form):
+
+```
+“||” 06H 00H r1 r2 41H BEH A0H d1
+r1, r2 means R code. (e.g. r1=A8, r2=5Ah)
+d1 : EEPROM address (00h - FFh)
+```
+
+SNMP OID example: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.73.8.65.190.160.48.0`
 
 #### Write EEPROM
 
@@ -632,7 +642,7 @@ Example: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.73.8.65.190.160.48.0`
 <WRITE KEY (eight bytes)>
 ```
 
-Example: `7C 7C 10 00 49 08 42 BD 21 30 00 1A 42 73 62 6F 75 6A 67 70`
+SNMP OID example: `7C 7C 10 00 49 08 42 BD 21 30 00 1A 42 73 62 6F 75 6A 67 70`
 
 #### Returned data
 
@@ -1057,6 +1067,10 @@ escputil.c: https://github.com/echiu64/gutenprint/blob/master/src/escputil/escpu
 - PrintHelp: <https://printhelp.info/> (Use at your risk)
 
 ### Other resources
-
+- <https://github.com/lion-simba/reink/files/14553492/devices.zip>
 - <https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d>
 - <https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml>
+
+## License
+
+EUPL-1.2 License - See [LICENSE](LICENSE) for details.

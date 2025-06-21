@@ -12,7 +12,6 @@ import threading
 import ipaddress
 import inspect
 from datetime import datetime
-import socket
 import traceback
 import logging
 import webbrowser
@@ -31,7 +30,7 @@ from tkcalendar import DateEntry  # Ensure you have: pip install tkcalendar
 from tkinter import simpledialog, messagebox, filedialog
 
 import pyperclip
-from epson_print_conf import EpsonPrinter, get_printer_models
+from epson_print_conf import EpsonPrinter, get_printer_models, EpsonLpr
 from parse_devices import generate_config_from_toml, generate_config_from_xml, normalize_config
 from find_printers import PrinterScanner
 from text_console import TextConsole
@@ -3567,10 +3566,6 @@ Web site: https://github.com/Ircama/epson_print_conf
 
     def print_items(self, text):
         """Send items to the printer."""
-        exit_packet_mode = b'\x00\x00\x00\x1b\x01@EJL 1284.4\n@EJL     \n'
-        initialize_printer = b"\x1B\x40"
-        form_feed = b"\f"
-
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
             self.show_status_text_view()
@@ -3580,14 +3575,13 @@ Web site: https://github.com/Ircama/epson_print_conf
             )
             return
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.connect((ip_address, 9100))
-                sock.sendall(
-                    exit_packet_mode
-                    + initialize_printer
+            with EpsonLpr(ip_address) as lpr:
+                lpr.send(
+                    lpr.EXIT_PACKET_MODE
+                    + lpr.INITIALIZE_PRINTER
                     + b"Printer configuration\n"
                     + text.encode('utf-8')
-                    + form_feed
+                    + lpr.FF
                 )
         except Exception as e:
             self.show_status_text_view()
