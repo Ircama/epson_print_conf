@@ -21,7 +21,6 @@ import pickle
 import abc
 import hashlib
 import struct
-import socket
 
 from pysnmp.hlapi.v1arch.asyncio import *
 from pyasn1.type.univ import OctetString as OctetStringType
@@ -32,82 +31,7 @@ from pysnmp_sync_adapter import (
     cluster_varbinds
 )
 from pysnmp.proto.errind import RequestTimedOut
-
-
-class EpsonLpr:
-    """
-    Interface for sending Epson LPR commands over RAW (port 9100)
-    """
-
-    def __init__(self,
-                 hostname: str,
-                 port: int = 9100,
-                 timeout: float = 5.0,
-                 recv_buffer: int = 4096):
-        self.hostname = hostname
-        self.port = port
-        self.timeout = timeout
-        self.recv_buffer = recv_buffer
-        self.sock: Optional[socket.socket] = None
-
-        # Define Epson sequences
-        self.LF = b'\x0a'
-        self.FF = b'\x0c'  # flush buffer
-        self.UNIVERSAL_EXIT = b'\x00\x00\x00\x1b\x01'  # required by newer printers
-        self.EXIT_PACKET_MODE = (
-            self.UNIVERSAL_EXIT + b'@EJL 1284.4\n@EJL     ' + self.LF
-        )
-        self.INITIALIZE_PRINTER = b'\x1b@'
-        self.REMOTE_MODE = b'\x1b' + self.remote_cmd("(R", b'\x00REMOTE1')
-        self.ENTER_REMOTE_MODE = (
-            self.INITIALIZE_PRINTER +
-            self.INITIALIZE_PRINTER +
-            self.REMOTE_MODE
-        )
-        self.EXIT_REMOTE_MODE = b'\x1b\x00\x00\x00'
-        self.JOB_START = self.remote_cmd("JS", b'\x00\x00\x00\x00')
-        self.JOB_END = self.remote_cmd("JE", b'\x00')
-        self.PRINT_NOZZLE_CHECK = self.remote_cmd("NC", b'\x00\x00')
-        self.VERSION_INFORMATION = self.remote_cmd("VI", b'\x00\x00')
-        self.LD = self.remote_cmd("LD", b'')
-
-    def __enter__(self) -> "EpsonLpr":
-        self.connect()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.disconnect()
-
-    def connect(self) -> None:
-        """Establish a TCP connection to the printer."""
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(self.timeout)
-        self.sock.connect((self.hostname, self.port))
-        return self
-
-    def disconnect(self) -> None:
-        """Shutdown and close the socket."""
-        if self.sock:
-            try:
-                self.sock.shutdown(socket.SHUT_RDWR)
-            except Exception:
-                pass
-            self.sock.close()
-            self.sock = None
-        return self
-
-    def send(self, data: bytes) -> None:
-        """Send raw bytes to the printer."""
-        if not self.sock:
-            raise RuntimeError("Not connected to printer")
-        self.sock.sendall(data)
-        return self
-
-    def remote_cmd(self, cmd, args):
-        "Generate a Remote Mode command."
-        if len(cmd) != 2:
-            raise ValueError("command should be exactly 2 characters")
-        return cmd.encode() + struct.pack('<H', len(args)) + args
+from pyprintlpr import LprClient
 
 
 class EpsonPrinter:
@@ -1146,46 +1070,6 @@ class EpsonPrinter:
         of list_methods.
         """
         return(filter(lambda x: x.startswith("get_"), dir(self)))
-
-    def hexdump(self, data: Union[bytes, bytearray], width: int = 16) -> str:
-        """
-        Produce a hex + ASCII dump of the given data.
-
-        Each line shows:
-          - 8-digit hex offset
-          - hex bytes (grouped by width, with extra space every 8 bytes)
-          - printable ASCII (non-printables as '.')
-
-        :param data: Bytes to dump.
-        :param width: Number of bytes per line (default: 16).
-        :return: The formatted hexdump.
-        """
-        lines = []
-        for offset in range(0, len(data), width):
-            chunk = data[offset : offset + width]
-
-            # Hex part, with a space every byte and extra gap at half‑width
-            hex_bytes = ' '.join(f"{b:02X}" for b in chunk)
-            half = width // 2
-            if len(chunk) > half:
-                # insert extra space between halves
-                parts = hex_bytes.split(' ')
-                hex_bytes = (
-                    ' '.join(parts[:half]) + '  ' + ' '.join(parts[half:])
-                )
-
-            # Pad hex part so ASCII column aligns
-            expected_len = width * 2 + (width - 1) + 2  # bytes*2 hex + spaces + extra half‑split
-            hex_part = hex_bytes.ljust(expected_len)
-
-            # ASCII part: printable or '.'
-            ascii_part = (
-                ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
-            )
-
-            lines.append(f"{offset:08X}  {hex_part}  {ascii_part}")
-
-        return "\n".join(lines)
 
     def expand_printer_conf(self, conf):
         """
@@ -2628,20 +2512,23 @@ class EpsonPrinter:
                 return False
         return True
 
-    def check_nozzles(self):
+    def check_nozzles(self, type=0):
         """
         Print nozzle-check pattern.
         """
         if not self.hostname:
             return None
         status = True
-        lpr = EpsonLpr(self.hostname)
+        lpr = LprClient(self.hostname, port="LPR", label="Check nozzles")
 
         # Sequence list
+        nozzle_check = lpr.PRINT_NOZZLE_CHECK  # Issue nozzle-check print pattern
+        if type == 1:
+            nozzle_check[-1] = b'\x10'
         commands = [
             lpr.EXIT_PACKET_MODE,    # Exit packet mode
             lpr.ENTER_REMOTE_MODE,   # Engage remote mode commands
-            lpr.PRINT_NOZZLE_CHECK,  # Issue nozzle-check print pattern
+            nozzle_check,
             lpr.EXIT_REMOTE_MODE,    # Disengage remote control
             lpr.JOB_END              # Mark maintenance job complete
         ]
@@ -2654,40 +2541,257 @@ class EpsonPrinter:
             lpr.disconnect()
         return status
 
-    def clean_nozzles(self, group_index, power_clean=False):
+    def print_test_color_pattern(self):
+        """
+        Print a one-page test color pattern with different qualities.
+        For XP-200, XP-205
+        """
+        if not self.hostname:
+            return None
+        status = True
+        lpr = LprClient(self.hostname, port="LPR", label="Check nozzles")
+
+        # Transfer Raster image commands (ESC i), Color, Run Length Encoding, 2bits per pixel
+        TRI_BLACK =   "1b6900010250008000"  # ESC i 0: Black
+        TRI_YELLOW =  "1b6901010250002a00"  # ESC i 1: Yellow
+        TRI_MAGENTA = "1b6904010250002a00"  # ESC i 4: Magenta
+        TRI_CYAN =    "1b6902010250002a00"  # ESC i 2: Cyan
+
+        SET_H_POS = "1b28240400"  # ESC ( $ = Set absolute horizontal print position (first part)
+
+        USE_MONOCHROME = "1b284b02000001"  # ESC ( K = Monochrome Mode / Color Mode Selection, 01H: Monochrome mode
+        USE_COLOR = "1b284b02000000"  # ESC ( K = Monochrome Mode / Color Mode Selection, 00H: Default mode (color mode)
+
+        vsd_code = {  # Variable Sized Droplet
+            -1: "00",  # VSD1 1bit or MC1-1 1 bit (for DOS)
+            0: "10",  # Economy, Fast Draft
+            1: "11",  # VSD1 2bit - fast eco, economy or speed/normal,
+            2: "12",  # VSD2 2bit - fine/quality,
+            3: "13",  # VSD3 2bit - super fine/high quality,
+            4: "21",  # MC1-1 Fine
+            5: "25",  # MC1-5 Super Photo
+            6: "32",  # Foto
+            7: "22",  # MC1-2 Foto
+            8: "21",  # Photo Draft
+            9: "31",  # MC2-1 Normal
+            10: "32",  # MC2-2
+        }
+
+        # Solid fill patterns for homogeneous areas
+        PATTERN_SOLID_HIGH = "d9ff"    # High density solid - d9 = 11011001 (5 out of 8 bits = 62.5%) - FF (11111111) = 100% bit density = HIGH
+        PATTERN_SOLID_MEDIUM = "d9aa"  # Medium density solid - d9 = 11011001 (5 out of 8 bits = 62.5%) - AA (10101010) = 50% bit density = MEDIUM
+        PATTERN_SOLID_LOW = "d955"     # Low density solid - d9 = 11011001 (5 out of 8 bits = 62.5%) - 55 (01010101) = 50% bit density = LOW
+        PATTERN_SOLID_VERY_LOW = "d900d900"
+
+        # High contrast alternating patterns (0xFF and 0x00)
+        PATTERN_HIGH_CONTRAST_ALT = (
+            PATTERN_SOLID_HIGH + PATTERN_SOLID_VERY_LOW + PATTERN_SOLID_HIGH  # 11011001 11111111 11011001 00000000...
+        )
+        # Medium contrast alternating patterns (0xAA - 10101010 pattern)
+        PATTERN_MEDIUM_CONTRAST_ALT = (
+            PATTERN_SOLID_MEDIUM + PATTERN_SOLID_VERY_LOW + PATTERN_SOLID_MEDIUM  # 11011001 10101010 11011001 00000000...
+        )
+        # Low contrast alternating patterns (0x55 - 01010101 pattern)  
+        PATTERN_LOW_CONTRAST_ALT = (
+            PATTERN_SOLID_LOW + PATTERN_SOLID_VERY_LOW + PATTERN_SOLID_LOW  # 11011001 01010101 11011001 00000000...
+        )
+        # Define the printing segments - each represents a label with different patterns and text
+        printing_segments = [
+            {
+                "label_sequence": lpr.EXIT_REMOTE_MODE
+                    + b'\r\n\r\nEconomy\r\n',
+                "vsd": 0,
+                "alternating_pattern": PATTERN_HIGH_CONTRAST_ALT, 
+                "solid_pattern": PATTERN_SOLID_HIGH, 
+            },
+            {
+                "label_sequence": lpr.INITIALIZE_PRINTER
+                    + b"\r\n\n\n\nVSD1 - M. - Normal\r\n",
+                "vsd": 1,
+                "alternating_pattern": PATTERN_MEDIUM_CONTRAST_ALT, 
+                "solid_pattern": PATTERN_SOLID_MEDIUM, 
+            },
+            {
+                "label_sequence": lpr.INITIALIZE_PRINTER
+                    + b"\r\n\n\n\nVSD2 - M. - Quality\r\n",
+                "vsd": 2,
+                "alternating_pattern": PATTERN_MEDIUM_CONTRAST_ALT, 
+                "solid_pattern": PATTERN_SOLID_MEDIUM, 
+            },
+            {
+                "label_sequence": lpr.INITIALIZE_PRINTER
+                    + b"\r\n\n\n\nVSD3 - L. - High Quality\r\n",
+                "vsd": 3,
+                "alternating_pattern": PATTERN_HIGH_CONTRAST_ALT, 
+                "solid_pattern": PATTERN_SOLID_HIGH, 
+            },
+            {
+                "label_sequence": lpr.INITIALIZE_PRINTER
+                    + b"\r\n\n\n\nVSD3 - M. - High Quality\r\n",
+                "vsd": 3,
+                "alternating_pattern": PATTERN_MEDIUM_CONTRAST_ALT, 
+                "solid_pattern": PATTERN_SOLID_MEDIUM, 
+            },
+            {
+                "label_sequence": lpr.INITIALIZE_PRINTER
+                    + b"\r\n\n\n\nVSD3 - S. - High Quality\r\n",
+                "vsd": 3,
+                "alternating_pattern": PATTERN_LOW_CONTRAST_ALT, 
+                "solid_pattern": PATTERN_SOLID_LOW, 
+            },
+        ]
+
+        def generate_patterns():
+            """
+            Generate the complete ESC/P2 command sequence for the patterns.
+            """
+            command_parts = []
+            
+            for segment in printing_segments:
+
+                # Label
+                command_parts.append(segment["label_sequence"].hex())
+
+                # Initialization
+                command_parts.append(
+                    "1b2847010001"  # Select graphics mode
+                    + "1b28550500010101a005"  # ESC (U = Sets 360 DPI resolutio
+                    + "1b28430400c6410000"  # ESC (C = Configures page lenght
+                    + "1b28630800ffffffffc6410000"  # ESC (c = Set page format
+                    + "1b28530800822e0000c6410000"  # ESC (S = paper dimension specification
+                    + "1b2844040068010301"  # ESC (D = raster image resolution
+                    + "1b2865020000" + vsd_code[segment["vsd"]]  # ESC (e = Select Ink Drop Size
+                    + "1b5502"  # ESC U 02H = selects automatic printing direction control
+                    + USE_MONOCHROME
+                    + "1b2876040000010000" # ESC (v = Set relative vertical print position
+                )
+
+                # First block - black alternating
+                command_parts.append(SET_H_POS + "00010000")  # ESC ( $ = Set absolute horizontal print position
+                command_parts.append(TRI_BLACK)
+                command_parts.append(segment["alternating_pattern"] * 64)
+
+                # Second block - Yellow/Magenta/Cyan alternating
+                command_parts.append(USE_COLOR + SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position
+
+                command_parts.append(TRI_YELLOW)
+                command_parts.append(segment["alternating_pattern"] * 64)
+
+                command_parts.append(SET_H_POS + "80060000")        
+                command_parts.append(TRI_MAGENTA)
+                command_parts.append(segment["alternating_pattern"] * 64)
+
+                command_parts.append(SET_H_POS + "80060000")        
+                command_parts.append(TRI_CYAN)
+                command_parts.append(segment["alternating_pattern"] * 64)
+
+                # Third block - Black solid
+                command_parts.append(USE_MONOCHROME + SET_H_POS + "000c0000")  # ESC ( $ = Set absolute horizontal print position
+                
+                command_parts.append(TRI_BLACK)
+                command_parts.append(segment["solid_pattern"] * 256)
+
+                # Fourth block - Yellow/Magenta/Cyan solid
+                command_parts.append(USE_COLOR + SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position
+                
+                command_parts.append(TRI_YELLOW)
+                command_parts.append(segment["solid_pattern"] * 256)
+
+                command_parts.append(SET_H_POS + "80110000")        
+                command_parts.append(TRI_MAGENTA)
+                command_parts.append(segment["solid_pattern"] * 256)
+
+                command_parts.append(SET_H_POS + "80110000")        
+                command_parts.append(TRI_CYAN)
+                command_parts.append(segment["solid_pattern"] * 256)
+                
+                command_parts.append("1b2876040000030000")  # ESC (v = Set relative vertical print position (move down)
+            
+            command_parts.append(
+                (
+                    lpr.INITIALIZE_PRINTER
+                    + b"\r\n\n\n\n"
+                    + b"Epson Printer Configuration - Print Test Patterns"
+                    + b"\r\n"
+                ).hex()
+            )
+            # Join all command parts into final hex string
+            return "".join(command_parts)
+
+        pattern = (
+            lpr.INITIALIZE_PRINTER
+            + lpr.REMOTE_MODE
+            + lpr.PRINT_NOZZLE_CHECK
+
+            + bytes.fromhex(generate_patterns())
+
+            + lpr.INITIALIZE_PRINTER
+            + b'\r'
+            + lpr.FF
+            + lpr.INITIALIZE_PRINTER
+            + lpr.REMOTE_MODE
+            + lpr.LD
+            + lpr.EXIT_REMOTE_MODE
+            + lpr.INITIALIZE_PRINTER
+            + lpr.REMOTE_MODE
+            + lpr.LD
+            + lpr.JOB_END
+            + lpr.EXIT_REMOTE_MODE
+        )
+
+        try:
+            lpr.connect()
+            resp = lpr.send(pattern)
+        except Exception as e:
+            status = False
+        finally:
+            lpr.disconnect()
+        return status
+
+    def clean_nozzles(self, group_index, power_clean=False, has_alt_mode=None):
         """
         Initiates nozzles cleaning routine with optional power clean.
         """
         if not self.hostname:
             return None
-        if group_index > 5 or group_index < 0:
+        if has_alt_mode and (group_index > has_alt_mode or group_index) < 0:
+            return None
+        if not has_alt_mode and (group_index > 5 or group_index) < 0:
             return None
         status = True
-        lpr = EpsonLpr(self.hostname)
-
-        now = datetime.datetime.now()
-        t_data = bytearray()
-        t_data = b'\x00'
-        t_data += now.year.to_bytes(2, 'big')  # Year
-        t_data += bytes([now.month, now.day, now.hour, now.minute, now.second])
+        lpr = LprClient(self.hostname, port="LPR", label="Clean nozzles")
 
         group = group_index  # https://github.com/abrasive/x900-otsakupuhastajat/blob/master/emanage.py#L148-L154
         if power_clean:
             group |= 0x10  # https://github.com/abrasive/x900-otsakupuhastajat/blob/master/emanage.py#L220
 
-        # Sequence list
+        # Sequence list (Epson XP-205 207 Series Printing Preferences > Utilty > Clean Heads)
         commands = [
             lpr.EXIT_PACKET_MODE,                            # Exit packet mode
             lpr.ENTER_REMOTE_MODE,                           # Engage remote mode commands
-            lpr.remote_cmd("TI", t_data),                    # Synchronize RTC
+            lpr.set_timer(),                                 # Sync RTC            
             lpr.remote_cmd("CH", b'\x00' + bytes([group])),  # Run print-head cleaning
             lpr.EXIT_REMOTE_MODE,                            # Disengage remote control
-            lpr.JOB_END                                      # Mark maintenance job complete
+            lpr.ENTER_REMOTE_MODE,                           # Prepare for JOB_END
+            lpr.JOB_END,                                     # Mark maintenance job complete
+            lpr.EXIT_REMOTE_MODE                             # Close sequence
         ]
+
+        if has_alt_mode and group_index == has_alt_mode:
+            commands = [
+                lpr.INITIALIZE_PRINTER,
+                bytes.fromhex("1B 7C 00 06 00 19 07 84 7B 42 02")  # Head cleaning
+            ]
+        if has_alt_mode and group_index == has_alt_mode and power_clean:
+            commands = [
+                lpr.INITIALIZE_PRINTER,
+                bytes.fromhex("1B 7C 00 06 00 19 07 84 7B 42 0A")  # Ink charge
+            ]
         try:
             lpr.connect()
             lpr.send(b"".join(commands))
         except Exception as e:
+            logging.error("LPR error: %s", e)
             status = False
         finally:
             lpr.disconnect()

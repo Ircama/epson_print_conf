@@ -166,3 +166,5 @@ devices.xml
 *.pickle
 
 .console_history
+
+lpr_jobs/

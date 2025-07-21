@@ -31,6 +31,16 @@ The software also includes a configurable printer dictionary, which can be easil
 
       Uses a higher quantity of ink to perform a deeper cleaning cycle. Power cleaning also consumes more ink and fills the waste ink tank more quickly. It should only be used when normal cleaning is insufficient.
 
+    - Print Test Patterns.
+
+      Execute a set of test printing functions:
+
+      - Standard Nozzle Test – Ask the printer to print its internal predefined pattern.
+      - Alternative Nozzle Test – Use an alternative predefined pattern.
+      - Color Test Pattern – Print a b/w and color page, optimized for Epson XP-200 series printers.
+      - Advance Paper – Move the loaded sheet forward by a specified number of lines without printing.
+      - Feed Multiple Sheets – Pass a specified number of sheets through the printer without printing.
+
     - Temporary reset of the ink waste counter.
 
       The ink waste counters track the amount of ink discarded during maintenance tasks to prevent overflow in the waste ink pads. Once the counters indicate that one of the printer pads is full, the printer will stop working to avoid potential damage or ink spills. The "Printer status" button includes information showing the levels of the waste ink tanks; specifically, two sections are relevant: "Maintenance box information" ("maintenance_box_...") and "Waste Ink Levels" ("waste_ink_levels"). The former has a counter associated for each tank, which indicates the number of temporary resets performed by the user to temporarily restore a disabled printer.
@@ -568,7 +578,7 @@ Two-bytes|Description | Notes | Parameters
 cd | | | (0)
 cs |  | | (0 or 1)
 cx | | |
-di | Device Identification ("di" 01H 00H 01H) | Implemented in this program | (1)
+di | Get Device ID (identification) ("di" 01H 00H 01H), same as @EJL[SP]ID[CR][LF] | Implemented in this program | (1)
 ei | | | (0)
 ex | Set Vertical Print Page Line Mode, Roll Paper Mode | - ex BC=6 00 00 00 00 0x14 xx (Set Vertical Print Page Line Mode. xx=00 is off, xx=01 is on. If turned on, this prints vertical trim lines at the left and right margins).<br> - ex BC=6 00 00 00 00 0x05 xx (Set Roll Paper Mode. If xx is 0, roll paper mode is off; if xx is 1, roll paper mode is on).<br> - ex BC=3 00 xx yy (Appears to be a synonym for the SN command described above.) |
 fl | Firmware load. Enter recovery mode | |
@@ -591,6 +601,8 @@ xi | | | (1)
 escutil.c also mentions [`ri\2\0\0\0`](https://github.com/echiu64/gutenprint/blob/master/src/escputil/escputil.c#L1944) (Attempt to reset ink) in some printer firmwares.
 
 [Other font](https://codeberg.org/KalleMP/reinkpy/src/branch/main/reinkpy/epson/core.py#L22) also mentions `pc:\x01:NA` in some printer firmwares.
+
+Reply of any non supported commands: “XX:;” FF. (XX is the command string being invalid.)
 
 ### Examples for EEPROM access
 
@@ -620,6 +632,8 @@ d1 : EEPROM address (00h - FFh)
 ```
 
 SNMP OID example: `1.3.6.1.4.1.1248.1.2.2.44.1.1.2.1.124.124.7.0.73.8.65.190.160.48.0`
+
+EEPROM data reply: “@BDC” SP “PS” CR LF “EE:” <addr> <data> “;” FF.
 
 #### Write EEPROM
 
@@ -748,48 +762,29 @@ for i in ec_sequences:
 
 ## Remote Mode commands
 
-Comprehensive, unified documentation for Epson’s Remote Mode commands does not exist: support varies by model, and command references are scattered across service manuals, programming guides and third-party sources (for example, the [Developer's Guide to Gutenprint](https://gimp-print.sourceforge.io/reference-html/x952.html) or [GIMP-Print - ESC/P2 Remote Mode Commands](http://osr507doc.xinuos.com/en/OSAdminG/OSAdminG_gimp/manual-html/gimpprint_37.html)).
+The [PyPrintLpr](https://github.com/Ircama/PyPrintLpr) module is used for sending Epson LPR commands over a LPR connection. This channel does not support receiving payload responses from the printer.
 
-The `EpsonLpr` class is used for sending Epson LPR commands over a RAW, unidirectional TCP connection on port 9100. This channel does not support receiving responses from the printer.
+Refer to [Epson Remote Mode commands](https://github.com/Ircama/PyPrintLpr?tab=readme-ov-file#epson-remote-mode-commands) and to https://gimp-print.sourceforge.io/reference-html/x952.html for a description of the known Remote Mode commands.
 
-| **Method**              | **Description**                                                                                                                  |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `connect`               | Opens a TCP socket connection to the printer at the specified host and port, with timeout.                                       |
-| `disconnect`            | Gracefully shuts down and closes the socket connection if open.                                                                  |
-| `send(data)`            | Sends raw `bytes` directly to the printer over the socket connection.                                                            |
-| `remote_cmd(cmd, args)` | Constructs a Remote Mode command: 2-byte ASCII command + 2-byte little-endian length + arguments.                                |
+Check `self.printer.check_nozzles()` and `self.printer.clean_nozzles(0)` for examples of usage.
 
-Predefined remote mode commands in this class:
-
-| **Command**           | **Description**                                         |
-| --------------------- | ------------------------------------------------------- |
-| `LF`                  | Line Feed (new line).                                   |
-| `FF`                  | Form Feed; flushes the buffer / ejects the page.        |
-| `EXIT_PACKET_MODE`    | Exits IEEE 1284.4 (D4) packet mode.                     |
-| `INITIALIZE_PRINTER`  | Resets printer to default state (ESC @).                |
-| `REMOTE_MODE`         | Enter Epson Remote Command mode.                        |
-| `ENTER_REMOTE_MODE`   | Initialize printer and enter Epson Remote Command mode. |
-| `EXIT_REMOTE_MODE`    | Exits Remote Mode.                                      |
-| `JOB_START`           | Begins a print job (JS).                                |
-| `JOB_END`             | Ends a print job (JE).                                  |
-| `PRINT_NOZZLE_CHECK`  | Triggers a nozzle check print pattern (NC).             |
-| `VERSION_INFORMATION` | Requests firmware or printer version info (VI).         |
-| `LD`                  | (unknown).  |
-
-Check `self.printer.check_nozzles()` and `self.printer.clean_nozzles(0)` for examples of usage. The following code prints the nozzle-check print pattern (copy and paste the code to the Interactive Console after selecting a printer and related host address):
+The following code prints the nozzle-check print pattern (copy and paste the code to the Interactive Console after selecting a printer and related host address):
 
 ```python
-from epson_print_conf import EpsonLpr
-lpr = EpsonLpr(self.printer.hostname)
-data = (
-    lpr.EXIT_PACKET_MODE +    # Exit packet mode
-    lpr.ENTER_REMOTE_MODE +   # Engage remote mode commands
-    lpr.PRINT_NOZZLE_CHECK +  # Issue nozzle-check print pattern
-    lpr.EXIT_REMOTE_MODE +    # Disengage remote control
-    lpr.JOB_END               # Mark maintenance job complete
-)
-print(f"\nDump of data:\n{self.printer.hexdump(data)}\n")
-lpr.connect().send(data).disconnect()
+from pyprintlpr import LprClient
+from hexdump2 import hexdump
+
+with LprClient('192.168.1.100', port="LPR", queue='PASSTHRU') as lpr:
+    data = (
+        lpr.EXIT_PACKET_MODE +    # Exit packet mode
+        lpr.ENTER_REMOTE_MODE +   # Engage remote mode commands
+        lpr.PRINT_NOZZLE_CHECK +  # Issue nozzle-check print pattern
+        lpr.EXIT_REMOTE_MODE +    # Disengage remote control
+        lpr.JOB_END               # Mark maintenance job complete
+    )
+    print("\nDump of data:\n")
+    hexdump(data)
+    lpr.send(data)
 ```
 
 ## ST2 Status Reply Codes

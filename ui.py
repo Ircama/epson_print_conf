@@ -30,13 +30,14 @@ from tkcalendar import DateEntry  # Ensure you have: pip install tkcalendar
 from tkinter import simpledialog, messagebox, filedialog
 
 import pyperclip
-from epson_print_conf import EpsonPrinter, get_printer_models, EpsonLpr
+from epson_print_conf import EpsonPrinter, get_printer_models
+from pyprintlpr import LprClient
 from parse_devices import generate_config_from_toml, generate_config_from_xml, normalize_config
 from find_printers import PrinterScanner
 from text_console import TextConsole
 
 
-VERSION = "6.2.12"
+VERSION = "7.0.0"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
@@ -791,7 +792,7 @@ class EpsonPrinterUI(tk.Tk):
         row_n += 1
         tweak_frame = ttk.Frame(main_frame, padding=PAD)
         tweak_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
-        tweak_frame.columnconfigure((0, 1, 2, 3, 4), weight=1)  # expand columns
+        tweak_frame.columnconfigure((0, 1, 2, 3, 4, 5), weight=1)  # expand columns
 
         # Detect Printers
         self.detect_button = ttk.Button(
@@ -815,6 +816,17 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=1, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
+        # Print test
+        self.print_tests_button = ttk.Button(
+            tweak_frame,
+            text="Print\nTests",
+            command=self.print_tests,
+            style="Centered.TButton"
+        )
+        self.print_tests_button.grid(
+            row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+
         # Read EEPROM
         self.read_eeprom_button = ttk.Button(
             tweak_frame,
@@ -823,7 +835,7 @@ class EpsonPrinterUI(tk.Tk):
             style="Centered.TButton"
         )
         self.read_eeprom_button.grid(
-            row=0, column=2, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # Write EEPROM
@@ -834,7 +846,7 @@ class EpsonPrinterUI(tk.Tk):
             style="Centered.TButton"
         )
         self.write_eeprom_button.grid(
-            row=0, column=3, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+            row=0, column=4, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # Reset Waste Ink Levels
@@ -845,7 +857,7 @@ class EpsonPrinterUI(tk.Tk):
             style="Centered.TButton"
         )
         self.reset_button.grid(
-            row=0, column=4, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+            row=0, column=5, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
         )
 
         # [row 4] Status display (including ScrolledText and Treeview)
@@ -1262,6 +1274,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         ToolTip(self.read_eeprom_button, "")
         ToolTip(self.detect_configuration_button, "")
         ToolTip(self.clean_nozzles_button, "")
+        ToolTip(self.print_tests_button, "")
         ToolTip(self.temp_reset_ink_waste_button, "")
         ToolTip(self.write_eeprom_button, "")
         ToolTip(self.reset_button, "")
@@ -1277,6 +1290,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_button.state(["disabled"])
             self.read_eeprom_button.state(["disabled"])
             self.clean_nozzles_button.state(["disabled"])
+            self.print_tests_button.state(["disabled"])
             self.temp_reset_ink_waste_button.state(["disabled"])
             self.detect_configuration_button.state(["disabled"])
             self.write_eeprom_button.state(["disabled"])
@@ -1310,6 +1324,11 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.clean_nozzles_button,
                 "Select the printer first."
             )
+            self.print_tests_button.state(["disabled"])
+            ToolTip(
+                self.print_tests_button,
+                "Select the printer first."
+            )
             self.detect_configuration_button.state(["disabled"])
             ToolTip(
                 self.detect_configuration_button,
@@ -1325,10 +1344,12 @@ Web site: https://github.com/Ircama/epson_print_conf
                     self.read_eeprom_button.state(["!disabled"])
                     ToolTip(self.read_eeprom_button, "")
                     self.clean_nozzles_button.state(["!disabled"])
+                    self.print_tests_button.state(["!disabled"])
                     self.temp_reset_ink_waste_button.state(["!disabled"])
                     self.detect_configuration_button.state(["!disabled"])
                     ToolTip(self.detect_configuration_button, "")
                     ToolTip(self.clean_nozzles_button, "")
+                    ToolTip(self.print_tests_button, "")
                     ToolTip(self.temp_reset_ink_waste_button, "")
                 if "write_key" in self.printer.parm:
                     self.write_eeprom_button.state(["!disabled"])
@@ -1410,6 +1431,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.read_eeprom_button.state(["disabled"])
             self.detect_configuration_button.state(["disabled"])
             self.clean_nozzles_button.state(["disabled"])
+            self.print_tests_button.state(["disabled"])
             self.temp_reset_ink_waste_button.state(["disabled"])
             self.write_eeprom_button.state(["disabled"])
 
@@ -2633,6 +2655,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                     )
                 self.detect_configuration_button.state(["!disabled"])
                 self.clean_nozzles_button.state(["!disabled"])
+                self.print_tests_button.state(["!disabled"])
                 self.temp_reset_ink_waste_button.state(["!disabled"])
                 self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(
@@ -2728,6 +2751,165 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
 
+    def print_tests(self) -> None:
+        """
+        Print nozzle, Print color, Print paper pass and Print paper feed tests.
+        """
+        options = [
+            "Print standard nozzle test",  # 0
+            "Print alternative nozzle test",  # 1
+            "Color test pattern (for XP-200 range)",  # 2
+            "Advance paper of one or n lines",  # 3
+            "Feed one or more sheets",  # 4
+        ]
+
+        def get_test_dialog():
+            dialog = tk.Toplevel(self)
+            dialog.title("Print Test Options")
+            dialog.transient(self)
+            dialog.grab_set()
+            dialog.focus_force()
+
+            # Test selection
+            ttk.Label(dialog, text="Select test:").grid(
+                row=0, column=0, padx=10, pady=(10, 5), sticky="w"
+            )
+            combo_var = tk.StringVar(value=options[0])
+            combo = ttk.Combobox(
+                dialog,
+                textvariable=combo_var,
+                values=options,
+                state="readonly",
+                width=35
+            )
+            combo.current(0)
+            combo.grid(row=0, column=1, padx=10)
+
+            # Number of tests
+            spin_label = ttk.Label(dialog, text="Number of tests:")
+            spin_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+            num_tests_var = tk.IntVar(value=1)
+            spin = ttk.Spinbox(
+                dialog, from_=1, to=999, textvariable=num_tests_var, width=5
+            )
+            spin.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+
+            # Disable num test entry for first two tests
+            def on_combo_change(event=None) -> None:
+                if combo.current() < 3:
+                    spin.state(["disabled"])
+                    spin_label.state(["disabled"])
+                else:
+                    spin.state(["!disabled"])
+                    spin_label.state(["!disabled"])
+
+            combo.bind('<<ComboboxSelected>>', on_combo_change)
+            on_combo_change()
+
+            # Buttons
+            result: dict[str, tuple[int, int] | None] = {"value": None}
+            def on_confirm(event=None) -> None:
+                idx = combo.current()
+                result["value"] = (idx, num_tests_var.get())
+                dialog.destroy()
+
+            def on_cancel(event=None) -> None:
+                dialog.destroy()
+
+            frame = ttk.Frame(dialog)
+            frame.grid(
+                row=2, column=0, columnspan=2, pady=(5, 10), padx=10, sticky="ew"
+            )
+            frame.columnconfigure((0, 1), weight=1)
+            ttk.Button(frame, text="Confirm", command=on_confirm).grid(
+                row=0, column=0, padx=(0, 5), sticky="ew"
+            )
+            ttk.Button(frame, text="Cancel", command=on_cancel).grid(
+                row=0, column=1, sticky="ew"
+            )
+
+            # Key bindings
+            dialog.bind('<Return>', on_confirm)
+            dialog.bind('<Escape>', on_cancel)
+
+            # Center
+            dialog.update_idletasks()
+            w, h = dialog.winfo_reqwidth(), dialog.winfo_reqheight()
+            x = self.winfo_x() + (self.winfo_width() - w) // 2
+            y = self.winfo_y() + (self.winfo_height() - h) // 2
+            dialog.geometry(f"{w}x{h}+{x}+{y}")
+
+            dialog.wait_window()
+            return result["value"]
+
+        def run_tests(index: int, num_tests: int) -> None:
+            if index == 0:
+                self.printer.check_nozzles(type=0)
+                self.set_cursor(self, '')
+                self.update_idletasks()
+                return
+            if index == 1:
+                self.printer.check_nozzles(type=1)
+                self.set_cursor(self, '')
+                self.update_idletasks()
+                return
+            if index == 2:
+                self.printer.print_test_color_pattern()
+                self.set_cursor(self, '')
+                self.update_idletasks()
+                return
+            try:
+                with LprClient(
+                    self.ip_var.get(), port="LPR", label="Print tests"
+                ) as client:
+                    payload = (
+                        client.EXIT_PACKET_MODE
+                        + client.INITIALIZE_PRINTER
+                        + f"{options[index]} for {num_tests} tests\n".encode()
+                        + client.FF
+                    )
+                    if index == 3:
+                        payload = bytes.fromhex("0d 0a") * num_tests
+                    if index == 4:
+                        payload = (
+                            client.INITIALIZE_PRINTER
+                            + bytes.fromhex("0d 0a")
+                            + client.FF
+                            + client.INITIALIZE_PRINTER
+                        ) * num_tests
+                    client.send(payload)
+            except Exception:
+                self.show_status_text_view()
+                self.status_text.insert(
+                    tk.END, '[ERROR] Printer unreachable or offline.\n', 'error'
+                )
+            finally:
+                self.set_cursor(self, '')
+                self.update_idletasks()
+
+        ip = self.ip_var.get()
+        if not self._is_valid_ip(ip):
+            self.status_text.insert(
+                tk.END, '[ERROR] Invalid IP address.\n', 'error'
+            )
+            self.set_cursor(self, '')
+            return
+
+        if not self.printer:
+            return
+
+        result = get_test_dialog()
+        if result is None:
+            self.status_text.insert(
+                tk.END, '[WARNING] Print test aborted by user.\n', 'warn'
+            )
+            self.set_cursor(self, '')
+            return
+
+        test_index, num_tests = result
+        self.set_cursor(self, 'watch')
+        self.after(100, lambda: run_tests(test_index, num_tests))
+
     def clean_nozzles(self):
         """
         Initiates nozzles cleaning routine with optional power clean.
@@ -2740,6 +2922,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 "Clean all nozzles",  # 0
                 "Clean the black ink nozzle",  # 1
                 "Clean the color ink nozzles",  # 2
+                "Head cleaning (alternative mode)",  # 3
             ]
 
             # Create modal dialog
@@ -2784,7 +2967,7 @@ Web site: https://github.com/Ircama/epson_print_conf
 
             note = (
                 'The default action is to clean all nozzles.\n'
-                'Other actions might not be supported on your printer.'
+                'The clean black/color ink nozzles might not be supported on your printer.'
             )
             tk.Label(
                 dialog,
@@ -2859,9 +3042,11 @@ Web site: https://github.com/Ircama/epson_print_conf
             dialog.wait_window()
             return result['value']
 
-        def run_cleaning(group_index, power_clean):
+        def run_cleaning(group_index, power_clean, has_alt_mode=None):
             try:
-                ret = self.printer.clean_nozzles(group_index, power_clean)
+                ret = self.printer.clean_nozzles(
+                    group_index, power_clean, has_alt_mode
+                )
             except Exception as e:
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
@@ -2880,7 +3065,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             else:
                 self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(tk.END,
-                    f" Initiated cleaning of nozzles.\n"
+                    f" Initiated cleaning of nozzles."
+                    #f" Selected procedure: {group_index}, {power_clean}, {has_alt_mode}"
+                    f"\n"
                 )
             self.set_cursor(self, "")
             self.update_idletasks()
@@ -2912,7 +3099,10 @@ Web site: https://github.com/Ircama/epson_print_conf
 
         self.set_cursor(self, "watch")
         self.update_idletasks()
-        self.after(100, lambda: run_cleaning(group_index, power_clean))
+        self.after(
+            100,
+            lambda: run_cleaning(group_index, power_clean, has_alt_mode=3)
+        )
 
     def detect_configuration(self, cursor=True):
         def detect_sequence(eeprom, sequence):
@@ -3396,7 +3586,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.ip_var.get().strip()
             )
             if len(printers) > 0:
-                if len(printers) == 1:
+                if len(printers) == 1 and printers[0]['name'] != None:
                     self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
                         tk.END,
@@ -3425,12 +3615,20 @@ Web site: https://github.com/Ircama/epson_print_conf
                         tk.END, f" Found {len(printers)} printers:\n"
                     )
                     for printer in printers:
-                        self.status_text.insert(tk.END, '[INFO]', "info")
-                        self.status_text.insert(
-                            tk.END,
-                            f" {printer['name']} found at {printer['ip']}"
-                            f" (hostname: {printer['hostname']})\n",
-                        )
+                        if printers[0]['name']:
+                            self.status_text.insert(tk.END, '[INFO]', "info")
+                            self.status_text.insert(
+                                tk.END,
+                                f" {printer['name']} found at {printer['ip']}"
+                                f" (hostname: {printer['hostname']})\n",
+                            )
+                        else:
+                            self.status_text.insert(tk.END, '[WARN]', "warn")
+                            self.status_text.insert(
+                                tk.END,
+                                f" Cannot contact printer {printer['ip']}"
+                                f" (hostname: {printer['hostname']}).\n",
+                            )
             else:
                 self.status_text.insert(tk.END, '[WARN]', "warn")
                 self.status_text.insert(tk.END, " No printers found.\n")
@@ -3575,7 +3773,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             )
             return
         try:
-            with EpsonLpr(ip_address) as lpr:
+            with LprClient(ip_address, port="LPR", label="Print items") as lpr:
                 lpr.send(
                     lpr.EXIT_PACKET_MODE
                     + lpr.INITIALIZE_PRINTER
