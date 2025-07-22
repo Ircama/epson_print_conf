@@ -2541,13 +2541,22 @@ class EpsonPrinter:
             lpr.disconnect()
         return status
 
-    def print_test_color_pattern(self):
+    def print_test_color_pattern(
+        self,
+        get_pattern=False,
+        get_fullpattern=False
+    ):
         """
-        Print a one-page test color pattern with different qualities.
-        For XP-200, XP-205
+        Print a one-page color test pattern at various quality levels via LPR.
+        Optimized for XP-200 and XP-205 models.
+        Returns True if the pattern was successfully printed (sending the
+            print-out to the host by creating a LPR job), False otherwise.
+        If get_pattern is True, returns the ESC/P2 command sequence for the
+            patterns as bytes.
+        If get_pattern is False and get_fullpattern is True, returns the
+            complete pattern as bytes (including ESC/P2 job headers and
+            footers).
         """
-        if not self.hostname:
-            return None
         status = True
         lpr = LprClient(self.hostname, port="LPR", label="Check nozzles")
 
@@ -2718,6 +2727,8 @@ class EpsonPrinter:
             # Join all command parts into final hex string
             return "".join(command_parts)
 
+        if get_pattern:
+            return bytes.fromhex(generate_patterns())
         pattern = (
             lpr.INITIALIZE_PRINTER
             + lpr.REMOTE_MODE
@@ -2738,7 +2749,11 @@ class EpsonPrinter:
             + lpr.JOB_END
             + lpr.EXIT_REMOTE_MODE
         )
+        if get_fullpattern:
+            return pattern
 
+        if not self.hostname:
+            return None
         try:
             lpr.connect()
             resp = lpr.send(pattern)
