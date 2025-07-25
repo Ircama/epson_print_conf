@@ -2524,7 +2524,7 @@ class EpsonPrinter:
         # Sequence list
         nozzle_check = lpr.PRINT_NOZZLE_CHECK  # Issue nozzle-check print pattern
         if type == 1:
-            nozzle_check[-1] = b'\x10'
+            nozzle_check = nozzle_check[:-1] + b'\x10'
         commands = [
             lpr.EXIT_PACKET_MODE,    # Exit packet mode
             lpr.ENTER_REMOTE_MODE,   # Engage remote mode commands
@@ -2562,8 +2562,8 @@ class EpsonPrinter:
 
         # Transfer Raster image commands (ESC i), Color, Run Length Encoding, 2bits per pixel
         TRI_BLACK =   "1b6900010250008000"  # ESC i 0: Black
-        TRI_YELLOW =  "1b6901010250002a00"  # ESC i 1: Yellow
-        TRI_MAGENTA = "1b6904010250002a00"  # ESC i 4: Magenta
+        TRI_MAGENTA =  "1b6901010250002a00"  # ESC i 1: Magenta
+        TRI_YELLOW = "1b6904010250002a00"  # ESC i 4: Yellow
         TRI_CYAN =    "1b6902010250002a00"  # ESC i 2: Cyan
 
         SET_H_POS = "1b28240400"  # ESC ( $ = Set absolute horizontal print position (first part)
@@ -2577,76 +2577,63 @@ class EpsonPrinter:
             1: "11",  # VSD1 2bit - fast eco, economy or speed/normal,
             2: "12",  # VSD2 2bit - fine/quality,
             3: "13",  # VSD3 2bit - super fine/high quality,
-            4: "21",  # MC1-1 Fine
-            5: "25",  # MC1-5 Super Photo
-            6: "32",  # Foto
-            7: "22",  # MC1-2 Foto
-            8: "21",  # Photo Draft
-            9: "31",  # MC2-1 Normal
-            10: "32",  # MC2-2
         }
 
-        # Solid fill patterns for homogeneous areas
-        PATTERN_SOLID_HIGH = "d9ff"    # High density solid - d9 = 11011001 (5 out of 8 bits = 62.5%) - FF (11111111) = 100% bit density = HIGH
-        PATTERN_SOLID_MEDIUM = "d9aa"  # Medium density solid - d9 = 11011001 (5 out of 8 bits = 62.5%) - AA (10101010) = 50% bit density = MEDIUM
-        PATTERN_SOLID_LOW = "d955"     # Low density solid - d9 = 11011001 (5 out of 8 bits = 62.5%) - 55 (01010101) = 50% bit density = LOW
-        PATTERN_SOLID_VERY_LOW = "d900d900"
+        # Each sequence has 2 bits per pixel: 00=No, 01=Small, 10=Medium, 11=Large
+        # Using Run-Length Encoding (RLE), d9 (217>127) means pattern repeated 257-217=40 times.
+        PATTERN_LARGE = "d9ff"  # ff = 11111111 = 11|11|11|11 = Large
+        PATTERN_MEDIUM = "d9aa"  # aa = 10101010 = 10|10|10|10 = Medium
+        PATTERN_SMALL = "d955"  # 55 = 01010101 = 01|01|01|01 = Small  
+        PATTERN_NONE = "d900"  # 00 = 00000000 = 00|00|00|00 = No
+        PATTERN_NO_DOTS = PATTERN_NONE + PATTERN_NONE
 
-        # High contrast alternating patterns (0xFF and 0x00)
-        PATTERN_HIGH_CONTRAST_ALT = (
-            PATTERN_SOLID_HIGH + PATTERN_SOLID_VERY_LOW + PATTERN_SOLID_HIGH  # 11011001 11111111 11011001 00000000...
-        )
-        # Medium contrast alternating patterns (0xAA - 10101010 pattern)
-        PATTERN_MEDIUM_CONTRAST_ALT = (
-            PATTERN_SOLID_MEDIUM + PATTERN_SOLID_VERY_LOW + PATTERN_SOLID_MEDIUM  # 11011001 10101010 11011001 00000000...
-        )
-        # Low contrast alternating patterns (0x55 - 01010101 pattern)  
-        PATTERN_LOW_CONTRAST_ALT = (
-            PATTERN_SOLID_LOW + PATTERN_SOLID_VERY_LOW + PATTERN_SOLID_LOW  # 11011001 01010101 11011001 00000000...
-        )
+        PATTERN_LARGE_ALT = PATTERN_LARGE + PATTERN_NO_DOTS + PATTERN_LARGE
+        PATTERN_MEDIUM_ALT = PATTERN_MEDIUM + PATTERN_NO_DOTS + PATTERN_MEDIUM
+        PATTERN_SMALL_ALT = PATTERN_SMALL + PATTERN_NO_DOTS + PATTERN_SMALL
+
         # Define the printing segments - each represents a label with different patterns and text
         printing_segments = [
             {
                 "label_sequence": lpr.EXIT_REMOTE_MODE
                     + b'\r\n\r\nEconomy\r\n',
                 "vsd": 0,
-                "alternating_pattern": PATTERN_HIGH_CONTRAST_ALT, 
-                "solid_pattern": PATTERN_SOLID_HIGH, 
+                "alternating_pattern": PATTERN_LARGE_ALT, 
+                "solid_pattern": PATTERN_LARGE, 
             },
             {
                 "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD1 - M. - Normal\r\n",
+                    + b"\r\n\n\n\nVSD1 - Medium dot size - Normal\r\n",
                 "vsd": 1,
-                "alternating_pattern": PATTERN_MEDIUM_CONTRAST_ALT, 
-                "solid_pattern": PATTERN_SOLID_MEDIUM, 
+                "alternating_pattern": PATTERN_MEDIUM_ALT, 
+                "solid_pattern": PATTERN_MEDIUM, 
             },
             {
                 "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD2 - M. - Quality\r\n",
+                    + b"\r\n\n\n\nVSD2 - Medium dot size - Fine\r\n",
                 "vsd": 2,
-                "alternating_pattern": PATTERN_MEDIUM_CONTRAST_ALT, 
-                "solid_pattern": PATTERN_SOLID_MEDIUM, 
+                "alternating_pattern": PATTERN_MEDIUM_ALT, 
+                "solid_pattern": PATTERN_MEDIUM, 
             },
             {
                 "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD3 - L. - High Quality\r\n",
+                    + b"\r\n\n\n\nVSD3 - Large dot size - Super Fine\r\n",
                 "vsd": 3,
-                "alternating_pattern": PATTERN_HIGH_CONTRAST_ALT, 
-                "solid_pattern": PATTERN_SOLID_HIGH, 
+                "alternating_pattern": PATTERN_LARGE_ALT, 
+                "solid_pattern": PATTERN_LARGE, 
             },
             {
                 "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD3 - M. - High Quality\r\n",
+                    + b"\r\n\n\n\nVSD3 - Medium dot size - Super Fine\r\n",
                 "vsd": 3,
-                "alternating_pattern": PATTERN_MEDIUM_CONTRAST_ALT, 
-                "solid_pattern": PATTERN_SOLID_MEDIUM, 
+                "alternating_pattern": PATTERN_MEDIUM_ALT, 
+                "solid_pattern": PATTERN_MEDIUM, 
             },
             {
                 "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD3 - S. - High Quality\r\n",
+                    + b"\r\n\n\n\nVSD3 - Small dot size - Super Fine\r\n",
                 "vsd": 3,
-                "alternating_pattern": PATTERN_LOW_CONTRAST_ALT, 
-                "solid_pattern": PATTERN_SOLID_LOW, 
+                "alternating_pattern": PATTERN_SMALL_ALT, 
+                "solid_pattern": PATTERN_SMALL, 
             },
         ]
 
@@ -2683,11 +2670,11 @@ class EpsonPrinter:
                 # Second block - Yellow/Magenta/Cyan alternating
                 command_parts.append(USE_COLOR + SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position
 
-                command_parts.append(TRI_YELLOW)
+                command_parts.append(TRI_MAGENTA)
                 command_parts.append(segment["alternating_pattern"] * 64)
 
                 command_parts.append(SET_H_POS + "80060000")        
-                command_parts.append(TRI_MAGENTA)
+                command_parts.append(TRI_YELLOW)
                 command_parts.append(segment["alternating_pattern"] * 64)
 
                 command_parts.append(SET_H_POS + "80060000")        
@@ -2703,11 +2690,11 @@ class EpsonPrinter:
                 # Fourth block - Yellow/Magenta/Cyan solid
                 command_parts.append(USE_COLOR + SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position
                 
-                command_parts.append(TRI_YELLOW)
+                command_parts.append(TRI_MAGENTA)
                 command_parts.append(segment["solid_pattern"] * 256)
 
                 command_parts.append(SET_H_POS + "80110000")        
-                command_parts.append(TRI_MAGENTA)
+                command_parts.append(TRI_YELLOW)
                 command_parts.append(segment["solid_pattern"] * 256)
 
                 command_parts.append(SET_H_POS + "80110000")        
@@ -2749,6 +2736,7 @@ class EpsonPrinter:
             + lpr.JOB_END
             + lpr.EXIT_REMOTE_MODE
         )
+
         if get_fullpattern:
             return pattern
 

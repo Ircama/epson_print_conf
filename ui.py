@@ -2844,17 +2844,47 @@ Web site: https://github.com/Ircama/epson_print_conf
 
         def run_tests(index: int, num_tests: int) -> None:
             if index == 0:
-                self.printer.check_nozzles(type=0)
+                if self.printer.check_nozzles(type=0):
+                    self.show_status_text_view()
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END, " Standard nozzle test printed.\n"
+                    )
+                else:
+                    self.show_status_text_view()
+                    self.status_text.insert(
+                        tk.END, '[ERROR] Printer unreachable or offline.\n', 'error'
+                    )
                 self.set_cursor(self, '')
                 self.update_idletasks()
                 return
             if index == 1:
-                self.printer.check_nozzles(type=1)
+                if self.printer.check_nozzles(type=1):
+                    self.show_status_text_view()
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END, " Alternative nozzle test printed.\n"
+                    )
+                else:
+                    self.show_status_text_view()
+                    self.status_text.insert(
+                        tk.END, '[ERROR] Printer unreachable or offline.\n', 'error'
+                    )
                 self.set_cursor(self, '')
                 self.update_idletasks()
                 return
             if index == 2:
-                self.printer.print_test_color_pattern()
+                if self.printer.print_test_color_pattern():
+                    self.show_status_text_view()
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END, " Color pattern printed.\n"
+                    )
+                else:
+                    self.show_status_text_view()
+                    self.status_text.insert(
+                        tk.END, '[ERROR] Printer unreachable or offline.\n', 'error'
+                    )
                 self.set_cursor(self, '')
                 self.update_idletasks()
                 return
