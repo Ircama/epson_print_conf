@@ -2544,7 +2544,8 @@ class EpsonPrinter:
     def print_test_color_pattern(
         self,
         get_pattern=False,
-        get_fullpattern=False
+        get_fullpattern=False,
+        use_black23=False
     ):
         """
         Print a one-page color test pattern at various quality levels via LPR.
@@ -2560,13 +2561,17 @@ class EpsonPrinter:
         status = True
         lpr = LprClient(self.hostname, port="LPR", label="Check nozzles")
 
-        # Transfer Raster image commands (ESC i), Color, Run Length Encoding, 2bits per pixel
-        TRI_BLACK =   "1b6900010250008000"  # ESC i 0: Black
-        TRI_MAGENTA =  "1b6901010250002a00"  # ESC i 1: Magenta
-        TRI_YELLOW = "1b6904010250002a00"  # ESC i 4: Yellow
-        TRI_CYAN =    "1b6902010250002a00"  # ESC i 2: Cyan
+        # Transfer Raster image commands (ESC i), Color, Run Length Encoding,
+        # 2 bits per pixel, 4 pixels per byte, H: 80 bytes = 320 dots = h 2,26 cm @ 360dpi (320/360*2,54)
+        TRI_BLACK = "1b6900010250008000"  # ESC i 0: Black, V: 128 dots/rows (monochrome, 180 dpi) = 128/120*2,54= v 2,7 cm
+        TRI_MAGENTA = "1b6901010250002a00"  # ESC i 1: Magenta, V: 42 dots/rows
+        TRI_YELLOW = "1b6904010250002a00"  # ESC i 4: Yellow, V: 42 dots/rows dots
+        TRI_CYAN = "1b6902010250002a00"  # ESC i 2: Cyan, V: 42 dots/rows
+        TRI_BLACK2 = "1b6905010250002a00"  # ESC i 5: black2, V: 42 dots/rows
+        TRI_BLACK3 = "1b6906010250002a00"  # ESC i 6: black3, V: 42 dots/rows
 
-        SET_H_POS = "1b28240400"  # ESC ( $ = Set absolute horizontal print position (first part)
+        SET_H_POS = "1b28240400"  # ESC ( $ = Set absolute horizontal print position, 4 bytes (n=length, first part)
+        SET_V_POS = "1b28760400"  # ESC (v nL nH mL mH, 4 bytes (n=length, first part) = Set relative vertical print position
 
         USE_MONOCHROME = "1b284b02000001"  # ESC ( K = Monochrome Mode / Color Mode Selection, 01H: Monochrome mode
         USE_COLOR = "1b284b02000000"  # ESC ( K = Monochrome Mode / Color Mode Selection, 00H: Default mode (color mode)
@@ -2580,18 +2585,20 @@ class EpsonPrinter:
         }
 
         # Each sequence has 2 bits per pixel: 00=No, 01=Small, 10=Medium, 11=Large
-        # Using Run-Length Encoding (RLE), d9 (217>127) means pattern repeated 257-217=40 times.
-        PATTERN_LARGE = "d9ff"  # ff = 11111111 = 11|11|11|11 = Large
-        PATTERN_MEDIUM = "d9aa"  # aa = 10101010 = 10|10|10|10 = Medium
-        PATTERN_SMALL = "d955"  # 55 = 01010101 = 01|01|01|01 = Small  
-        PATTERN_NONE = "d900"  # 00 = 00000000 = 00|00|00|00 = No
-        PATTERN_NO_DOTS = PATTERN_NONE + PATTERN_NONE
+        # Using Run-Length Encoding (RLE), d9 (217>127) means pattern repeated 257-217=40 times (160 dots per pattern).
+        # These allow creating alternating patterns and are also used for solid patterns
+        PATTERN_LARGE = "d9ff"  # ff = 11111111 = 11|11|11|11 = Large, 4 dots x 40
+        PATTERN_MEDIUM = "d9aa"  # aa = 10101010 = 10|10|10|10 = Medium, 4 dots x 40
+        PATTERN_SMALL = "d955"  # 55 = 01010101 = 01|01|01|01 = Small, 4 dots x 40
+        PATTERN_NONE = "d900"  # 00 = 00000000 = 00|00|00|00 = No, 4 dots x 40
+        PATTERN_NO_DOTS = PATTERN_NONE + PATTERN_NONE  # 320 dots, (4+4) dots x 40
 
+        # Alternating patterns, 640 dots each = 2 hor. lines, one above the other
         PATTERN_LARGE_ALT = PATTERN_LARGE + PATTERN_NO_DOTS + PATTERN_LARGE
         PATTERN_MEDIUM_ALT = PATTERN_MEDIUM + PATTERN_NO_DOTS + PATTERN_MEDIUM
         PATTERN_SMALL_ALT = PATTERN_SMALL + PATTERN_NO_DOTS + PATTERN_SMALL
 
-        # Define the printing segments - each represents a label with different patterns and text
+        # 6 vertically stacked printing segments, each of 4 hor stacked blocks
         printing_segments = [
             {
                 "label_sequence": lpr.EXIT_REMOTE_MODE
@@ -2643,7 +2650,8 @@ class EpsonPrinter:
             """
             command_parts = []
             
-            for segment in printing_segments:
+            # Define the 4 hor stacked blocks for each vertically stacked segment 
+            for segment in printing_segments:  # 6 printing segments
 
                 # Label
                 command_parts.append(segment["label_sequence"].hex())
@@ -2651,58 +2659,74 @@ class EpsonPrinter:
                 # Initialization
                 command_parts.append(
                     "1b2847010001"  # Select graphics mode
-                    + "1b28550500010101a005"  # ESC (U = Sets 360 DPI resolutio
+                    + "1b28550500010101a005"  # ESC (U = Sets 360 DPI resolution
                     + "1b28430400c6410000"  # ESC (C = Configures page lenght
                     + "1b28630800ffffffffc6410000"  # ESC (c = Set page format
                     + "1b28530800822e0000c6410000"  # ESC (S = paper dimension specification
-                    + "1b2844040068010301"  # ESC (D = raster image resolution
+                    + "1b28440400" + "68010301"  # ESC (D = raster image resolution, r=360, v=3, h=1; 360/3=120 dpi vertically, 360/1=360 dpi horizontally
                     + "1b2865020000" + vsd_code[segment["vsd"]]  # ESC (e = Select Ink Drop Size
                     + "1b5502"  # ESC U 02H = selects automatic printing direction control
                     + USE_MONOCHROME
-                    + "1b2876040000010000" # ESC (v = Set relative vertical print position
+                    + SET_V_POS + "00010000" # ESC (v = Set relative vertical print position, 256 units = 4.52 mm
                 )
 
                 # First block - black alternating
-                command_parts.append(SET_H_POS + "00010000")  # ESC ( $ = Set absolute horizontal print position
+                command_parts.append(SET_H_POS + "00010000")  # ESC ( $ = Set absolute horizontal print position, 256 = 4,52 mm
                 command_parts.append(TRI_BLACK)
-                command_parts.append(segment["alternating_pattern"] * 64)
+                command_parts.append(segment["alternating_pattern"] * 64)  # 64 x 2 = 128 rows = v 2,7 cm
 
                 # Second block - Yellow/Magenta/Cyan alternating
-                command_parts.append(USE_COLOR + SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position
+                command_parts.append(USE_COLOR + SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position, 1664 = 29,35 mm
 
                 command_parts.append(TRI_MAGENTA)
                 command_parts.append(segment["alternating_pattern"] * 64)
 
-                command_parts.append(SET_H_POS + "80060000")        
+                command_parts.append(SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position, 1664 = 29,35 mm        
                 command_parts.append(TRI_YELLOW)
                 command_parts.append(segment["alternating_pattern"] * 64)
 
-                command_parts.append(SET_H_POS + "80060000")        
+                command_parts.append(SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position, 1664 = 29,35 mm        
                 command_parts.append(TRI_CYAN)
                 command_parts.append(segment["alternating_pattern"] * 64)
 
                 # Third block - Black solid
-                command_parts.append(USE_MONOCHROME + SET_H_POS + "000c0000")  # ESC ( $ = Set absolute horizontal print position
+                command_parts.append(USE_MONOCHROME + SET_H_POS + "000c0000")  # ESC ( $ = Set absolute horizontal print position, 3072 = 54,35 mm
                 
                 command_parts.append(TRI_BLACK)
-                command_parts.append(segment["solid_pattern"] * 256)
+                command_parts.append(segment["solid_pattern"] * 256)  # 256 x (160 h dots per pattern / 320 h dots per line) = 128 v rows = v 2,7 cm
 
                 # Fourth block - Yellow/Magenta/Cyan solid
-                command_parts.append(USE_COLOR + SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position
+                command_parts.append(USE_COLOR + SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position, 4480 = 79 mm
                 
                 command_parts.append(TRI_MAGENTA)
                 command_parts.append(segment["solid_pattern"] * 256)
 
-                command_parts.append(SET_H_POS + "80110000")        
+                command_parts.append(SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position, 4480 = 79 mm        
                 command_parts.append(TRI_YELLOW)
                 command_parts.append(segment["solid_pattern"] * 256)
 
-                command_parts.append(SET_H_POS + "80110000")        
+                command_parts.append(SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position, 4480 = 79 mm        
                 command_parts.append(TRI_CYAN)
                 command_parts.append(segment["solid_pattern"] * 256)
+
+                # Fifth block - Black/Black2/Black3 solid
+                if use_black23:
+                    command_parts.append(USE_COLOR + SET_H_POS + "00170000")  # ESC ( $ = Set absolute horizontal print position, 5888 = 103,8 mm
+                    
+                    command_parts.append(TRI_BLACK)
+                    command_parts.append(segment["solid_pattern"] * 256)
+
+                    command_parts.append(SET_H_POS + "00170000")  # ESC ( $ = Set absolute horizontal print position, 5888 = 103,8 mm
+                    command_parts.append(TRI_BLACK2)
+                    command_parts.append(segment["solid_pattern"] * 256)
+
+                    command_parts.append(SET_H_POS + "00170000")  # ESC ( $ = Set absolute horizontal print position, 5888 = 103,8 mm
+                    command_parts.append(TRI_BLACK3)
+                    command_parts.append(segment["solid_pattern"] * 256)
                 
-                command_parts.append("1b2876040000030000")  # ESC (v = Set relative vertical print position (move down)
-            
+                command_parts.append(SET_V_POS + "00030000")  # ESC (v = Set relative vertical print position
+                # Relative vertical offset = 768 units = 13.54 mm
+
             command_parts.append(
                 (
                     lpr.INITIALIZE_PRINTER
