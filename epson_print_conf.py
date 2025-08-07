@@ -32,6 +32,7 @@ from pysnmp_sync_adapter import (
 )
 from pysnmp.proto.errind import RequestTimedOut
 from pyprintlpr import LprClient
+from epson_escp2 import TextToImageConverter, EpsonEscp2
 
 
 class EpsonPrinter:
@@ -2512,34 +2513,27 @@ class EpsonPrinter:
                 return False
         return True
 
-    def check_nozzles(self, type=0):
+    def print_check_nozzles(self, type=0):
         """
         Print nozzle-check pattern.
         """
         if not self.hostname:
             return None
-        status = True
-        lpr = LprClient(self.hostname, port="LPR", label="Check nozzles")
 
-        # Sequence list
-        nozzle_check = lpr.PRINT_NOZZLE_CHECK  # Issue nozzle-check print pattern
-        if type == 1:
-            nozzle_check = nozzle_check[:-1] + b'\x10'
-        commands = [
-            lpr.EXIT_PACKET_MODE,    # Exit packet mode
-            lpr.ENTER_REMOTE_MODE,   # Engage remote mode commands
-            nozzle_check,
-            lpr.EXIT_REMOTE_MODE,    # Disengage remote control
-            lpr.JOB_END              # Mark maintenance job complete
-        ]
+        escp2 = EpsonEscp2()
+        pattern = escp2.check_nozzles(type=type)
         try:
-            lpr.connect()
-            resp = lpr.send(b"".join(commands))
+            with LprClient(
+                self.hostname,
+                port="LPR",
+                label="Check nozzles",
+                timeout=240
+            ) as lpr:
+                resp = lpr.send(pattern)
+            return True
         except Exception as e:
-            status = False
-        finally:
-            lpr.disconnect()
-        return status
+            logging.error("LPR error: %s", e)
+        return False
 
     def print_test_color_pattern(
         self,
@@ -2558,271 +2552,56 @@ class EpsonPrinter:
             complete pattern as bytes (including ESC/P2 job headers and
             footers).
         """
-        status = True
-        lpr = LprClient(self.hostname, port="LPR", label="Check nozzles")
-
-        # Transfer Raster image commands (ESC i), Color, Run Length Encoding,
-        # 2 bits per pixel, 4 pixels per byte, H: 80 bytes = 320 dots = h 2,26 cm @ 360dpi (320/360*2,54)
-        TRI_BLACK = "1b6900010250008000"  # ESC i 0: Black, V: 128 dots/rows (monochrome, 180 dpi) = 128/120*2,54= v 2,7 cm
-        TRI_MAGENTA = "1b6901010250002a00"  # ESC i 1: Magenta, V: 42 dots/rows
-        TRI_YELLOW = "1b6904010250002a00"  # ESC i 4: Yellow, V: 42 dots/rows dots
-        TRI_CYAN = "1b6902010250002a00"  # ESC i 2: Cyan, V: 42 dots/rows
-        TRI_BLACK2 = "1b6905010250002a00"  # ESC i 5: black2, V: 42 dots/rows
-        TRI_BLACK3 = "1b6906010250002a00"  # ESC i 6: black3, V: 42 dots/rows
-
-        SET_H_POS = "1b28240400"  # ESC ( $ = Set absolute horizontal print position, 4 bytes (n=length, first part)
-        SET_V_POS = "1b28760400"  # ESC (v nL nH mL mH, 4 bytes (n=length, first part) = Set relative vertical print position
-
-        USE_MONOCHROME = "1b284b02000001"  # ESC ( K = Monochrome Mode / Color Mode Selection, 01H: Monochrome mode
-        USE_COLOR = "1b284b02000000"  # ESC ( K = Monochrome Mode / Color Mode Selection, 00H: Default mode (color mode)
-
-        vsd_code = {  # Variable Sized Droplet
-            -1: "00",  # VSD1 1bit or MC1-1 1 bit (for DOS)
-            0: "10",  # Economy, Fast Draft
-            1: "11",  # VSD1 2bit - fast eco, economy or speed/normal,
-            2: "12",  # VSD2 2bit - fine/quality,
-            3: "13",  # VSD3 2bit - super fine/high quality,
-        }
-
-        # Each sequence has 2 bits per pixel: 00=No, 01=Small, 10=Medium, 11=Large
-        # Using Run-Length Encoding (RLE), d9 (217>127) means pattern repeated 257-217=40 times (160 dots per pattern).
-        # These allow creating alternating patterns and are also used for solid patterns
-        PATTERN_LARGE = "d9ff"  # ff = 11111111 = 11|11|11|11 = Large, 4 dots x 40
-        PATTERN_MEDIUM = "d9aa"  # aa = 10101010 = 10|10|10|10 = Medium, 4 dots x 40
-        PATTERN_SMALL = "d955"  # 55 = 01010101 = 01|01|01|01 = Small, 4 dots x 40
-        PATTERN_NONE = "d900"  # 00 = 00000000 = 00|00|00|00 = No, 4 dots x 40
-        PATTERN_NO_DOTS = PATTERN_NONE + PATTERN_NONE  # 320 dots, (4+4) dots x 40
-
-        # Alternating patterns, 640 dots each = 2 hor. lines, one above the other
-        PATTERN_LARGE_ALT = PATTERN_LARGE + PATTERN_NO_DOTS + PATTERN_LARGE
-        PATTERN_MEDIUM_ALT = PATTERN_MEDIUM + PATTERN_NO_DOTS + PATTERN_MEDIUM
-        PATTERN_SMALL_ALT = PATTERN_SMALL + PATTERN_NO_DOTS + PATTERN_SMALL
-
-        # 6 vertically stacked printing segments, each of 4 hor stacked blocks
-        printing_segments = [
-            {
-                "label_sequence": lpr.EXIT_REMOTE_MODE
-                    + b'\r\n\r\nEconomy\r\n',
-                "vsd": 0,
-                "alternating_pattern": PATTERN_LARGE_ALT, 
-                "solid_pattern": PATTERN_LARGE, 
-            },
-            {
-                "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD1 - Medium dot size - Normal\r\n",
-                "vsd": 1,
-                "alternating_pattern": PATTERN_MEDIUM_ALT, 
-                "solid_pattern": PATTERN_MEDIUM, 
-            },
-            {
-                "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD2 - Medium dot size - Fine\r\n",
-                "vsd": 2,
-                "alternating_pattern": PATTERN_MEDIUM_ALT, 
-                "solid_pattern": PATTERN_MEDIUM, 
-            },
-            {
-                "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD3 - Large dot size - Super Fine\r\n",
-                "vsd": 3,
-                "alternating_pattern": PATTERN_LARGE_ALT, 
-                "solid_pattern": PATTERN_LARGE, 
-            },
-            {
-                "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD3 - Medium dot size - Super Fine\r\n",
-                "vsd": 3,
-                "alternating_pattern": PATTERN_MEDIUM_ALT, 
-                "solid_pattern": PATTERN_MEDIUM, 
-            },
-            {
-                "label_sequence": lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\nVSD3 - Small dot size - Super Fine\r\n",
-                "vsd": 3,
-                "alternating_pattern": PATTERN_SMALL_ALT, 
-                "solid_pattern": PATTERN_SMALL, 
-            },
-        ]
-
-        def generate_patterns():
-            """
-            Generate the complete ESC/P2 command sequence for the patterns.
-            """
-            command_parts = []
-            
-            # Define the 4 hor stacked blocks for each vertically stacked segment 
-            for segment in printing_segments:  # 6 printing segments
-
-                # Label
-                command_parts.append(segment["label_sequence"].hex())
-
-                # Initialization
-                command_parts.append(
-                    "1b2847010001"  # Select graphics mode
-                    + "1b28550500010101a005"  # ESC (U = Sets 360 DPI resolution
-                    + "1b28430400c6410000"  # ESC (C = Configures page lenght
-                    + "1b28630800ffffffffc6410000"  # ESC (c = Set page format
-                    + "1b28530800822e0000c6410000"  # ESC (S = paper dimension specification
-                    + "1b28440400" + "68010301"  # ESC (D = raster image resolution, r=360, v=3, h=1; 360/3=120 dpi vertically, 360/1=360 dpi horizontally
-                    + "1b2865020000" + vsd_code[segment["vsd"]]  # ESC (e = Select Ink Drop Size
-                    + "1b5502"  # ESC U 02H = selects automatic printing direction control
-                    + USE_MONOCHROME
-                    + SET_V_POS + "00010000" # ESC (v = Set relative vertical print position, 256 units = 4.52 mm
-                )
-
-                # First block - black alternating
-                command_parts.append(SET_H_POS + "00010000")  # ESC ( $ = Set absolute horizontal print position, 256 = 4,52 mm
-                command_parts.append(TRI_BLACK)
-                command_parts.append(segment["alternating_pattern"] * 64)  # 64 x 2 = 128 rows = v 2,7 cm
-
-                # Second block - Yellow/Magenta/Cyan alternating
-                command_parts.append(USE_COLOR + SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position, 1664 = 29,35 mm
-
-                command_parts.append(TRI_MAGENTA)
-                command_parts.append(segment["alternating_pattern"] * 64)
-
-                command_parts.append(SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position, 1664 = 29,35 mm        
-                command_parts.append(TRI_YELLOW)
-                command_parts.append(segment["alternating_pattern"] * 64)
-
-                command_parts.append(SET_H_POS + "80060000")  # ESC ( $ = Set absolute horizontal print position, 1664 = 29,35 mm        
-                command_parts.append(TRI_CYAN)
-                command_parts.append(segment["alternating_pattern"] * 64)
-
-                # Third block - Black solid
-                command_parts.append(USE_MONOCHROME + SET_H_POS + "000c0000")  # ESC ( $ = Set absolute horizontal print position, 3072 = 54,35 mm
-                
-                command_parts.append(TRI_BLACK)
-                command_parts.append(segment["solid_pattern"] * 256)  # 256 x (160 h dots per pattern / 320 h dots per line) = 128 v rows = v 2,7 cm
-
-                # Fourth block - Yellow/Magenta/Cyan solid
-                command_parts.append(USE_COLOR + SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position, 4480 = 79 mm
-                
-                command_parts.append(TRI_MAGENTA)
-                command_parts.append(segment["solid_pattern"] * 256)
-
-                command_parts.append(SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position, 4480 = 79 mm        
-                command_parts.append(TRI_YELLOW)
-                command_parts.append(segment["solid_pattern"] * 256)
-
-                command_parts.append(SET_H_POS + "80110000")  # ESC ( $ = Set absolute horizontal print position, 4480 = 79 mm        
-                command_parts.append(TRI_CYAN)
-                command_parts.append(segment["solid_pattern"] * 256)
-
-                # Fifth block - Black/Black2/Black3 solid
-                if use_black23:
-                    command_parts.append(USE_COLOR + SET_H_POS + "00170000")  # ESC ( $ = Set absolute horizontal print position, 5888 = 103,8 mm
-                    
-                    command_parts.append(TRI_BLACK)
-                    command_parts.append(segment["solid_pattern"] * 256)
-
-                    command_parts.append(SET_H_POS + "00170000")  # ESC ( $ = Set absolute horizontal print position, 5888 = 103,8 mm
-                    command_parts.append(TRI_BLACK2)
-                    command_parts.append(segment["solid_pattern"] * 256)
-
-                    command_parts.append(SET_H_POS + "00170000")  # ESC ( $ = Set absolute horizontal print position, 5888 = 103,8 mm
-                    command_parts.append(TRI_BLACK3)
-                    command_parts.append(segment["solid_pattern"] * 256)
-                
-                command_parts.append(SET_V_POS + "00030000")  # ESC (v = Set relative vertical print position
-                # Relative vertical offset = 768 units = 13.54 mm
-
-            command_parts.append(
-                (
-                    lpr.INITIALIZE_PRINTER
-                    + b"\r\n\n\n\n"
-                    + b"Epson Printer Configuration - Print Test Patterns"
-                    + b"\r\n"
-                ).hex()
-            )
-            # Join all command parts into final hex string
-            return "".join(command_parts)
-
+        escp2 = EpsonEscp2()
         if get_pattern:
-            return bytes.fromhex(generate_patterns())
-        pattern = (
-            lpr.INITIALIZE_PRINTER
-            + lpr.REMOTE_MODE
-            + lpr.PRINT_NOZZLE_CHECK
-
-            + bytes.fromhex(generate_patterns())
-
-            + lpr.INITIALIZE_PRINTER
-            + b'\r'
-            + lpr.FF
-            + lpr.INITIALIZE_PRINTER
-            + lpr.REMOTE_MODE
-            + lpr.LD
-            + lpr.EXIT_REMOTE_MODE
-            + lpr.INITIALIZE_PRINTER
-            + lpr.REMOTE_MODE
-            + lpr.LD
-            + lpr.JOB_END
-            + lpr.EXIT_REMOTE_MODE
-        )
-
+            return bytes.fromhex(
+                escp2.test_color_pattern(get_pattern=False)
+            )
+        pattern = escp2.test_color_pattern(use_black23=use_black23)
         if get_fullpattern:
             return pattern
 
         if not self.hostname:
             return None
         try:
-            lpr.connect()
-            resp = lpr.send(pattern)
+            with LprClient(
+                self.hostname,
+                port="LPR",
+                label="Check nozzles",
+                timeout=240
+            ) as lpr:
+                resp = lpr.send(pattern)
+            return True
         except Exception as e:
-            status = False
-        finally:
-            lpr.disconnect()
-        return status
+            logging.error("LPR error: %s", e)
+        return False
 
-    def clean_nozzles(self, group_index, power_clean=False, has_alt_mode=None):
+    def print_clean_nozzles(
+        self, group_index, power_clean=False, has_alt_mode=None
+    ):
         """
         Initiates nozzles cleaning routine with optional power clean.
         """
+        escp2 = EpsonEscp2()
+        pattern = escp2.clean_nozzles(
+            group_index, power_clean=False, has_alt_mode=None
+        )
         if not self.hostname:
             return None
-        if has_alt_mode and (group_index > has_alt_mode or group_index) < 0:
+        if not pattern:
             return None
-        if not has_alt_mode and (group_index > 5 or group_index) < 0:
-            return None
-        status = True
-        lpr = LprClient(self.hostname, port="LPR", label="Clean nozzles")
-
-        group = group_index  # https://github.com/abrasive/x900-otsakupuhastajat/blob/master/emanage.py#L148-L154
-        if power_clean:
-            group |= 0x10  # https://github.com/abrasive/x900-otsakupuhastajat/blob/master/emanage.py#L220
-
-        # Sequence list (Epson XP-205 207 Series Printing Preferences > Utilty > Clean Heads)
-        commands = [
-            lpr.EXIT_PACKET_MODE,                            # Exit packet mode
-            lpr.ENTER_REMOTE_MODE,                           # Engage remote mode commands
-            lpr.set_timer(),                                 # Sync RTC            
-            lpr.remote_cmd("CH", b'\x00' + bytes([group])),  # Run print-head cleaning
-            lpr.EXIT_REMOTE_MODE,                            # Disengage remote control
-            lpr.ENTER_REMOTE_MODE,                           # Prepare for JOB_END
-            lpr.JOB_END,                                     # Mark maintenance job complete
-            lpr.EXIT_REMOTE_MODE                             # Close sequence
-        ]
-
-        if has_alt_mode and group_index == has_alt_mode:
-            commands = [
-                lpr.INITIALIZE_PRINTER,
-                bytes.fromhex("1B 7C 00 06 00 19 07 84 7B 42 02")  # Head cleaning
-            ]
-        if has_alt_mode and group_index == has_alt_mode and power_clean:
-            commands = [
-                lpr.INITIALIZE_PRINTER,
-                bytes.fromhex("1B 7C 00 06 00 19 07 84 7B 42 0A")  # Ink charge
-            ]
         try:
-            lpr.connect()
-            lpr.send(b"".join(commands))
+            with LprClient(
+                self.hostname,
+                port="LPR",
+                label="Clean nozzles",
+                timeout=240
+            ) as lpr:
+                lpr.send(pattern)
+            return True
         except Exception as e:
             logging.error("LPR error: %s", e)
-            status = False
-        finally:
-            lpr.disconnect()
-        return status
+        return False
 
     def write_first_ti_received_time(
             self, year: int, month: int, day: int) -> bool:
