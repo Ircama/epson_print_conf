@@ -35,6 +35,7 @@ from pyprintlpr import LprClient
 from parse_devices import generate_config_from_toml, generate_config_from_xml, normalize_config
 from find_printers import PrinterScanner
 from text_console import TextConsole
+from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
 VERSION = "7.0.0"
@@ -2844,7 +2845,7 @@ Web site: https://github.com/Ircama/epson_print_conf
 
         def run_tests(index: int, num_tests: int) -> None:
             if index == 0:
-                if self.printer.check_nozzles(type=0):
+                if self.printer.print_check_nozzles(type=0):
                     self.show_status_text_view()
                     self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
@@ -2859,7 +2860,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
                 return
             if index == 1:
-                if self.printer.check_nozzles(type=1):
+                if self.printer.print_check_nozzles(type=1):
                     self.show_status_text_view()
                     self.status_text.insert(tk.END, '[INFO]', "info")
                     self.status_text.insert(
@@ -2888,26 +2889,34 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.set_cursor(self, '')
                 self.update_idletasks()
                 return
+            escp2 = EpsonEscp2()
             try:
                 with LprClient(
-                    self.ip_var.get(), port="LPR", label="Print tests"
+                    self.ip_var.get(),
+                    port="LPR",
+                    label="Print tests",
+                    timeout=240,
                 ) as client:
                     payload = (
-                        client.EXIT_PACKET_MODE
-                        + client.INITIALIZE_PRINTER
+                        escp2.EXIT_PACKET_MODE
+                        + escp2.INITIALIZE_PRINTER
                         + f"{options[index]} for {num_tests} tests\n".encode()
-                        + client.FF
+                        + escp2.FF
                     )
                     if index == 3:
                         payload = bytes.fromhex("0d 0a") * num_tests
                     if index == 4:
                         payload = (
-                            client.INITIALIZE_PRINTER
+                            escp2.INITIALIZE_PRINTER
                             + bytes.fromhex("0d 0a")
-                            + client.FF
-                            + client.INITIALIZE_PRINTER
+                            + escp2.FF
+                            + escp2.INITIALIZE_PRINTER
                         ) * num_tests
                     client.send(payload)
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END, " Paper movement executed.\n"
+                    )
             except Exception:
                 self.show_status_text_view()
                 self.status_text.insert(
@@ -2930,8 +2939,9 @@ Web site: https://github.com/Ircama/epson_print_conf
 
         result = get_test_dialog()
         if result is None:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, '[WARNING] Print test aborted by user.\n', 'warn'
+                tk.END, ' Print test aborted by user.\n'
             )
             self.set_cursor(self, '')
             return
@@ -3074,7 +3084,7 @@ Web site: https://github.com/Ircama/epson_print_conf
 
         def run_cleaning(group_index, power_clean, has_alt_mode=None):
             try:
-                ret = self.printer.clean_nozzles(
+                ret = self.printer.print_clean_nozzles(
                     group_index, power_clean, has_alt_mode
                 )
             except Exception as e:
@@ -3119,7 +3129,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f" Nozzles cleaning operation aborted.\n"
+                f" Nozzles cleaning operation aborted by user.\n"
             )
             self.set_cursor(self, "")
             self.update_idletasks()
@@ -3653,14 +3663,14 @@ Web site: https://github.com/Ircama/epson_print_conf
                                 f" (hostname: {printer['hostname']})\n",
                             )
                         else:
-                            self.status_text.insert(tk.END, '[WARN]', "warn")
+                            self.status_text.insert(tk.END, '[WARNING]', "warn")
                             self.status_text.insert(
                                 tk.END,
                                 f" Cannot contact printer {printer['ip']}"
                                 f" (hostname: {printer['hostname']}).\n",
                             )
             else:
-                self.status_text.insert(tk.END, '[WARN]', "warn")
+                self.status_text.insert(tk.END, '[WARNING]', "warn")
                 self.status_text.insert(tk.END, " No printers found.\n")
         except Exception as e:
             self.handle_printer_error(e)
@@ -3792,7 +3802,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.clipboard_clear()
         self.clipboard_append(self.text_dump)
 
-    def print_items(self, text):
+    def print_items(self, text, raw=False, preview=False):
         """Send items to the printer."""
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
@@ -3802,15 +3812,50 @@ Web site: https://github.com/Ircama/epson_print_conf
                 tk.END, f" Missing IP address or printer host name.\n"
             )
             return
+        text = "| **Printer Data**\n\n\n" + text
+
+        # Compute page format
+        lines = text.splitlines()
+        n_lines = len(lines)
+        max_width = max((len(line) for line in lines), default=0)
+        line_spacing=4
+        padding = 80
+        if n_lines > 90:
+            line_spacing=1
+            padding = 10
+        font_size = 14
+        if max_width > 150:
+            font_size = 10
+
+        escp2 = EpsonEscp2()
+        conv = TextToImageConverter(font_size=font_size)
+        img = conv.convert_to_image(
+            text,
+            line_spacing=line_spacing,
+            padding=padding
+        )  # Render text → PIL image
+        if preview:
+            conv.preview(img)
+            return
+        tri = escp2.image_to_tri(img)  # Encode to Epson TRI blocks
+        packet = escp2.tri_to_escp2(tri)  # Wrap in ESC/P2 remote-mode packet
         try:
-            with LprClient(ip_address, port="LPR", label="Print items") as lpr:
-                lpr.send(
-                    lpr.EXIT_PACKET_MODE
-                    + lpr.INITIALIZE_PRINTER
-                    + b"Printer configuration\n"
-                    + text.encode('utf-8')
-                    + lpr.FF
-                )
+            with LprClient(
+                ip_address,
+                port="LPR",
+                label="Print items",
+                timeout=240,
+            ) as lpr:
+                if raw:
+                    lpr.send(
+                        escp2.EXIT_PACKET_MODE
+                        + escp2.INITIALIZE_PRINTER
+                        + b"Printer configuration\n"
+                        + text.encode('utf-8')
+                        + escp2.FF
+                    )
+                else:
+                    lpr.send(packet)  # Send to printer via LPR
         except Exception as e:
             self.show_status_text_view()
             self.status_text.insert(tk.END, '[ERROR]', "error")
