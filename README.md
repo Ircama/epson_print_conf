@@ -98,6 +98,8 @@ On Linux, you might also install the tkinter module: `sudo apt install python3-t
 
 This program exploits [pysnmp v7+](https://github.com/lextudio/pysnmp) and [pysnmp-sync-adapter](https://github.com/Ircama/pysnmp-sync-adapter).
 
+To print data to Epson printers via LPR, it also uses the [epson_escp2](https://github.com/Ircama/epson_escp2) ESC/P2 encoder/decoder and the [PyPrintLpr](https://github.com/Ircama/PyPrintLpr/) LPR (RFC 1179) printer client. You can simulate the LPR interface of an Epson printer via `python3 -m pyprintlpr server -a 192.168.178.29 -e 3289,161 -d -s -l 515,9100 -I`.
+
 It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
 ## Usage
