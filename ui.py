@@ -35,7 +35,7 @@ from pyprintlpr import LprClient
 from parse_devices import generate_config_from_toml, generate_config_from_xml, normalize_config
 from find_printers import PrinterScanner
 from text_console import TextConsole
-from epson_escp2 import TextToImageConverter, EpsonEscp2
+from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
 VERSION = "7.0.0"

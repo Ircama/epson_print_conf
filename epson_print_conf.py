@@ -32,7 +32,7 @@ from pysnmp_sync_adapter import (
 )
 from pysnmp.proto.errind import RequestTimedOut
 from pyprintlpr import LprClient
-from epson_escp2 import TextToImageConverter, EpsonEscp2
+from epson_escp2.epson_encode import EpsonEscp2
 
 
 class EpsonPrinter:
