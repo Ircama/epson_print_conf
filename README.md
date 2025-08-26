@@ -158,7 +158,7 @@ sudo docker build -t epson_print_conf .
 Run the Container:
 
 ```bash
-sudo docker run -p 5990:5990 epson_print_conf
+sudo docker run --name epson_print_conf -p 5990:5990 epson_print_conf
 ```
 
 or
@@ -242,7 +242,7 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 - [EcoTank ET-2862 with firmware 05.18.XF12OB dated 12/11/2024](https://github.com/Ircama/epson_print_conf/discussions/58) and possibly ET-2860 / 2861 / 2863 / 2865 series.
 - [XP-2200 with firmware 06.58.IU05P2](https://github.com/Ircama/epson_print_conf/issues/51)
 
-The button "Temporary Reset Waste Ink Levels" should still work with these printers.
+~~The button "Temporary Reset Waste Ink Levels" should still work with these printers.~~
 
 ### Using the command-line tool
 

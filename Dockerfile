@@ -21,6 +21,7 @@ RUN apt update && apt install -y \
     x11-apps \
     x11vnc \
     fluxbox \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -29,18 +30,14 @@ WORKDIR /app
 RUN     mkdir ~/.vnc
 RUN     x11vnc -storepasswd 1234 ~/.vnc/passwd
 
-COPY . .
+# Copy only requirements first to leverage Docker cache
+COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --break-system-packages --no-cache-dir \
-    pyyaml \
-    pysnmp \
-    tkcalendar \
-    pyperclip \
-    black \
-    tomli \
-    text-console \
-    pysnmp_sync_adapter
+RUN pip install --break-system-packages --no-cache-dir -r requirements.txt
+
+# Then copy the rest of the app
+COPY . .
 
 # Set the DISPLAY environment variable for Xvfb
 ENV DISPLAY=:99

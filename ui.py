@@ -1561,11 +1561,20 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
-        if not ser_num or "?" in ser_num:
+        if not ser_num:
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
                 f" Cannot retrieve the printer serial number.\n",
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
+        if "?" in ser_num:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(
+                tk.END,
+                f" Cannot retrieve the printer serial number. Possibly a printer firmware update disabled the operation.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -1639,7 +1648,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(
                     tk.END,
                     f' Cannot read EEPROM values for "{label}"'
-                    f' invalid printer model selected: {self.printer.model}.\n'
+                    f' invalid printer model selected: {self.printer.model}. Possibly a printer firmware update disabled the operation.\n'
                 )
                 self.config(cursor="")
                 self.update_idletasks()
@@ -1948,7 +1957,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(
                     tk.END,
                     " No data from 'First TI received time'."
-                    " Check printer configuration.\n",
+                    " Check printer configuration. Possibly a printer firmware update disabled the operation.\n",
                 )
                 self.config(cursor="")
                 self.update_idletasks()
@@ -2337,7 +2346,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(
                     tk.END,
                     f' Cannot read EEPROM values for addresses "{addresses}"'
-                    ' invalid printer model selected.\n'
+                    ' invalid printer model selected. Possibly a printer firmware update disabled the operation.\n'
                 )
             self.config(cursor="")
             self.update_idletasks()
@@ -3216,7 +3225,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    ' Cannot read EEPROM values: invalid printer model selected.\n'
+                    ' Cannot read EEPROM values: invalid printer model selected. Possibly a printer firmware update disabled the operation.\n'
                 )
                 self.update()
                 self.config(cursor="")
@@ -3802,7 +3811,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.clipboard_clear()
         self.clipboard_append(self.text_dump)
 
-    def print_items(self, text, raw=False, preview=False):
+    def print_items(self, text, raw=True, preview=False):
         """Send items to the printer."""
         ip_address = self.ip_var.get()
         if not self._is_valid_ip(ip_address):
