@@ -38,7 +38,7 @@ from text_console import TextConsole
 from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
-VERSION = "7.0.0"
+VERSION = "7.1.0"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
@@ -439,7 +439,25 @@ class EpsonPrinterUI(tk.Tk):
             replace_conf=self.replace_conf
         ).valid_printers)
         self.model_dropdown.grid(
-            row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
+            row=0, column=1, pady=PADY, padx=0, sticky=(tk.W, tk.E)
+        )
+        # Small search button to open the popup search dialog
+        # Make column minsize minimal so the button sits flush to the combobox
+        model_frame.columnconfigure(2, weight=0, minsize=0)
+        # Use a custom ttk style to increase the font/icon size for the button
+        try_font = ("Segoe UI Emoji", 12)
+        style = ttk.Style()
+        style_name = "Search.TButton"
+        style.configure(style_name, font=try_font, padding=(-3, -3))
+        self.model_search_button = ttk.Button(
+            model_frame, text='🔍', width=3, style=style_name,
+            command=self.open_model_search_popup
+        )
+        # Place directly adjacent to the combobox with no extra padding
+        self.model_search_button.grid(row=0, column=2, padx=(0, 0), sticky=(tk.W, tk.E))
+        ToolTip(
+            self.model_search_button,
+            "Search among available printer models"
         )
         ToolTip(
             self.model_dropdown,
@@ -1240,6 +1258,95 @@ class EpsonPrinterUI(tk.Tk):
         finally:
             self.config(cursor="")
             self.update_idletasks()
+
+    def open_model_search_popup(self):
+        """Open a modal popup allowing to search among available models
+        and select one. The selected model is applied to `self.model_var`.
+        """
+        top = tk.Toplevel(self)
+        top.title("Search Printer Models")
+        top.transient(self)
+        top.resizable(False, False)
+        # Make modal
+        top.grab_set()
+        # Position the popup near main window
+        self.update_idletasks()
+        x = self.winfo_rootx() + 60
+        y = self.winfo_rooty() + 60
+        top.geometry(f"+{x}+{y}")
+
+        ttk.Label(top, text="Search:").grid(row=0, column=0, padx=6, pady=6, sticky=tk.W)
+        search_var = tk.StringVar()
+        entry = ttk.Entry(top, textvariable=search_var)
+        entry.grid(row=0, column=1, padx=6, pady=6, sticky=(tk.W, tk.E))
+
+        # Ensure the second column expands so entry and list have the same width
+        top.columnconfigure(0, weight=0)
+        top.columnconfigure(1, weight=1)
+        top.rowconfigure(1, weight=1)
+
+        list_frame = ttk.Frame(top)
+        list_frame.grid(row=1, column=0, columnspan=2, padx=6, pady=(0,6), sticky=(tk.N, tk.S, tk.E, tk.W))
+        # Make list_frame's inner grid expand so the listbox fills the available width
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+
+        model_listbox = tk.Listbox(list_frame, height=10, exportselection=False)
+        vsb = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=model_listbox.yview)
+        model_listbox.config(yscrollcommand=vsb.set)
+        model_listbox.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
+        vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
+
+        # Get models and populate listbox
+        try:
+            models = list(self.model_dropdown["values"])
+        except Exception:
+            models = []
+        models = sorted(models)
+        for m in models:
+            model_listbox.insert(tk.END, m)
+
+        def do_filter(*args):
+            q = search_var.get().strip().lower()
+            model_listbox.delete(0, tk.END)
+            for m in models:
+                if q in m.lower():
+                    model_listbox.insert(tk.END, m)
+        # Compatibility for older trace API
+        try:
+            search_var.trace_add('write', do_filter)
+        except Exception:
+            search_var.trace('w', lambda *a: do_filter())
+
+        def select_and_close(event=None):
+            sel = None
+            cur = model_listbox.curselection()
+            if cur:
+                sel = model_listbox.get(cur[0])
+            else:
+                # If nothing selected, try first visible
+                if model_listbox.size() > 0:
+                    sel = model_listbox.get(0)
+            if sel:
+                self.model_var.set(sel)
+                try:
+                    self.model_dropdown.set(sel)
+                except Exception:
+                    pass
+                top.grab_release()
+                top.destroy()
+
+        model_listbox.bind('<Double-Button-1>', select_and_close)
+        model_listbox.bind('<Return>', select_and_close)
+        entry.bind('<Return>', lambda e: model_listbox.selection_set(0) or select_and_close())
+        top.bind('<Escape>', lambda e: (top.grab_release(), top.destroy()))
+
+        btn_frame = ttk.Frame(top)
+        btn_frame.grid(row=2, column=0, columnspan=2, pady=(0,6))
+        ttk.Button(btn_frame, text="Select", command=select_and_close).grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="Cancel", command=lambda: (top.grab_release(), top.destroy())).grid(row=0, column=1, padx=4)
+
+        entry.focus_set()
 
     def show_program_info(self):
         # Show program information in a popup

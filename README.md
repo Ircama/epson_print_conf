@@ -187,7 +187,7 @@ With the GUI, the following operations are possible (from the file menu):
 
 - Import an XML configuration file or web URL
 
-  This option allows to import the XML configuration file downloaded from <https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d>. Alternatively, this option directly accepts the [source Web URL](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) of this file, incorporating the download operation into the GUI.
+  This option allows to import the XML configuration file downloaded from <https://github.com/user-attachments/files/23294840/devices.xml>. Alternatively, this option directly accepts the [source Web URL](https://github.com/user-attachments/files/23294840/devices.xml) of this file, incorporating the download operation into the GUI.
 
 - Import a TOML configuration file or web URL
 
@@ -356,7 +356,7 @@ It is also possible to automatically load a previously created configuration fil
 
 ```bash
 pip install pyinstaller  # if not yet installed
-curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
+curl -o devices.xml https://github.com/user-attachments/files/23294840/devices.xml
 python3 parse_devices.py -a 192.168.178.29 -s XP-205 -p epson_print_conf.pickle  # use your default IP address and printer model as default settings for the GUI
 pyinstaller epson_print_conf.spec
 ```
@@ -380,14 +380,14 @@ This repository includes a Windows *epson_print_conf.exe* executable file which 
 
 ### parse_devices.py
 
-Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo <https://codeberg.org/atufi/reinkpy> there is an interesting [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) which includes an extensive XML database of Epson model features.
+Within a [report](https://codeberg.org/atufi/reinkpy/issues/12#issue-716809) in repo <https://codeberg.org/atufi/reinkpy> there is an interesting [attachment](https://github.com/user-attachments/files/23294840/devices.xml) which includes an extensive XML database of Epson model features.
 
 The program *parse_devices.py* transforms this XML DB into the dictionary that *epson_print_conf.py* can use. It is also able to accept the [TOML](https://toml.io/) input format used by [reinkpy](https://codeberg.org/atufi/reinkpy) in [epson.toml](https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml), if the `-T` option is used.
 
 Here is a simple procedure to download the *devices.xml* DB and run *parse_devices.py* to search for the XP-205 model and produce the related PRINTER_CONFIG dictionary to the standard output:
 
 ```bash
-curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
+curl -o devices.xml https://github.com/user-attachments/files/23294840/devices.xml
 python3 parse_devices.py -i -m XP-205
 ```
 
@@ -448,10 +448,10 @@ The program does not provide *printer_head_id* and *Power off timer*.
 
 #### Example to integrate new printers
 
-Suppose ET-4800 ia a printer already defined in the mentioned [attachment](https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d) with valid data, that you want to integrate.
+Suppose ET-4800 ia a printer already defined in the mentioned [attachment](https://github.com/user-attachments/files/23294840/devices.xml) with valid data, that you want to integrate.
 
 ```bash
-curl -o devices.xml https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d
+curl -o devices.xml https://github.com/user-attachments/files/23294840/devices.xml
 python3 parse_devices.py -m ET-4800 -p epson_print_conf.pickle
 python3 ui.py -P epson_print_conf.pickle
 ```
@@ -1065,7 +1065,7 @@ escputil.c: https://github.com/echiu64/gutenprint/blob/master/src/escputil/escpu
 
 ### Other resources
 - <https://github.com/lion-simba/reink/files/14553492/devices.zip>
-- <https://codeberg.org/attachments/147f41a3-a6ea-45f6-8c2a-25bac4495a1d>
+- <https://github.com/user-attachments/files/23294840/devices.xml>
 - <https://codeberg.org/atufi/reinkpy/src/branch/main/reinkpy/epson.toml>
 
 ## License
