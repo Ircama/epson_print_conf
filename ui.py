@@ -216,6 +216,7 @@ class ToolTip:
             text=self.wrap_text(self.text),
             justify="left",
             background="LightYellow",
+            foreground="black",
             relief="solid",
             borderwidth=1,
         )
