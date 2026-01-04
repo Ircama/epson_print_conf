@@ -317,7 +317,7 @@ class EpsonPrinter:
         },
         "ET-2750": {
             "serial_number": range(1604, 1614),
-            "alias": ["ET-2751", "ET-2756"],
+            "alias": ["ET-2751", "ET-2756", "ET-2760"],
             "read_key": [73, 8],
             "write_key": b"Arantifo",
             "main_waste": {"oids": [48, 49, 47], "divider": 109.13},
