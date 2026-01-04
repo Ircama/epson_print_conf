@@ -335,11 +335,11 @@ class EpsonPrinterUI(tk.Tk):
             logging.critical("Cannot start program: %s", e)
             quit()
         self.title("Epson Printer Configuration - v" + VERSION)
-        self.geometry("500x500")
+        self.geometry("750x600")
         if self.call('tk', 'windowingsystem') == "x11":
-            self.minsize(600, 600)
+            self.minsize(750, 600)
         else:
-            self.minsize(550, 600)
+            self.minsize(750, 600)
         self.printer_scanner = PrinterScanner()
         self.ip_list = []
         self.ip_list_cycle = None
@@ -815,7 +815,7 @@ class EpsonPrinterUI(tk.Tk):
         # Query list of cartridge types
         self.web_interface_button = ttk.Button(
             button_frame,
-            text="Printer\nWeb interface",
+            text="Printer\nWeb Interface",
             command=self.web_interface,
             style="Centered.TButton"
         )
