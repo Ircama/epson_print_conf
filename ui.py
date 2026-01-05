@@ -1048,8 +1048,8 @@ class EpsonPrinterUI(tk.Tk):
         # Hide the Treeview initially
         self.tree_frame.grid_remove()
 
-        self.model_var.trace('w', self.change_widget_states)
-        self.ip_var.trace('w', self.change_widget_states)
+        self.model_var.trace_add('write', self.change_widget_states)
+        self.ip_var.trace_add('write', self.change_widget_states)
         self.change_widget_states()
 
     def save_to_file(self):
