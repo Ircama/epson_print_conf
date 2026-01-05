@@ -73,8 +73,8 @@ class EpcTextConsole(TextConsole):
         help_text = tk.Text(
             help_window, wrap="word", yscrollcommand=scrollbar.set
         )
-        help_text.tag_configure("title", foreground="purple")
-        help_text.tag_configure("section", foreground="blue")
+        help_text.tag_configure("title", foreground=theme.status_note)
+        help_text.tag_configure("section", foreground=theme.tree_key_value)
 
         help_text.insert(
             tk.END,
@@ -216,6 +216,7 @@ class ToolTip:
             text=self.wrap_text(self.text),
             justify="left",
             background="LightYellow",
+            foreground="black",
             relief="solid",
             borderwidth=1,
         )
@@ -252,6 +253,54 @@ class ToolTip:
         return "\n".join(lines)
 
 
+def is_dark_mode():
+    """Detect if the system is using dark mode (macOS)."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['defaults', 'read', '-g', 'AppleInterfaceStyle'],
+            capture_output=True, text=True
+        )
+        return result.stdout.strip().lower() == 'dark'
+    except Exception:
+        return False
+
+
+class ThemeColors:
+    """Dynamic color scheme that adapts to light/dark mode."""
+    def __init__(self):
+        self.update()
+
+    def update(self):
+        dark = is_dark_mode()
+        if dark:
+            # Dark mode colors
+            self.treeview_heading_bg = "#4a90d9"
+            self.treeview_heading_fg = "white"
+            self.tree_key = "#cccccc"
+            self.tree_key_value = "#6699ff"
+            self.tree_value = "#99ccff"
+            self.status_error = "#ff6b6b"
+            self.status_warn = "#ffa500"
+            self.status_note = "#da70d6"
+            self.status_info = "#90ee90"
+        else:
+            # Light mode colors
+            self.treeview_heading_bg = "lightblue"
+            self.treeview_heading_fg = "darkblue"
+            self.tree_key = "black"
+            self.tree_key_value = "dark blue"
+            self.tree_value = "blue"
+            self.status_error = "red"
+            self.status_warn = "blue"
+            self.status_note = "purple"
+            self.status_info = "green"
+
+
+# Global theme colors instance
+theme = ThemeColors()
+
+
 class BugFixedDateEntry(DateEntry):
     """
     Fixes a bug on the calendar that does not accept mouse selection with Linux
@@ -286,11 +335,11 @@ class EpsonPrinterUI(tk.Tk):
             logging.critical("Cannot start program: %s", e)
             quit()
         self.title("Epson Printer Configuration - v" + VERSION)
-        self.geometry("500x500")
+        self.geometry("750x600")
         if self.call('tk', 'windowingsystem') == "x11":
-            self.minsize(600, 600)
+            self.minsize(750, 600)
         else:
-            self.minsize(550, 600)
+            self.minsize(750, 600)
         self.printer_scanner = PrinterScanner()
         self.ip_list = []
         self.ip_list_cycle = None
@@ -766,7 +815,7 @@ class EpsonPrinterUI(tk.Tk):
         # Query list of cartridge types
         self.web_interface_button = ttk.Button(
             button_frame,
-            text="Printer\nWeb interface",
+            text="Printer\nWeb Interface",
             command=self.web_interface,
             style="Centered.TButton"
         )
@@ -892,10 +941,10 @@ class EpsonPrinterUI(tk.Tk):
         self.status_text = ScrolledText(
             status_frame, wrap=tk.WORD, font=("TkDefaultFont")
         )
-        self.status_text.tag_configure("error", foreground="red")
-        self.status_text.tag_configure("warn", foreground="blue")
-        self.status_text.tag_configure("note", foreground="purple")
-        self.status_text.tag_configure("info", foreground="green")
+        self.status_text.tag_configure("error", foreground=theme.status_error)
+        self.status_text.tag_configure("warn", foreground=theme.status_warn)
+        self.status_text.tag_configure("note", foreground=theme.status_note)
+        self.status_text.tag_configure("info", foreground=theme.status_info)
         self.status_text.grid(
             row=0,
             column=0,
@@ -959,8 +1008,8 @@ class EpsonPrinterUI(tk.Tk):
         style.configure(
             "Treeview.Heading",
             font=(treeview_font_name, treeview_font_size - 4, "bold"),
-            background="lightblue",
-            foreground="darkblue",
+            background=theme.treeview_heading_bg,
+            foreground=theme.treeview_heading_fg,
         )
 
         # Create and configure the Treeview widget
@@ -999,8 +1048,8 @@ class EpsonPrinterUI(tk.Tk):
         # Hide the Treeview initially
         self.tree_frame.grid_remove()
 
-        self.model_var.trace('w', self.change_widget_states)
-        self.ip_var.trace('w', self.change_widget_states)
+        self.model_var.trace_add('write', self.change_widget_states)
+        self.ip_var.trace_add('write', self.change_widget_states)
         self.change_widget_states()
 
     def save_to_file(self):
@@ -2230,9 +2279,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.show_treeview()
 
             # Configure tags
-            self.tree.tag_configure("key", foreground="black")
-            self.tree.tag_configure("key_value", foreground="dark blue")
-            self.tree.tag_configure("value", foreground="blue")
+            self.tree.tag_configure("key", foreground=theme.tree_key)
+            self.tree.tag_configure("key_value", foreground=theme.tree_key_value)
+            self.tree.tag_configure("value", foreground=theme.tree_value)
             self.tree.heading("#0", text="Status Information", anchor="w")
 
             # Populate the Treeview
@@ -2289,9 +2338,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.show_treeview()
 
             # Configure tags
-            self.tree.tag_configure("key", foreground="black")
-            self.tree.tag_configure("key_value", foreground="dark blue")
-            self.tree.tag_configure("value", foreground="blue")
+            self.tree.tag_configure("key", foreground=theme.tree_key)
+            self.tree.tag_configure("key_value", foreground=theme.tree_key_value)
+            self.tree.tag_configure("value", foreground=theme.tree_value)
             self.tree.heading("#0", text="Printer parameters", anchor="w")
 
             # Populate the Treeview
@@ -2355,9 +2404,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.show_treeview()
 
             # Configure tags
-            self.tree.tag_configure("key", foreground="black")
-            self.tree.tag_configure("key_value", foreground="dark blue")
-            self.tree.tag_configure("value", foreground="blue")
+            self.tree.tag_configure("key", foreground=theme.tree_key)
+            self.tree.tag_configure("key_value", foreground=theme.tree_key_value)
+            self.tree.tag_configure("value", foreground=theme.tree_value)
             self.tree.heading(
                 "#0",
                 text="Values of the keys from the printer configuration",
@@ -3429,9 +3478,9 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.show_treeview()
 
             # Configure tags
-            self.tree.tag_configure("key", foreground="black")
-            self.tree.tag_configure("key_value", foreground="dark blue")
-            self.tree.tag_configure("value", foreground="blue")
+            self.tree.tag_configure("key", foreground=theme.tree_key)
+            self.tree.tag_configure("key_value", foreground=theme.tree_key_value)
+            self.tree.tag_configure("value", foreground=theme.tree_value)
             self.tree.heading(
                 "#0",
                 text="Printer configuration",
