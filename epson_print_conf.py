@@ -376,7 +376,7 @@ class EpsonPrinter:
                 "Maintenance required level of 3rd waste ink counter": [255],
             },
             "serial_number": range(1604, 1614),
-            "alias": ["ET-2801", "ET-2803", "ET-2805"],
+            "alias": ["ET-2801", "ET-2803", "ET-2805", "ET-2820", "ET-2821", "ET-2826"],
         },
         "ET-2812": {
             "read_key": [74, 54],
@@ -2464,26 +2464,81 @@ class EpsonPrinter:
             str(int(i)) for i in cmd
         )
 
-    def temporary_reset_waste(self, mode=1, dry_run=False) -> bool:
+    def temporary_reset_waste(self, mode=1, dry_run=False, serial=None) -> bool:
         """
-        Thanks to https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250
+        Temporary reset of the ink waste counter.
+        Includes fallback to LPR if SNMP fails (for new firmware).
         """
-        serial = self.get_serial_number()
+        # 1. Get Serial Number (Try Argument, then EEPROM, then Device ID)
         if not serial:
-            return None
+            serial = self.get_serial_number()
+        
+        if not serial:
+            logging.warning("SNMP Serial read failed. Trying Device ID...")
+            di = self.get_device_identification() or {}
+            for k in ['SN', 'SER']:
+                if k in di and di[k]:
+                    raw_sn = di[k][0]
+                    # Handle hex-encoded serials (common in new firmware)
+                    if len(raw_sn) > 10 and all(c in '0123456789ABCDEFabcdef' for c in raw_sn):
+                         try:
+                             serial = bytes.fromhex(raw_sn).decode()
+                         except:
+                             serial = raw_sn
+                    else:
+                        serial = raw_sn
+                    break
+        
+        if not serial:
+            logging.warning("Could not detect Serial Number via SNMP/DI. Please provide it manually.")
+            return False
+            
+        logging.info(f"Using Serial Number: {serial}")
         sha1 = hashlib.sha1(serial.encode())
-        oid = self.epctrl_snmp_oid(
-            "rw",  # This command stands for "reset waste".
-            struct.pack('<H', mode) +  # Unknown \x01\x00 (2 bytes); the first byte must be 0x01 to work
-            sha1.digest()  # Serial SHA1 hash. Always 20 bytes.
-        )
+        payload = struct.pack('<H', mode) + sha1.digest()
+        
+        # 2. Try SNMP Reset
+        try:
+            oid = self.epctrl_snmp_oid("rw", payload)
+            if dry_run:
+                logging.info("Dry-run: Would send SNMP reset.")
+            else:
+                answer = self.fetch_oid_values(oid, label="temp_reset_waste")[0]
+                if b"rw:01:OK;" in answer[1]:
+                    logging.info("SNMP Reset Successful!")
+                    return True
+                logging.warning(f"SNMP Reset failed: {answer[1]}")
+        except Exception as e:
+            logging.warning(f"SNMP Reset error: {e}")
+
+        # 3. Try LPR Reset (Fallback)
+        logging.info("Attempting LPR Reset (Remote Mode)...")
         if dry_run:
-            return True
-        answer = self.fetch_oid_values(oid, label="temp_reset_waste")[0]
-        status = b"rw:01:OK;" in answer[1]
-        if not status:
-            print(answer)
-        return status
+             return True
+             
+        try:
+            # Construct LPR Remote Mode Packet
+            # Command: 'rw' + Length(2 bytes LE) + Payload
+            cmd_block = b'rw' + struct.pack('<H', len(payload)) + payload
+            
+            # Use EpsonEscp2 for constants
+            escp2 = EpsonEscp2()
+            
+            with LprClient(self.hostname, port="LPR", timeout=10) as lpr:
+                data = (
+                    escp2.EXIT_PACKET_MODE +
+                    escp2.ENTER_REMOTE_MODE +
+                    cmd_block +
+                    escp2.EXIT_REMOTE_MODE +
+                    escp2.JOB_END
+                )
+                lpr.send(data)
+                logging.info("LPR Reset command sent.")
+                return True
+        except Exception as e:
+             logging.error(f"LPR Reset failed: {e}")
+             
+        return False
 
     def reset_waste_ink_levels(self, dry_run=False) -> bool:
         """
