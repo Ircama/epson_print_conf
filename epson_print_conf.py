@@ -434,6 +434,41 @@ class EpsonPrinter:
             "serial_number": [range(793, 803), range(1604, 1614)],
             "wifi_mac_address": range(1920, 1926),
         },
+        "ET-1810": {
+            # EEPROM access via SNMP is not available on this model. All 65280 key
+            # combinations (x != y, 0-255) were brute-forced and all returned NA.
+            # The printer uses USB/D4 protocol for EEPROM access (as WIC Reset does).
+            # Serial number and waste status are readable via the BDC status parser.
+            # temporary_reset_waste() works via SHA1(serial) when the waste pad is full.
+            #
+            # EEPROM layout verified from hardware dumps (2026/03/19, 2026/03/20):
+            #
+            #   serial_number:          range(1604, 1614)  e.g. "X8LM137223"
+            #   wifi_mac_address:       range(1920, 1926)  e.g. 64:C6:D2:53:3E:F9
+            #   Total print pass counter: [133, 132, 131, 130] (LE 32-bit, same as ET-4800)
+            #   waste ink (main):       likely [48, 49, 47]  (all 0 on tested unit)
+            #   waste ink (borderless): likely [50, 51, 47]  (all 0 on tested unit)
+            #   maintenance level:      addr 56 = 0x7F, addr 57 = 0x7F (vs 0x5E on ET-4800)
+            #   boot/error counter:     addr 1949 (0x079D), ASCII digit, increments each
+            #                           boot while in fatal error state
+            #
+            #   last_printer_fatal_errors: range(0x120, 0x12a) = addresses 288-297
+            #     Stores up to 5 error entries of 2 bytes each (LE 16-bit error code).
+            #     e.g. fatal error 031006 stored as 0x1E, 0x79 (= 0x791E little-endian).
+            #     The printer writes 2 new entries on every boot while error persists.
+            #     WIC Reset can clear entries 3-5 (292-297) but protects entries 1-2
+            #     (288-291) while the printer is running. To fully clear, the EEPROM
+            #     chip must be programmed offline (e.g. CH341A), or the underlying
+            #     hardware fault causing the error must be resolved first.
+            #
+            # Once read_key is discovered, add:
+            #   "read_key": [...], "write_key": b"...",
+            #   "serial_number": range(1604, 1614),
+            #   "wifi_mac_address": range(1920, 1926),
+            #   "last_printer_fatal_errors": range(0x120, 0x12a),
+            "alias": ["ET-1810 Series"],
+            "serial_from_status": True,
+        },
         "L3150": {
             "alias": ["L3151", "L3160", "L3166", "L3168"],
             "read_key": [151, 7],
@@ -1057,6 +1092,7 @@ class EpsonPrinter:
             printer_name
             for printer_name in self.PRINTER_CONFIG.keys()
             if "read_key" in self.PRINTER_CONFIG[printer_name]
+            or "serial_from_status" in self.PRINTER_CONFIG[printer_name]
         }
 
     @property
@@ -1971,6 +2007,11 @@ class EpsonPrinter:
         """Return the serial number of the printer (or "?" if error)."""
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
+            return None
+        if self.parm.get("serial_from_status"):
+            status = self.get_printer_status()
+            if status and status.get("serial_number_info"):
+                return status["serial_number_info"]
             return None
         if "serial_number" not in self.parm:
             return None
