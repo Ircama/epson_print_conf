@@ -221,6 +221,22 @@ class EpsonPrinter:
             },
             "serial_number": range(192, 202),
         },
+        "L365": {
+            "read_key": [130, 2],
+            "write_key": b"Gerbera*",
+            # L365 reports realistic main waste level with 16-bit counter (24,25).
+            # Address 30 exists and is still reset in raw_waste_reset.
+            "main_waste": {"oids": [24, 25], "divider": 62.07},
+            "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94},
+            "stats": {
+                "Ink replacement counter - Black": [242],
+                "Ink replacement counter - Yellow": [243],
+                "Ink replacement counter - Cyan": [244],
+                "Ink replacement counter - Magenta": [245],
+                "Maintenance required level of 1st waste ink counter": [46],
+            },
+            "serial_number": range(192, 202),
+        },
         "L366": {
             "read_key": [130, 2],
             "write_key": b'Gerbera*',
