@@ -30,7 +30,7 @@ class PrinterScanner:
         try:
             printer_info = printer.get_snmp_info("Model")
             return printer_info["Model"]
-        except:
+        except Exception:
             return None
 
     def scan_ip(self, ip):
