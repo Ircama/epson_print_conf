@@ -1332,7 +1332,7 @@ class EpsonPrinterUI(tk.Tk):
                 try:
                     self.model_dropdown.set(sel)
                 except Exception:
-                    pass
+                    logging.warning("Failed to set dropdown value: %s", sel)
                 top.grab_release()
                 top.destroy()
 
