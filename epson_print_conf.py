@@ -2332,7 +2332,7 @@ class EpsonPrinter:
                         try:
                             value = str(int(i[j], 16))
                         except Exception:
-                            pass
+                            logging.warning("Failed to parse cartridge value: %s", i[j])
                     if i[j] == "NAVL":
                         value = "(Not available)"
                     logging.debug(
