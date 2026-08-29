@@ -2469,7 +2469,18 @@ class EpsonPrinter:
         Thanks to https://codeberg.org/atufi/reinkpy/issues/12#issuecomment-1661250
         """
         serial = self.get_serial_number()
-        if not serial:
+        if not serial or "?" in serial:
+            # get_serial_number() reads the serial out of the EEPROM, which is
+            # unavailable on printers whose EEPROM interface is locked by
+            # firmware (e.g. L3250, and every model under "Known incompatible
+            # models"). Those are exactly the printers that depend on this
+            # command. The "rw" command needs only the serial - no read_key -
+            # and the status block reports it in plaintext, so use that rather
+            # than hashing the "?" placeholder and getting back "rw:01:NA;".
+            status = self.get_printer_status() or {}
+            serial = status.get("serial_number_info") or serial
+        if not serial or "?" in serial:
+            logging.error("EpsonPrinter - cannot determine the serial number")
             return None
         sha1 = hashlib.sha1(serial.encode())
         oid = self.epctrl_snmp_oid(
@@ -2672,7 +2683,9 @@ class EpsonPrinter:
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
             return None
-        for x, y in itertools.permutations(range(minimum, maximum + 1), r=2):
+        # product(), not permutations(): permutations() never yields a pair
+        # of equal bytes, so a key such as [7, 7] could never be found.
+        for x, y in itertools.product(range(minimum, maximum + 1), repeat=2):
             self.parm['read_key'] = [x, y]
             logging.warning(f"Trying {self.parm['read_key']}...")
             val = self.read_eeprom(0x00, label="brute_force_read_key")
