@@ -1,5 +1,5 @@
 pyyaml
-pysnmp>=v7.1.29
+pysnmp>=7.1.20
 pysnmp_sync_adapter>=1.1.0
 tkcalendar
 pyperclip

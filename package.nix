@@ -7,7 +7,7 @@
 }:
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "epson_print_conf";
-  version = "7.3.0";
+  version = "7.3.1";
 
   src = fetchFromGitHub {
     owner = "Ircama";
