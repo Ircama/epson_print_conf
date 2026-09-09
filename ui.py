@@ -17,6 +17,9 @@ import logging
 import webbrowser
 import pickle
 
+import asyncio
+asyncio.set_event_loop(asyncio.new_event_loop())
+
 from code import InteractiveConsole
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
