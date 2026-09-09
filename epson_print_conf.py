@@ -562,6 +562,11 @@ class EpsonPrinter:
             },
             "last_printer_fatal_errors": [60, 203, 204, 205, 206, 0x01d3],
         },
+        "XP-320": {
+            "read_key": [85, 5],
+            "write_key": b'Muscari.',
+            "same-as": "XP-315"
+        },
         "XP-342": {
             "alias": ["XP-343", "XP-345"],
             "read_key": [1, 5],
