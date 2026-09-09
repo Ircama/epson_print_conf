@@ -1,3 +1,4 @@
+import logging
 import os
 import socket
 import subprocess
@@ -11,6 +12,37 @@ warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 # common printer ports
 PRINTER_PORTS = [9100, 515, 631]
+
+
+def _get_local_ips():
+    """
+    Return the list of local IP addresses of the active network interfaces.
+
+    socket.gethostbyname_ex(socket.gethostname()) fails on Debian/Ubuntu
+    hosts, where /etc/hosts maps the system hostname to 127.0.1.1: in that
+    case only the loopback address is returned and the subnet scan never
+    visits any reachable IP. To cope with this, query the kernel routing
+    table via a UDP socket connection to a public address (RFC 1918
+    documentation address; no packet is actually sent by connect() on a
+    UDP socket). Fall back to gethostbyname_ex() when the routing trick
+    does not work (e.g., no route or no DNS resolution available).
+    """
+    ips = []
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("192.0.2.1", 1))  # no data is sent (UDP)
+            primary_ip = sock.getsockname()[0]
+        if primary_ip and not primary_ip.startswith("127."):
+            ips.append(primary_ip)
+    except OSError:
+        pass
+    try:
+        for ip in socket.gethostbyname_ex(socket.gethostname())[2]:
+            if ip not in ips and not ip.startswith("127."):
+                ips.append(ip)
+    except OSError:
+        pass
+    return ips
 
 
 class PrinterScanner:
@@ -53,9 +85,13 @@ class PrinterScanner:
             if result:
                 result["name"] = self.get_printer_name(result['ip'])
                 return [result]
-        local_device_ip_list = socket.gethostbyname_ex(socket.gethostname())[2]
+        local_device_ip_list = _get_local_ips()
         if local:
             return local_device_ip_list  # IP list
+        if not local_device_ip_list:
+            logging.error("Cannot determine any local IP address; "
+                          "specify the printer IP address explicitly.")
+            return []
         printers = []
         for local_device_ip in local_device_ip_list:
             if ip_addr and not local_device_ip.startswith(ip_addr):
