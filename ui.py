@@ -41,7 +41,7 @@ from text_console import TextConsole
 from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
-VERSION = "7.1.0"
+VERSION = "7.2.0"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address,"
