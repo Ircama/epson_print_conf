@@ -242,7 +242,15 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 - [EcoTank ET-2862 with firmware 05.18.XF12OB dated 12/11/2024](https://github.com/Ircama/epson_print_conf/discussions/58) and possibly ET-2860 / 2861 / 2863 / 2865 series.
 - [XP-2200 with firmware 06.58.IU05P2](https://github.com/Ircama/epson_print_conf/issues/51)
 
-~~The button "Temporary Reset Waste Ink Levels" should still work with these printers.~~
+The button "Temporary Reset Waste Ink Levels" works with these printers: the `rw`
+command needs only the printer serial number and no read key, and the serial is
+reported in plaintext by the status block even when the EEPROM is locked.
+
+Note that only *SNMP* EEPROM access is disabled on these models. On at least some
+of them the EEPROM remains readable and writable over *USB*, via the IEEE 1284.4
+(D4) `EPSON-CTRL` service, using the same read/write keys; see
+[reinkpy](https://codeberg.org/atufi/reinkpy). A permanent waste-counter reset may
+therefore still be possible on a printer listed above, over a USB cable.
 
 ### Using the command-line tool
 
