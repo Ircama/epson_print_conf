@@ -28,7 +28,8 @@ from pysnmp_sync_adapter import (
     get_cmd_sync,
     parallel_get_sync,
     create_transport,
-    cluster_varbinds
+    cluster_varbinds,
+    create_dispatcher
 )
 from pysnmp.proto.errind import RequestTimedOut
 from pyprintlpr import LprClient
@@ -1338,7 +1339,7 @@ class EpsonPrinter:
         if net_val != self.used_net_val:
             try:
                 self.snmp_conf = (
-                    SnmpDispatcher(),
+                    create_dispatcher(SnmpDispatcher),
                     CommunityData("public", mpModel=0),
                     create_transport(
                         UdpTransportTarget,

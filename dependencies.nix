@@ -12,11 +12,11 @@
 rec {
   pysnmp-sync-adapter = buildPythonPackage (finalAttrs: {
     pname = "pysnmp_sync_adapter";
-    version = "1.0.8";
+    version = "1.1.0";
 
     src = fetchPypi {
       inherit (finalAttrs) pname version;
-      hash = "sha256-uNd8MOxwOsbMLG9PkFzLchi8rG/RIPX1dK+U3ar1aPY=";
+      hash = "sha256-iesBgyHfAEapXABOuPD+xKWext7jwsS8nGyqSILtbVM=";
     };
 
     dependencies = [ pysnmp ];
@@ -27,11 +27,11 @@ rec {
 
   text-console = buildPythonPackage (finalAttrs: {
     pname = "text_console";
-    version = "2.0.7";
+    version = "2.1.0";
 
     src = fetchPypi {
       inherit (finalAttrs) pname version;
-      hash = "sha256-DmhLZOaklqLa/7evJCxZ5m/JSsRkGgSmjFC0XtVT4BM=";
+      hash = "sha256-7y4NY8ThgTz8nQvzY9UzKSnfzLzWClN/rDHQSStAfGM=";
     };
 
     pyproject = true;
@@ -75,11 +75,11 @@ rec {
 
   pyprintlpr = buildPythonPackage (finalAttrs: {
     pname = "pyprintlpr";
-    version = "1.0.3";
+    version = "1.1.1";
 
     src = fetchPypi {
       inherit (finalAttrs) pname version;
-      hash = "sha256-zcGftwTo+g+fsNdIwKUgwJ1yxyxYIA7dPofuMY9olPs=";
+      hash = "sha256-EDfZ5//Hn9I5Iv9mMQQB86mp70gzruX4iQmUm5trZBg=";
     };
 
     dependencies = [
@@ -93,11 +93,11 @@ rec {
 
   epson-escp2 = buildPythonPackage (finalAttrs: {
     pname = "epson_escp2";
-    version = "1.0.2";
+    version = "1.0.4";
 
     src = fetchPypi {
       inherit (finalAttrs) pname version;
-      hash = "sha256-p+Plp030tuydO3kqh5RfbwdOFRRFjOpzLreIUK3olg8=";
+      hash = "sha256-mmus3ho4UvS2csyYP+dH1DkRaSFdfFSluwcKelJcnLk=";
     };
 
     dependencies = [
