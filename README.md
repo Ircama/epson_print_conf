@@ -102,6 +102,49 @@ To print data to Epson printers via LPR, it also uses the [epson_escp2](https://
 
 It is tested with Ubuntu / Windows Subsystem for Linux, Windows.
 
+### Nix Flake
+The program can be run using Nix flakes with:
+```sh
+nix run github:Ircama/epson_print_conf
+```
+For the GUI:
+```sh
+nix run github:Ircama/epson_print_conf#ui
+```
+
+
+Or installed on a flakes system:
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    epson-print-conf = {
+      url = "github:Ircama/epson_print_conf";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  }
+
+  outputs = { nixpkgs, epson-print-conf, ... }: {
+    nixosConfigurations.<system-name> = nixpkgs.lib.nixosSystem {
+      modules = [
+        {
+          environment.systemPackages = [ epson-print-conf ];
+        }
+      ];
+    };
+  };
+}
+```
+The programs from this repository are then available as:
+```sh
+epson_print_conf
+epson_print_conf_ui
+epson_print_conf_find_printers
+epson_print_conf_parse_devices
+```
+
+
+
 ## Usage
 
 ### Running the pre-built GUI executable code
