@@ -40,7 +40,7 @@ rec {
 
   tk-date-entry = buildPythonPackage (finalAttrs: {
     pname = "tk_date_entry";
-    version = "1.0.0";
+    version = "1.1.0";
 
     src = fetchPypi {
       inherit (finalAttrs) pname version;
