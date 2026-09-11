@@ -295,6 +295,15 @@ of them the EEPROM remains readable and writable over *USB*, via the IEEE 1284.4
 [reinkpy](https://codeberg.org/atufi/reinkpy). A permanent waste-counter reset may
 therefore still be possible on a printer listed above, over a USB cable.
 
+On Windows, the two reports so far needed no driver replacement (no Zadig).
+On an L3250 with pyusb/libusb, interfaces 0 and 1 could not be claimed but
+interface 2 (class 255, vendor-specific) could, and the Epson driver kept
+working ([#35](https://github.com/Ircama/epson_print_conf/issues/35#issuecomment-5460694144)).
+On an L3251, the D4 channel was opened without libusb through the Windows
+`USBPRINT` device interface, using only the Python standard library
+([epson-l3251-usb-reset](https://github.com/onur-kesim/epson-l3251-usb-reset)).
+Neither report covers other models.
+
 ### Using the command-line tool
 
 ```
