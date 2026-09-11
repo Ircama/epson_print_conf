@@ -304,6 +304,8 @@ On an L3251, the D4 channel was opened without libusb through the Windows
 ([epson-l3251-usb-reset](https://github.com/onur-kesim/epson-l3251-usb-reset)).
 Neither report covers other models.
 
+A separate proof-of-concept, [ez-reset](https://github.com/CiRIP/ez-reset), implements USB access to the D4 `EPSON-CTRL` service through the native Windows `USBPRINT.sys` device interface, without replacing the Epson driver and without requiring Zadig, WinUSB, or libusb.
+
 ### Using the command-line tool
 
 ```
@@ -1120,6 +1122,8 @@ escputil.c: https://github.com/echiu64/gutenprint/blob/master/src/escputil/escpu
   - Epson Maintenance Reset Utility: <https://epson.com/epsonstorefront/orbeon/fr/us_regular_s03/us_ServiceInk_Pad_Reset/new>
   - Epson Ink Pads Reset Utility Terms and Conditions: <https://epson.com/Support/wa00370>
 - Epson Adjustment Program (developed by EPSON)
+- epson-l3251-usb-reset: <https://github.com/onur-kesim/epson-l3251-usb-reset>
+- ez-reset: <https://github.com/CiRIP/ez-reset> 
 - WIC-Reset: <https://www.wic.support/download/> / <https://www.2manuals.com/> (Use at your risk)
 - PrintHelp: <https://printhelp.info/> (Use at your risk)
 
