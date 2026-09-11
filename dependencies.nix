@@ -38,16 +38,14 @@ rec {
     build-system = [ setuptools ];
   });
 
-  tkcalendar = buildPythonPackage (finalAttrs: {
-    pname = "tkcalendar";
-    version = "1.6.1";
+  tk-date-entry = buildPythonPackage (finalAttrs: {
+    pname = "tk_date_entry";
+    version = "1.0.0";
 
     src = fetchPypi {
       inherit (finalAttrs) pname version;
-      hash = "sha256-Xt+VjApZQp6QMJ6bgFsuIpGSu8q5UkYCRyBNcDDupc8=";
+      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: update after first PyPI release
     };
-
-    dependencies = [ babel ];
 
     pyproject = true;
     build-system = [ setuptools ];

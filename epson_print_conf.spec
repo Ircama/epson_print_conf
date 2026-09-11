@@ -30,6 +30,10 @@ options = parser.parse_args()
 PROGRAM = [ 'gui.py' ]
 BASENAME = 'epson_print_conf'
 
+# Module search path: include the current directory so that the local
+# modules can be found.
+PATHEX = ['.']
+
 DATAS = [(BASENAME + '.pickle', '.')]
 SPLASH_IMAGE = BASENAME + '.png'
 
@@ -86,10 +90,11 @@ blib2to3_data = collect_data_files('blib2to3')
 
 a = Analysis(
     PROGRAM,
-    pathex=[],
+    pathex=PATHEX,
     binaries=[],
     datas=DATAS + blib2to3_data,  # the latter required by black
     hiddenimports=[
+        'tk_date_entry',  # DateEntry widget used by the GUI (PyPI: tk-date-entry)
         'babel.numbers',
         # The following modules are needed by "black": https://github.com/pyinstaller/pyinstaller/issues/8270
         '30fcd23745efe32ce681__mypyc',

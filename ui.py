@@ -29,8 +29,9 @@ import tkinter as tk
 from tkinter import ttk, Menu
 from tkinter.scrolledtext import ScrolledText
 import tkinter.font as tkfont
-from tkcalendar import DateEntry  # Ensure you have: pip install tkcalendar
 from tkinter import simpledialog, messagebox, filedialog
+
+from tk_date_entry import DateEntry
 
 import pyperclip
 from epson_print_conf import EpsonPrinter, get_printer_models
@@ -302,21 +303,6 @@ class ThemeColors:
 
 # Global theme colors instance
 theme = ThemeColors()
-
-
-class BugFixedDateEntry(DateEntry):
-    """
-    Fixes a bug on the calendar that does not accept mouse selection with Linux
-    Fixes a drop down bug when the DateEntry widget is not focused
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def drop_down(self):
-        self.focus_set()  # Set focus to the DateEntry widget
-        super().drop_down()
-        if self._top_cal is not None and not self._calendar.winfo_ismapped():
-            self._top_cal.lift()
 
 
 class EpsonPrinterUI(tk.Tk):
@@ -652,13 +638,15 @@ class EpsonPrinterUI(tk.Tk):
         )
 
         # TI Received Time - Calendar Widget
-        self.date_entry = BugFixedDateEntry(
-            ti_received_frame, date_pattern="yyyy-mm-dd"
+        self.date_entry = DateEntry(
+            ti_received_frame,
+            date_pattern="%Y-%m-%d",
+            first_weekday=0,  # Monday
         )
         self.date_entry.grid(
             row=0, column=1, padx=PADX, pady=PADY, sticky=(tk.W, tk.E)
         )
-        self.date_entry.delete(0, "end")  # blank the field removing the current date
+        self.date_entry.clear()  # blank the field removing the current date
         ToolTip(
             self.date_entry,
             "Enter a valid date with format YYYY-MM-DD.",
@@ -2162,6 +2150,15 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.update_idletasks()
             return
         date_string = self.date_entry.get_date()
+        if date_string is None:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(
+                tk.END,
+                " Please enter a valid date with format YYYY-MM-DD.\n",
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         try:
             if not self.get_current_eeprom_values(
                 self.printer.parm["stats"]["First TI received time"],
