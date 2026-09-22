@@ -246,7 +246,7 @@ With the GUI, the following operations are possible (from the file menu):
 
 - Import an XML configuration file or web URL
 
-  This option allows to import the XML configuration file downloaded from <https://github.com/user-attachments/files/23294840/devices.xml>. Alternatively, this option directly accepts the [source Web URL](https://github.com/user-attachments/files/23294840/devices.xml) of this file, incorporating the download operation into the GUI.
+  This option allows to import the XML configuration file downloaded from <https://github.com/user-attachments/files/23294840/devices.xml> or from <https://raw.githubusercontent.com/CiRIP/ez-reset/refs/heads/master/src/ez_reset/devices.xml>. Alternatively, this option directly accepts the [source Web URL](https://github.com/user-attachments/files/23294840/devices.xml) of this file, incorporating the download operation into the GUI.
 
 - Import a TOML configuration file or web URL
 
