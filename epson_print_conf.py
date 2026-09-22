@@ -15,6 +15,15 @@ import textwrap
 import ast
 import logging
 import os
+import sys
+#: The SNMP synchronous adapter raises `asyncio.TimeoutError` for a lost
+#: request, which is not the built-in `TimeoutError` before Python 3.11 (they
+#: became the same class in 3.11), so both names are caught where a lost
+#: request is expected.
+try:
+    from asyncio import TimeoutError as AsyncioTimeoutError
+except ImportError:  # pragma: no cover - asyncio is always there
+    AsyncioTimeoutError = TimeoutError
 import yaml
 from pathlib import Path
 import pickle
@@ -1453,9 +1462,49 @@ class EpsonPrinter:
         return final
 
     def invalid_response(self, response):
-        if response is False:
+        """Is this reply unusable?
+
+        The historical rule was `response[0] == 0` and `response[-1] == 0x0C`,
+        the shape of an `@BDC` block padded with a leading zero byte. Not every
+        firmware pads it: an XP-205 answers `@BDC PS\\r\\nEE:01660F;\\x0C`, and
+        rejecting that turned a correct EEPROM answer into "Invalid response"
+        and into a value of None on every read -- and a successful write into a
+        reported failure. A reply that carries the 0x0C terminator *and* a
+        well-formed `name:...;` element is therefore accepted too; a truncated
+        or unrelated reply is still rejected, because both the terminator and a
+        `name:...;` element are required.
+
+        The same firmware also answers *bare* blocks, without the `@BDC PS`
+        header at all: `b'ii:NA;\\x0C'` for an ink slot it does not have, and
+        `b'||:41:NA;\\x0C'` for a read it refuses. The element is therefore
+        looked for anywhere in the reply, not only after a header, or a
+        confirmed write sent that way would be reported as a failed one.
+
+        A `:NA;` reply is *not* an unusable one: it is the printer saying no
+        (wrong access key, locked EEPROM). The callers have their own tests for
+        it -- the `EE:` pattern of a read, `:OK;` of a write, `ii:NA;` of an ink
+        slot -- and calling it "invalid" turned the 65536 attempts of
+        `brute_force_read_key`, where a refusal is the expected answer, into
+        65536 logged errors.
+
+        The element may contain colons of its own: a write is confirmed with
+        `b'||:42:OK;\\x0C'`, measured on an XP-205, where `42` is the write
+        opcode -- the same shape as the `b'||:41:NA;\\x0C'` refusal. Requiring
+        a single colon made that confirmation "invalid", so a write that the
+        printer had carried out was reported as failed (and the write-key
+        detection stopped before restoring the byte it had just tested).
+        """
+        if response is False or response is None:
             return True
-        return len(response) < 2 or response[0] != 0 or response[-1] != 12
+        if isinstance(response, str):
+            response = response.encode("latin-1", "replace")
+        if not isinstance(response, (bytes, bytearray)) or len(response) < 2:
+            return True
+        if response[-1] != 12:
+            return True
+        if b":NA;" in bytes(response):
+            return False
+        return not re.search(rb"[A-Za-z|]{2}:[^;]*;", bytes(response))
 
     def read_eeprom(
         self,
@@ -1579,7 +1628,10 @@ class EpsonPrinter:
         if response:
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(response))
         if not self.dry_run and response and not ":OK;" in repr(response):
-            logging.info(
+            # A refused write is a failure the caller has to see: at info level
+            # it is invisible at the default log level, and a GUI only shows a
+            # generic "write failed" message.
+            logging.warning(
                 "Write error. Oid=%s, value=%s, label=%s", oid, value, label)
             return False  # ":NA;" is an error
         if self.invalid_response(response):
@@ -2160,19 +2212,31 @@ class EpsonPrinter:
         tag, firmware_string = self.fetch_oid_values(oid, label=label)[0]
         if not firmware_string:
             return None
-        if self.invalid_response(firmware_string):
+        logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(firmware_string))
+        # The six characters are looked for *anywhere* in the reply. Substituting
+        # with r".*vi:00:(.{6}).*" used to leave in place whatever preceded the
+        # token, so a reply wrapped in an `@BDC PS` block came back as
+        # "@BDC PS\r\nAB11I5" and died in int(firmware[5:], 16) -- a bare
+        # `vi:00:RF11I5;` reply (the form the README records on hardware) worked.
+        match = re.search(
+            r"vi:00:(.{6})", firmware_string.decode("latin-1", "replace"))
+        if not match:
             logging.error(
                 f"Invalid response for %s: '%s'",
                 label, repr(firmware_string)
             )
-        logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(firmware_string))
-        firmware = re.sub(
-            r".*vi:00:(.{6}).*", r'\g<1>', firmware_string.decode())
-        year = ord(firmware[4:5]) + 1945
-        month = int(firmware[5:], 16)
-        day = int(firmware[2:4])
-        return firmware + " " + datetime.datetime(
-            year, month, day).strftime('%d %b %Y')
+            return None
+        firmware = match.group(1)
+        try:
+            year = ord(firmware[4:5]) + 1945
+            month = int(firmware[5:], 16)
+            day = int(firmware[2:4])
+            return firmware + " " + datetime.datetime(
+                year, month, day).strftime('%d %b %Y')
+        except Exception:
+            # Decoding the date is best effort: report the six characters
+            # rather than raising on firmware that encodes them differently.
+            return firmware
 
     def get_device_identification(self) -> str:
         oid = self.epctrl_snmp_oid("di", 1)  # di = device identification
@@ -2213,9 +2277,24 @@ class EpsonPrinter:
             return None
         logging.debug(
             "  TAG: %s\n  RESPONSE: %s", tag, repr(cartridges_string))
+        text = (
+            cartridges_string.decode("latin-1", "replace")
+            if isinstance(cartridges_string, (bytes, bytearray))
+            else str(cartridges_string)
+        )
+        if "IA:00;" not in text:
+            # A refusal (`||:NA;`, e.g. a locked EEPROM) or any other block that
+            # is not the ink actuator answer: there is no cartridge list in it,
+            # and letting the substitution below run would return the refusal
+            # itself as if it were one.
+            logging.info(
+                "No cartridge list in the %s reply: '%s'",
+                label, repr(cartridges_string)
+            )
+            return None
         cartridges = re.sub(
             r".*IA:00;(.*);.*", r'\g<1>',
-            cartridges_string.decode(),
+            text,
             flags=re.S
         )
         return [i.strip() for i in cartridges.split(',')]
@@ -2320,15 +2399,21 @@ class EpsonPrinter:
             logging.debug("  TAG: %s\n  RESPONSE: %s", tag, repr(cartridge))
             if not cartridge:
                 continue
+            # `ii:NA;` means "no cartridge in this slot", i.e. the end of the
+            # list -- *not* a malformed reply. It has to be tested before
+            # `invalid_response`, because the bare form (measured on an XP-205:
+            # `b'ii:NA;\x0c'`, without the `@BDC PS` header) is exactly the
+            # reply that check used to declare invalid, abandoning the whole
+            # list and logging "Invalid cartridge response".
+            if cartridge.find(b'ii:NA;') > 0 or cartridge.find(
+                    b'@BDC PS\r\n') < 0:
+                break
             if self.invalid_response(cartridge):
                 logging.error(
                     f"Invalid cartridge response: '%s'",
                     repr(cartridge)
                 )
                 return None
-            if cartridge.find(b'ii:NA;') > 0 or cartridge.find(
-                    b'@BDC PS\r\n') < 0:
-                break
             response.append(cartridge)
         if not response:
             return None
@@ -2453,6 +2538,11 @@ class EpsonPrinter:
         """
         Update printer parameter by writing value data to EEPROM
         (tested with "serial_number" and "wifi_mac_address").
+
+        Every address of the parameter is written. The loop used to `return
+        True` from inside itself, so a ten-character serial number got one
+        character written and then "Update operation completed" -- the value
+        looked unchanged, and only the first cell had been touched.
         """
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
@@ -2485,13 +2575,11 @@ class EpsonPrinter:
                         oid, value, label="update_" + parameter
                     ):
                         return False
-                    return True
-            return False
+            return True
         for oid, value in zip(self.parm[parameter], value_list):
             if not self.write_eeprom(oid, value, label="update_" + parameter):
                 return False
-            return True
-        return False
+        return True
 
     def epctrl_snmp_oid(self, command, payload):
         """
@@ -2535,9 +2623,20 @@ class EpsonPrinter:
         if dry_run:
             return True
         answer = self.fetch_oid_values(oid, label="temp_reset_waste")[0]
-        status = b"rw:01:OK;" in answer[1]
+        # The printer confirms with `rw:<mode>:OK;`. The mode it echoes is its
+        # own business -- a firmware may report 0, or the mode it applied rather
+        # than the one asked for -- so what is required here is the `rw:` name
+        # together with an explicit `:OK;`. Anything else (a refusal, an
+        # unrelated block, nothing at all) stays a failure.
+        status = (
+            isinstance(answer[1], (bytes, bytearray))
+            and b"rw:" in bytes(answer[1])
+            and b":OK;" in bytes(answer[1])
+        )
         if not status:
-            print(answer)
+            logging.warning(
+                "Temporary waste reset not confirmed by the printer: %r", answer
+            )
         return status
 
     def reset_waste_ink_levels(self, dry_run=False) -> bool:
@@ -2722,17 +2821,150 @@ class EpsonPrinter:
                 )
         return known_keys
 
-    def brute_force_read_key(self, minimum: int = 0x00, maximum: int = 0xFF):
-        """Brute force read_key for printer."""
+    def _read_cell_for_scan(self, label: str, address: int = 0x00):
+        """One EEPROM read for the access-key scan: ``(value, answered)``.
+
+        ``read_eeprom()`` cannot be used by the scan because it answers None
+        both for a refusal -- the printer saying "wrong key", which is the
+        expected reply to every wrong key -- and for silence, when nothing came
+        back at all. The scan has to tell those two apart, and this is the same
+        pair of checks ``read_eeprom`` makes on the reply (the ``EE:xxxxxx;``
+        payload and the address inside it), returning the second answer as
+        ``answered``. Going through it also keeps the log quiet: a refusal is
+        not an error, and 65536 of them are not 65536 error lines.
+        """
+        oid = self.eeprom_oid_read_address(address, label=label)
+        if oid is None:
+            return None, False
+        _, response = self.fetch_oid_values(oid, label=label)[0]
+        if not response:
+            return None, False
+        text = (
+            response.decode("latin-1", "replace")
+            if isinstance(response, (bytes, bytearray))
+            else str(response)
+        )
+        match = re.search(r"EE:([0-9A-Fa-f]{6})", text)
+        if not match:
+            return None, True            # an answer, just not a value
+        payload = match.group(1)
+        if int(payload[:4], 16) != address:
+            logging.critical(
+                "EEPROM address mismatch: expected %04x != returned %s; %s",
+                address, payload[:4], label
+            )
+            return None, True
+        return payload[4:].upper(), True
+
+    def _reopen_transport(self) -> bool:
+        """Close the session so the next command opens a fresh one.
+
+        Used by the key scan when the printer stops answering: an interrupted
+        command, or a device re-enumerated by the system, leaves a session that
+        answers nothing, and opening it again is what fixes it. Returns False
+        when there is no session to close, which is the case over SNMP.
+        """
+        close = getattr(self, "close", None)
+        if close is None:
+            return False
+        try:
+            close()
+        except Exception as e:
+            logging.info("Cannot close the session: %s", e)
+            return False
+        return True
+
+    def brute_force_read_key(
+        self, minimum: int = 0x00, maximum: int = 0xFF, progress=None
+    ):
+        """Brute force read_key for printer.
+
+        ``progress(attempt, total, key)`` is called on the first attempt and
+        then every 256, so a caller with a user interface can show that the
+        scan is moving: it is up to 65536 round trips, and several minutes of
+        silence cannot be told apart from a hang.
+
+        A wrong key makes the printer *answer*, with a refusal. A transport
+        that is not working returns nothing at all, and there is nothing to
+        find in that case: the scan checks the transport before the loop and
+        gives up after a few consecutive silent attempts, because a printer
+        that has stopped answering would otherwise be tried 65536 times
+        (measured: a printer that goes mute around request 500, and a session
+        left behind by an interrupted command, both answer nothing).
+        """
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
             return None
+        total = (maximum - minimum + 1) ** 2
+        # `eeprom_oid_read_address()` builds the query from a key: any key does,
+        # because the question asked here is only whether anything comes back.
+        self.parm['read_key'] = [minimum, minimum]
+        oid = self.eeprom_oid_read_address(0x00, label="brute_force_read_key")
+        if oid is None:
+            logging.error("EpsonPrinter - cannot build an EEPROM read query")
+            return None
+        _, probe = self.fetch_oid_values(oid, label="brute_force_read_key")[0]
+        if not probe:
+            logging.error(
+                "EpsonPrinter - the printer answered nothing to an EEPROM read;"
+                " check the transport (device, IP address, cable) before"
+                " detecting the access key"
+            )
+            return None
         # product(), not permutations(): permutations() never yields a pair
         # of equal bytes, so a key such as [7, 7] could never be found.
-        for x, y in itertools.product(range(minimum, maximum + 1), repeat=2):
+        silent = 0
+        reopened = False
+        for attempt, (x, y) in enumerate(
+            itertools.product(range(minimum, maximum + 1), repeat=2), start=1
+        ):
             self.parm['read_key'] = [x, y]
-            logging.warning(f"Trying {self.parm['read_key']}...")
-            val = self.read_eeprom(0x00, label="brute_force_read_key")
+            if attempt == 1 or attempt % 256 == 0 or attempt == total:
+                # Not on every attempt: this is the progress line of the
+                # command-line tool, and 65536 of them are not a progress line.
+                logging.warning(f"Trying {self.parm['read_key']}...")
+                if progress:
+                    progress(attempt, total, [x, y])
+            try:
+                val, answered = self._read_cell_for_scan(
+                    "brute_force_read_key"
+                )
+            except (TimeoutError, AsyncioTimeoutError) as exc:
+                # One lost request (the printer's agent busy with something
+                # else) must not abort a scan that legitimately lasts minutes.
+                val, answered = None, False
+                logging.warning(
+                    "No answer at attempt %d of %d: %s", attempt, total, exc
+                )
+            if not answered:
+                silent += 1
+                if silent == 1:
+                    logging.warning(
+                        "The printer did not answer attempt %d of %d",
+                        attempt, total
+                    )
+                if silent >= 2 and not reopened and self._reopen_transport():
+                    # A session left behind by an interrupted command answers
+                    # nothing until it is opened again: one such attempt is
+                    # worth the seconds it costs.
+                    logging.warning(
+                        "The printer stopped answering: re-opening the"
+                        " transport and continuing"
+                    )
+                    reopened = True
+                    silent = 0
+                    continue
+                if silent >= 3:
+                    logging.error(
+                        "EpsonPrinter - no answer to %d consecutive EEPROM"
+                        " reads (attempt %d of %d): the printer or the"
+                        " transport is not working, so the access key cannot"
+                        " be detected",
+                        silent, attempt, total,
+                    )
+                    return None
+                continue
+            silent = 0
             if val is None:
                 continue
             return self.parm['read_key']
@@ -2776,15 +3008,54 @@ class EpsonPrinter:
         return write_key_list
 
     def validate_write_key(self, addr, value, label):
-        """ Validate write_key by writing values to the EEPROM """
+        """ Validate write_key by writing values to the EEPROM
+
+        The test write *changes a byte of the printer* -- that is how the key is
+        validated -- so putting it back is the important half of the operation.
+        A single lost reply must not leave the printer modified: the restore is
+        therefore retried and verified, and when it cannot be done at all the
+        failure is reported with the exact write that fixes it by hand.
+        """
         if not self.write_eeprom(addr, value + 1, label=label):  # test write
+            logging.warning(
+                "Write-key check: the test write of %d to address %d was"
+                " refused; nothing was changed", value + 1, addr
+            )
             return None
-        ret_value = int(self.read_eeprom(addr), 16)
-        if not self.write_eeprom(addr, value, label=label):  # restore previous value
-            return None
-        if int(self.read_eeprom(addr), 16) != value:
-            return None
-        return ret_value == value + 1
+        try:
+            ret_value = int(self.read_eeprom(addr, label=label), 16)
+        except (TypeError, ValueError):
+            ret_value = None
+            logging.warning(
+                "Write-key check: address %d could not be read back after the"
+                " test write", addr
+            )
+        for attempt in range(3):
+            # A moment before writing again: the two writes of this sequence
+            # follow each other in milliseconds over USB (tens of them over
+            # SNMP), and a firmware that is still committing the previous cell
+            # refuses the next one.
+            time.sleep(0.2)
+            if self.write_eeprom(addr, value, label=label):  # restore
+                current = None
+                try:
+                    current = int(self.read_eeprom(addr, label=label), 16)
+                except (TypeError, ValueError):
+                    pass
+                if current == value:
+                    return ret_value == value + 1
+            logging.warning(
+                "Write-key check: restoring address %d to %d failed (attempt"
+                " %d of 3), the cell reads %s",
+                addr, value, attempt + 1, self.read_eeprom(addr, label=label),
+            )
+        logging.error(
+            "Could not restore address %d to %d: the printer keeps the test"
+            " value. Write it back by hand (GUI 'Write EEPROM', or"
+            " -W \"%d: %d\").",
+            addr, value, addr, value,
+        )
+        return None
 
     def write_sequence_to_string(self, write_sequence):
         """ Convert write key sequence to string """
@@ -3035,6 +3306,77 @@ def get_printer_models(input_string):
     return processed_tokens
 
 
+def usb_transport_warning():
+    """A message when USB cannot work on this machine, or None.
+
+    Windows needs nothing: the transport goes through the native USBPRINT
+    device interface, with no driver and no extra package. macOS and Linux
+    reach the printer through libusb or PyUSB, or through a raw character
+    device, so when none of the three is available "USB" can be selected and
+    then fail on the first command. Saying which piece is missing, before the
+    first command, is the whole point of this function.
+    """
+    if sys.platform == "win32":
+        return None
+    try:
+        from epson_usb.backends import available_backends
+
+        available = available_backends()
+    except Exception as e:
+        return f"epson_usb is not usable ({e}): USB cannot be selected."
+    if [name for name in ("libusb", "pyusb", "raw") if name in available]:
+        return None
+    return (
+        "USB needs libusb or PyUSB on this platform"
+        f" ({sys.platform}): install libusb-1.0 (macOS: brew install libusb;"
+        " Linux: sudo apt install libusb-1.0-0) or pyusb (pip install pyusb),"
+        " or use a raw device node (/dev/usb/lp0, /dev/usblp0)."
+        " None of the three is available here, so no USB printer can be"
+        " opened."
+    )
+
+
+def enable_usb_transport(params=None):
+    """Let printers be reached over USB (IEEE 1284.4 / D4) instead of SNMP.
+
+    Replaces this module's :class:`EpsonPrinter` with the USB-capable subclass
+    built by ``epson_usb.compat`` and returns it. Everything that does
+    ``from epson_print_conf import EpsonPrinter`` *after* this call -- the GUI,
+    find_printers.py, parse_devices.py -- follows automatically, because they
+    bind the name this module exposes.
+
+    ``epson_usb`` is a library hosted in the ``epson_usb/`` directory of this
+    repository (see its README, which also says what it is not). It carries no
+    printer model data: the parameters keep coming from this module's own
+    ``PRINTER_CONFIG``, which is authoritative for the models it knows. A caller
+    that knows a model this file does not can pass ``params={name: parm}`` --
+    the shape ``EpsonPrinter(conf_dict=...)`` takes -- and entries already
+    configured here are never replaced. When the library is missing, the SNMP
+    transport stays and this is a no-op.
+
+    Needed for the models whose firmware locks the EEPROM over SNMP: on those,
+    the EPSON-CTRL commands still work over a USB cable.
+    """
+    global EpsonPrinter
+    try:
+        from epson_usb.compat import UsbEpsonPrinterMixin, patch_epson_print_conf
+    except ImportError:
+        return EpsonPrinter
+    if issubclass(EpsonPrinter, UsbEpsonPrinterMixin):
+        return EpsonPrinter                              # already enabled
+    # No module argument: the bridge resolves this module by name, which is
+    # this one (it is already being imported).
+    EpsonPrinter = patch_epson_print_conf(params=params)
+    return EpsonPrinter
+
+
+if os.environ.get("EPSON_USB"):
+    # Same switch as the CLI's `--usb`, but applied while this module is being
+    # imported: the GUI and the other tools import the class from here, so
+    # setting the variable is enough for all of them, with no code change.
+    enable_usb_transport()
+
+
 if __name__ == "__main__":
     import argparse
     from pprint import pprint
@@ -3061,7 +3403,36 @@ if __name__ == "__main__":
         dest='hostname',
         action="store",
         help='Printer host name or IP address. (Example: -a 192.168.1.87)',
-        required=True
+        required=False
+    )
+    parser.add_argument(
+        '--usb',
+        dest='usb',
+        action='store_true',
+        help='Talk to the printer over USB (IEEE 1284.4 / D4) instead of SNMP. '
+            'Ignores -a/--address. It can also be selected with the EPSON_USB '
+            'environment variable, or from the GUI; see epson_usb/README.md'
+    )
+    try:
+        # The backend names come from the library, so this list cannot drift.
+        from epson_usb.backends import backend_names
+        usb_backends = " | ".join(backend_names())
+    except Exception:
+        usb_backends = "usbprint | libusb | pyusb | raw | mock"
+    parser.add_argument(
+        '--backend',
+        dest='backend',
+        action='store',
+        metavar='BACKEND',
+        help=f'USB backend to use ({usb_backends}). Implies --usb'
+    )
+    parser.add_argument(
+        '--device',
+        dest='device',
+        action='store',
+        metavar='DEVICE',
+        help='USB device to open (a bus:address pair such as 1:4, a device '
+            'path, or the Windows interface path). Implies --usb'
     )
     parser.add_argument(
         '-p',
@@ -3235,6 +3606,17 @@ if __name__ == "__main__":
             "file instead of merging (default is to merge)",
     )
     args = parser.parse_args()
+    # --backend/--device only mean something over USB, so they imply it.
+    usb_mode = bool(args.usb or args.backend or args.device)
+    if usb_mode:
+        # Switch the transport before the printer object is built. In this mode
+        # -a/--address has no meaning: the device is found on the USB bus.
+        enable_usb_transport()
+        warning = usb_transport_warning()
+        if warning:
+            logging.warning("%s", warning)
+    elif not args.hostname:
+        parser.error('-a/--address is required unless --usb is used')
 
     logging_level = logging.WARNING
     logging_fmt = "%(message)s"
@@ -3266,6 +3648,20 @@ if __name__ == "__main__":
             print("Error while loading the pickle file:", e)
             quit(1)
 
+    # The USB transport takes these as constructor arguments (the library's
+    # EpsonUsbPrinter declares them, and exposes usb_factory); the SNMP class
+    # would reject them, which is why they are passed only in USB mode.
+    usb_options = {}
+    if usb_mode:
+        if hasattr(EpsonPrinter, 'usb_factory'):
+            if args.backend:
+                usb_options['backend'] = args.backend
+            if args.device:
+                usb_options['device'] = args.device
+        else:
+            logging.warning(
+                "epson_usb is not available: --usb/--backend/--device ignored"
+            )
     printer = EpsonPrinter(
         conf_dict=conf_dict,
         replace_conf=args.override,
@@ -3274,7 +3670,8 @@ if __name__ == "__main__":
         port=args.port,
         timeout=args.timeout,
         retries=args.retries,
-        dry_run=args.dry_run)
+        dry_run=args.dry_run,
+        **usb_options)
     if args.config_file:
         if not printer.read_config_file(args.config_file[0]):
             print("Error while reading configuration file")
@@ -3424,12 +3821,16 @@ if __name__ == "__main__":
             print_opt = True
             read_list = re.split(r',\s*|;\s*|\|\s*', args.write_eeprom[0])
             for key_val in read_list:
-                key, val = re.split(':|=', key_val)
                 try:
+                    key, val = re.split(':|=', key_val)
                     val_int = ast.literal_eval(val)
+                    # write_eeprom() wants the byte value as an int: it builds a
+                    # one-byte payload and logs hex(int(value)). Passing
+                    # str(val_int) made every -W fail inside bytes(payload)
+                    # with "'str' object cannot be interpreted as an integer".
                     if not printer.write_eeprom(
                             ast.literal_eval(key),
-                            str(val_int), label='write_eeprom'
+                            int(val_int), label='write_eeprom'
                         ):
                         print("invalid write operation")
                         quit(1)
@@ -3445,6 +3846,10 @@ if __name__ == "__main__":
     except TimeoutError as e:
         print(f"Timeout error: {str(e)}")
     except ValueError as e:
-        raise(f"Generic error: {str(e)}")
+        # Raising a string turned every one of these into
+        # "TypeError: exceptions must derive from BaseException", hiding the
+        # message it was meant to report. Raise a real exception, keeping the
+        # original as its cause so the traceback still points at the source.
+        raise RuntimeError(f"Generic error: {str(e)}") from e
     except KeyboardInterrupt:
         quit(2)

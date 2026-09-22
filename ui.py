@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Epson Printer Configuration via SNMP (TCP/IP) - GUI
+Epson Printer Configuration via SNMP (TCP/IP) or USB - GUI
 """
 
 import os
@@ -42,11 +42,11 @@ from text_console import TextConsole
 from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
-VERSION = "7.3.4"
+VERSION = "8.0.0"
 
 NO_CONF_ERROR = (
-    " Please select a printer model and a valid IP address,"
-    " or press 'Detect Printers'.\n"
+    " Please select a printer model and a valid IP address (not needed in USB"
+    " mode), or press 'Detect Printers'.\n"
 )
 
 CONFIRM_MESSAGE = (
@@ -311,7 +311,8 @@ class EpsonPrinterUI(tk.Tk):
         model: str = None,
         hostname: str = None,
         conf_dict = {},
-        replace_conf=False
+        replace_conf=False,
+        usb=False
     ):
         def plain_fn(event, fn_handler):
             if event.state:  # Shift | Control | Alt
@@ -337,6 +338,17 @@ class EpsonPrinterUI(tk.Tk):
         self.text_dump = ""
         self.mode = black.Mode(line_length=200, magic_trailing_comma=False)
         self.printer = None
+        # Transport selection: False = TCP/IP (SNMP), True = USB (IEEE 1284.4 /
+        # D4). The radio buttons below are labelled with the short names and bind
+        # to this very variable; it is set here from --usb / EPSON_USB.
+        self.usb_selected = tk.BooleanVar(value=bool(usb))
+        self._usb_unavailable_reported = False
+        self._usb_warning_reported = False
+        #: The USB port dropdown: label -> ``(backend, device)``. It stays empty
+        #: until the bus is scanned, which happens the first time USB is
+        #: selected and whenever the user asks for it again.
+        self.usb_port_map = {}
+        self._usb_ports_scanned = False
 
         # configure the main window to be resizable
         self.columnconfigure(0, weight=1)
@@ -444,8 +456,11 @@ class EpsonPrinterUI(tk.Tk):
         # [row 0] Container frame for the two LabelFrames Power-off timer and TI Received Time
         model_ip_frame = ttk.Frame(main_frame, padding=PAD)
         model_ip_frame.grid(row=row_n, column=0, pady=PADY, sticky=(tk.W, tk.E))
-        model_ip_frame.columnconfigure(0, weight=1)  # Allow column to expand
-        model_ip_frame.columnconfigure(1, weight=1)  # Allow column to expand
+        # The connection box now shares its single row with the transport choice,
+        # so it needs a little more room than the model box, whose value is a
+        # little narrower than before.
+        model_ip_frame.columnconfigure(0, weight=3)  # Printer Model
+        model_ip_frame.columnconfigure(1, weight=4)  # Printer Connection
 
         # BOX printer model selection
         model_frame = ttk.LabelFrame(
@@ -470,7 +485,7 @@ class EpsonPrinterUI(tk.Tk):
             row=0, column=0, sticky=tk.W, padx=PADX
         )
         self.model_dropdown = ttk.Combobox(
-            model_frame, textvariable=self.model_var, state="readonly"
+            model_frame, textvariable=self.model_var, state="readonly", width=16
         )
         self.model_dropdown["values"] = sorted(EpsonPrinter(
             conf_dict=self.conf_dict,
@@ -509,17 +524,57 @@ class EpsonPrinterUI(tk.Tk):
         self.bind_all("<F7>", lambda e: plain_fn(e, self.tk_console))
         self.bind_all("<F8>", lambda e: plain_fn(e, self.remove_printer_conf))
 
-        # BOX IP address
+        # BOX printer connection (TCP/IP, or USB)
         ip_frame = ttk.LabelFrame(
-            model_ip_frame, text="Printer IP Address", padding=PAD
+            model_ip_frame, text="Printer Connection", padding=PAD
         )
         ip_frame.grid(
             row=0, column=1, pady=PADY, padx=(PADX, 0), sticky=(tk.W, tk.E)
         )
+        # Everything on one row, in line with the Model box on the left: the
+        # transport choice, then the address it applies to. Only the address
+        # entry takes the leftover width.
         ip_frame.columnconfigure(0, weight=0)
-        ip_frame.columnconfigure(1, weight=1)
+        ip_frame.columnconfigure(1, weight=0)
+        ip_frame.columnconfigure(2, weight=0)
+        ip_frame.columnconfigure(3, weight=1)
 
-        # IP address entry
+        # Transport selector, TCP/IP first (the program's historical default,
+        # and the one that needs nothing but an address) and USB second. Over
+        # USB the printer is found on the USB bus, so the IP address field is
+        # replaced by the port list (both sets are swapped by
+        # show_connection_widgets(), never shown together).
+        self.snmp_radio = ttk.Radiobutton(
+            ip_frame,
+            text="TCP/IP",
+            variable=self.usb_selected,
+            value=False,
+            command=self.on_transport_change,
+        )
+        self.snmp_radio.grid(row=0, column=0, padx=PADX, pady=PADY, sticky=tk.W)
+        self.usb_radio = ttk.Radiobutton(
+            ip_frame,
+            text="USB",
+            variable=self.usb_selected,
+            value=True,
+            command=self.on_transport_change,
+        )
+        self.usb_radio.grid(row=0, column=1, padx=PADX, pady=PADY, sticky=tk.W)
+        ToolTip(
+            self.snmp_radio,
+            "TCP/IP (SNMP): talk to the printer over the network, wrapping every"
+            " EPSON-CTRL command in an SNMP request.",
+        )
+        ToolTip(
+            self.usb_radio,
+            "USB (IEEE 1284.4 / D4): talk to the printer over the USB cable."
+            " Needed by the models whose firmware refuses EEPROM access over"
+            " SNMP. No IP address is used, and the features that need the"
+            " network (web interface, LPR printing, SNMP-only values) are"
+            " disabled.",
+        )
+
+        # IP address entry, sharing the row with the transport selector
         self.ip_var = tk.StringVar()
         if (
             "internal_data" in conf_dict
@@ -528,12 +583,11 @@ class EpsonPrinterUI(tk.Tk):
             self.ip_var.set(conf_dict["internal_data"]["hostname"])
         if hostname:
             self.ip_var.set(hostname)
-        ttk.Label(ip_frame, text="IP Address:").grid(
-            row=0, column=0, sticky=tk.W, padx=PADX
-        )
-        self.ip_entry = ttk.Entry(ip_frame, textvariable=self.ip_var)
+        self.ip_label = ttk.Label(ip_frame, text="IP Address:")
+        self.ip_label.grid(row=0, column=2, sticky=tk.W, padx=PADX)
+        self.ip_entry = ttk.Entry(ip_frame, textvariable=self.ip_var, width=12)
         self.ip_entry.grid(
-            row=0, column=1, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
+            row=0, column=3, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
         )
         self.ip_entry.bind_all("<F9>", self.next_ip)
         ToolTip(
@@ -543,7 +597,57 @@ class EpsonPrinterUI(tk.Tk):
             " to speed up the detection),"
             " or press F9 more times to get the next local IP address,"
             " which can then be edited"
-            " (by removing the last part before pressing 'Detect Printers').",
+            " (by removing the last part before pressing 'Detect Printers').\n"
+            "Not used in USB mode.",
+        )
+
+        # USB port selector, shown in the same cell as the IP address (and
+        # instead of it) when USB is selected. Over USB there is no address to
+        # type: the printer is a device, so the list is made of the devices the
+        # library can open on this machine right now -- never a static list --
+        # and it is refreshed on demand with the button next to it.
+        self.usb_port_var = tk.StringVar(value=self.USB_PORT_AUTO)
+        self.usb_port_label = ttk.Label(ip_frame, text="USB Port:")
+        self.usb_port_dropdown = ttk.Combobox(
+            ip_frame,
+            textvariable=self.usb_port_var,
+            state="readonly",
+            width=20,
+            values=[self.USB_PORT_AUTO],
+        )
+        self.usb_port_refresh = ttk.Button(
+            ip_frame, text='⟳', width=3, style=style_name,
+            command=self.refresh_usb_ports
+        )
+        self.usb_port_var.trace_add('write', self.change_widget_states)
+        # The button gets a column of its own, next to the selector.
+        ip_frame.columnconfigure(4, weight=0)
+        self.usb_port_label.grid(row=0, column=2, sticky=tk.W, padx=PADX)
+        self.usb_port_dropdown.grid(
+            row=0, column=3, pady=PADY, padx=PADX, sticky=(tk.W, tk.E)
+        )
+        self.usb_port_refresh.grid(
+            row=0, column=4, padx=(0, PADX), sticky=(tk.W, tk.E)
+        )
+        # Hidden until USB is selected: the geometry above is set once, and
+        # show_connection_widgets() only switches the two sets on and off.
+        for widget in (self.usb_port_label, self.usb_port_dropdown,
+                       self.usb_port_refresh):
+            widget.grid_remove()
+        ToolTip(
+            self.usb_port_dropdown,
+            "The USB devices found on this machine, listed when this box"
+            " appears and by the ⟳ button.\n"
+            "Leave the first entry selected to let the library pick the device"
+            " (its default backend order), or pin one of the listed devices --"
+            " needed when several printers are attached, or when the first"
+            " interface of a multi-interface device does not answer.\n"
+            "The chosen device is passed to the transport as backend/device,"
+            " the same options the --backend/--device command line uses.",
+        )
+        ToolTip(
+            self.usb_port_refresh,
+            "Scan the USB bus again and refill the list",
         )
 
         # Create a custom style for the button to center the text
@@ -862,6 +966,11 @@ class EpsonPrinterUI(tk.Tk):
         )
         self.detect_button.grid(
             row=0, column=0, padx=PADX, pady=PADX, sticky=(tk.W, tk.E)
+        )
+        ToolTip(
+            self.detect_button,
+            "Scan the network for printers (TCP/IP mode), or list the"
+            " USB devices the library can see (USB mode).",
         )
 
         # Detect Access Keys
@@ -1392,9 +1501,11 @@ class EpsonPrinterUI(tk.Tk):
         # Show program information in a popup
         program_version = "1.0.0"  # Specify your program version
         description = """
-Epson Printer Configuration tool via SNMP (TCP/IP).
+Epson Printer Configuration tool via SNMP (TCP/IP) or USB.
 
-A tool for managing settings of Epson printers connected via Wi-Fi over the SNMP protocol.
+A tool for managing settings of Epson printers connected over Wi-Fi
+(SNMP protocol) or over the USB cable (IEEE 1284.4 / D4, which also
+works on the models whose firmware refuses EEPROM access over SNMP).
 
 Web site: https://github.com/Ircama/epson_print_conf
 """
@@ -1411,9 +1522,304 @@ Web site: https://github.com/Ircama/epson_print_conf
         event.widget.tk_focusPrev().focus()
         return("break")
 
+    # -- transport selection ------------------------------------------------
+    def on_transport_change(self):
+        """Radio button callback: re-evaluate what the transport allows."""
+        self.change_widget_states()
+
+    def usb_mode(self) -> bool:
+        """True when USB (IEEE 1284.4 / D4) is selected instead of SNMP."""
+        return bool(self.usb_selected.get())
+
+    def usb_available(self) -> bool:
+        """Is the ``epson_usb`` library importable in this installation?"""
+        try:
+            import epson_usb.compat  # noqa: F401
+        except Exception:
+            return False
+        return True
+
+    # -- the USB port dropdown ---------------------------------------------
+
+    #: First entry of the dropdown: no device pinned, the library chooses.
+    USB_PORT_AUTO = "Auto: first device found"
+
+    def report_callback_exception(self, exc, val, tb):
+        """Tk's hook for an exception that escaped a callback.
+
+        Ctrl+C during a long operation -- the access-key scan lasts minutes --
+        used to be reported the way a defect in the code is: an
+        `Exception in Tkinter callback` traceback and, when the signal also
+        reached the main loop, the end of the program. An interrupt is a
+        request to stop what is running, so it is answered here: a line in the
+        status box, the cursor back to normal, the USB session dropped (it may
+        be half way through an exchange), and the window still open.
+        Everything else keeps Tk's own reporting, because a defect must stay
+        visible.
+        """
+        if issubclass(exc, KeyboardInterrupt):
+            self.config(cursor="")
+            self.abandon_usb_session()
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
+            self.status_text.insert(
+                tk.END, " Interrupted: the operation was stopped.\n"
+            )
+            self.update_idletasks()
+            return
+        super().report_callback_exception(exc, val, tb)
+
+    def abandon_usb_session(self):
+        """Drop the USB session an interrupted command left behind.
+
+        Ctrl+C can land in the middle of a USB exchange, leaving the device
+        handle with a pending operation and bytes on the wire that belong to
+        the interrupted command. Closing the session makes the next command
+        open a fresh one. It is a no-op in TCP/IP mode, where the printer
+        object has no session to close.
+        """
+        printer = self.printer
+        if printer is None or not hasattr(printer, "close"):
+            return
+        try:
+            printer.close()
+        except Exception as e:
+            logging.info("Cannot close the printer session: %s", e)
+
+    def report_usb_transport_warning(self):
+        """Tell the user when USB cannot open a printer here.
+
+        ``epson_print_conf.usb_transport_warning()`` answers with a message on
+        macOS and Linux when neither libusb, nor PyUSB, nor a raw device node
+        is available, and always None on Windows (the transport is native
+        there). Selecting USB then fails on the first command, so the warning
+        comes first.
+        """
+        try:
+            from epson_print_conf import usb_transport_warning
+
+            message = usb_transport_warning()
+        except Exception as e:
+            logging.info("Cannot check the USB environment: %s", e)
+            return
+        if not message:
+            return
+        self.status_text.insert(tk.END, '[WARNING]', "warn")
+        self.status_text.insert(tk.END, " " + message + "\n")
+
+    def selected_usb_port(self):
+        """``(backend, device)`` of the chosen port, or ``(None, None)``.
+
+        The pair is handed to the printer constructor, which is where the
+        library takes its transport options from -- the same two arguments the
+        command line fills from ``--backend``/``--device``.
+        """
+        return self.usb_port_map.get(self.usb_port_var.get(), (None, None))
+
+    @staticmethod
+    def usb_port_label_for(info) -> str:
+        """A short, readable label for one discovered device.
+
+        ``usbprint | 04b8:0896 | mi_02`` / ``libusb | 04b8:0896 | 1:6 | if=0``.
+        The label is built from what the backend knows *before* opening the
+        device. For ``usbprint`` that is the device interface path, from which
+        the vendor/product ids and the interface number are read back (the
+        backend itself cannot report the product id without opening the
+        device).
+        """
+        parts = [info.backend]
+        match = re.search(
+            r"vid_([0-9a-f]{4})&pid_([0-9a-f]{4})", info.path, re.IGNORECASE
+        )
+        if match:
+            parts.append(
+                "%s:%s" % (match.group(1).lower(), match.group(2).lower())
+            )
+        elif info.vendor_id or info.product_id:
+            parts.append(info.vid_pid)
+        if info.backend == "usbprint":
+            match = re.search(r"mi_([0-9a-f]{2})", info.path, re.IGNORECASE)
+            if match:
+                parts.append("mi_%s" % match.group(1).lower())
+        elif info.path:
+            # libusb/pyusb report 'bus:address', raw reports a device node:
+            # both are what the user has to identify the printer by.
+            parts.append(info.path)
+        if info.interface is not None:
+            parts.append("if=%s" % info.interface)
+        if info.serial:
+            parts.append("serial=%s" % info.serial)
+        return " | ".join(parts)
+
+    def _find_usb_devices(self):
+        """Enumerate the candidate devices, or return None on error."""
+        try:
+            from epson_usb.backends import find_devices
+        except Exception as e:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(tk.END, f" Cannot import epson_usb: {e}\n")
+            return None
+        try:
+            return find_devices()
+        except Exception as e:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(tk.END, f" Cannot list USB devices: {e}\n")
+            return None
+
+    def _fill_usb_ports(self, devices) -> tuple:
+        """Rebuild the port dropdown from a device list.
+
+        Returns ``(usable, candidates)``: the enumeration lists candidate
+        *paths*, and only some of them can be opened at all -- on this machine
+        every interface of a multi-interface printer has an USBPRINT entry, but
+        ``CreateFile`` answers FILE_NOT_FOUND for the interfaces the driver does
+        not expose. Only the ports that really open are listed, which is what
+        makes the choice meaningful.
+        """
+        labels = [self.USB_PORT_AUTO]
+        mapping = {}
+        seen = set()
+        for info in devices or []:
+            key = (info.backend, info.path)
+            if key in seen:
+                continue
+            seen.add(key)
+            if not self._usb_port_usable(info):
+                continue
+            label = self.usb_port_label_for(info)
+            while label in mapping or label == self.USB_PORT_AUTO:
+                # Two identical printers: keep both selectable.
+                label += "*"
+            labels.append(label)
+            mapping[label] = key
+        self.usb_port_map = mapping
+        self._usb_ports_scanned = True
+        self.usb_port_dropdown["values"] = labels
+        if self.usb_port_var.get() not in labels:
+            # The pinned device is gone (unplugged, or another backend): fall
+            # back to letting the library choose, rather than failing later.
+            self.usb_port_var.set(self.USB_PORT_AUTO)
+        return len(mapping), len(seen)
+
+    @staticmethod
+    def _usb_port_usable(info) -> bool:
+        """Can this listed device be opened right now?
+
+        Opening a :class:`~epson_usb.backends.base.Transport` writes nothing to
+        the printer -- the D4 handshake happens later, in the session -- so this
+        is a side-effect-free question about the port, asked by trying exactly
+        what the transport opener would try. A device that fails here would fail
+        on the first command anyway.
+        """
+        try:
+            from epson_usb.backends import open_transport
+
+            transport = open_transport(info.path, backend=info.backend)
+        except Exception:
+            return False
+        try:
+            transport.close()
+        except Exception:
+            pass
+        return True
+
+    def refresh_usb_ports(self):
+        """Scan the USB bus and refill the port list (the ⟳ button)."""
+        devices = self._find_usb_devices()
+        if devices is None:
+            return
+        usable, candidates = self._fill_usb_ports(devices)
+        if not usable:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
+            if candidates:
+                self.status_text.insert(
+                    tk.END,
+                    f" {candidates} USB device(s) found, but none could be"
+                    " opened (check that the printer is on and not held by"
+                    " another program).\n"
+                )
+            else:
+                self.status_text.insert(
+                    tk.END, " No Epson USB printer found.\n"
+                )
+            return
+        self.status_text.insert(tk.END, '[INFO]', "info")
+        self.status_text.insert(
+            tk.END,
+            f" {usable} USB port(s) available in the list"
+            + (
+                f" (out of {candidates} candidate(s) enumerated; the others"
+                " cannot be opened).\n"
+                if usable < candidates
+                else ".\n"
+            )
+        )
+
+    def show_connection_widgets(self, usb: bool):
+        """Show the USB port selector or the IP address field, never both.
+
+        The geometry of both sets is defined once, in the constructor: this
+        only calls ``grid()`` (which restores where a widget was last managed)
+        and ``grid_remove()`` on them.
+        """
+        ip_widgets = (self.ip_label, self.ip_entry)
+        usb_widgets = (
+            self.usb_port_label, self.usb_port_dropdown, self.usb_port_refresh
+        )
+        for widget in (usb_widgets if usb else ip_widgets):
+            widget.grid()
+        for widget in (ip_widgets if usb else usb_widgets):
+            widget.grid_remove()
+        if usb and not self._usb_ports_scanned:
+            # First time USB is chosen: find out what is on the bus.
+            devices = self._find_usb_devices()
+            if devices is not None:
+                self._fill_usb_ports(devices)
+        if usb and not self._usb_warning_reported:
+            # Once per session is enough: the missing package does not appear
+            # while the program runs.
+            self._usb_warning_reported = True
+            self.report_usb_transport_warning()
+
+    def printer_class(self):
+        """The ``EpsonPrinter`` class matching the selected transport.
+
+        In SNMP mode this is the class imported at the top of this module. In
+        USB mode it is the subclass built by :mod:`epson_usb.compat`, which
+        overrides the single method every printer access goes through
+        (``fetch_oid_values``) and puts the EPSON-CTRL frame on the USB cable
+        instead of inside an SNMP request. The patch is idempotent, and the
+        SNMP class stays reachable as ``epson_print_conf.NetworkEpsonPrinter``.
+        """
+        if not self.usb_mode():
+            return EpsonPrinter
+        try:
+            import epson_print_conf
+
+            return epson_print_conf.enable_usb_transport()
+        except Exception as e:
+            if not self._usb_unavailable_reported:
+                self._usb_unavailable_reported = True
+                self.status_text.insert(tk.END, '[ERROR]', "error")
+                self.status_text.insert(
+                    tk.END,
+                    f" Cannot enable the USB transport ({e}); using SNMP.\n"
+                )
+            self.usb_selected.set(False)
+            return EpsonPrinter
+
+    def set_feature_state(self, widget, enabled: bool, why: str = ""):
+        """Enable or disable a feature button, explaining why when it is off."""
+        if enabled:
+            widget.state(["!disabled"])
+            ToolTip(widget, "")
+        else:
+            widget.state(["disabled"])
+            ToolTip(widget, why)
+
     def change_widget_states(self, index=None, value=None, op=None):
         """
-        Enable or disable buttons when IP address and printer model change
+        Enable or disable buttons when the transport, the IP address and the
+        printer model change
         """
         ToolTip(self.get_ti_received, "")
         ToolTip(self.get_po_minutes, "")
@@ -1426,12 +1832,27 @@ Web site: https://github.com/Ircama/epson_print_conf
         ToolTip(self.temp_reset_ink_waste_button, "")
         ToolTip(self.write_eeprom_button, "")
         ToolTip(self.reset_button, "")
-        if self.ip_var.get():
+        # Resolve the transport first: requesting a class whose library is not
+        # available falls back to SNMP, and the gating below has to know which
+        # transport is really in use.
+        printer_class = self.printer_class()
+        usb = self.usb_mode()
+        # Over USB there is no address to type: the IP field is replaced by the
+        # list of USB ports found on this machine (the field itself is kept,
+        # so switching back to TCP/IP does not lose what was typed).
+        self.show_connection_widgets(usb)
+        self.ip_entry.state(["disabled"] if usb else ["!disabled"])
+        address_ready = self._connection_ready(self.ip_var.get())
+        if address_ready:
             if not self.model_var.get():
                 self.reset_button.state(["disabled"])
             self.status_button.state(["!disabled"])
-            self.web_interface_button.state(["!disabled"])
-            self.detect_access_key_button.state(["!disabled"])
+            self.set_feature_state(
+                self.web_interface_button, not usb,
+                "Not available in USB mode: the printer web interface is"
+                " reached over the network (TCP/IP)."
+            )
+            self.set_feature_state(self.detect_access_key_button, True)
             self.printer = None
         else:
             self.reset_button.state(["disabled"])
@@ -1444,12 +1865,16 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.write_eeprom_button.state(["disabled"])
             self.web_interface_button.state(["disabled"])
             self.detect_access_key_button.state(["disabled"])
-        if self.ip_var.get() and self.model_var.get():
-            self.printer = EpsonPrinter(
+        if address_ready and self.model_var.get():
+            backend, device = self.selected_usb_port() if usb else (None, None)
+            self.printer = printer_class(
                 conf_dict=self.conf_dict,
                 replace_conf=self.replace_conf,
                 model=self.model_var.get(),
-                hostname=self.ip_var.get()
+                hostname=None if usb else self.ip_var.get(),
+                # Which USB device to open, when the user pinned one: the
+                # library takes its transport options from the constructor.
+                **(dict(backend=backend, device=device) if device else {})
             )
             if not self.printer:
                 return
@@ -1489,16 +1914,28 @@ Web site: https://github.com/Ircama/epson_print_conf
             )
             if self.printer and self.printer.parm:
                 if "read_key" in self.printer.parm:
-                    self.read_eeprom_button.state(["!disabled"])
-                    ToolTip(self.read_eeprom_button, "")
-                    self.clean_nozzles_button.state(["!disabled"])
-                    self.print_tests_button.state(["!disabled"])
-                    self.temp_reset_ink_waste_button.state(["!disabled"])
-                    self.detect_configuration_button.state(["!disabled"])
-                    ToolTip(self.detect_configuration_button, "")
-                    ToolTip(self.clean_nozzles_button, "")
-                    ToolTip(self.print_tests_button, "")
-                    ToolTip(self.temp_reset_ink_waste_button, "")
+                    # These work over either transport: they are EPSON-CTRL
+                    # commands, which is exactly what the USB link carries.
+                    self.set_feature_state(self.read_eeprom_button, True)
+                    self.set_feature_state(self.temp_reset_ink_waste_button, True)
+                    # These three need the network: the nozzle/colour tests and
+                    # the cleaning routines print through LPR, and the
+                    # configuration detection reads SNMP-only MIB values.
+                    self.set_feature_state(
+                        self.clean_nozzles_button, not usb,
+                        "Not available in USB mode: cleaning the nozzles prints"
+                        " through LPR, so it needs the network (TCP/IP)."
+                    )
+                    self.set_feature_state(
+                        self.print_tests_button, not usb,
+                        "Not available in USB mode: the print tests are sent"
+                        " through LPR, so they need the network (TCP/IP)."
+                    )
+                    self.set_feature_state(
+                        self.detect_configuration_button, not usb,
+                        "Not available in USB mode: this feature reads"
+                        " SNMP-only values (model, power-off timer, MAC address)."
+                    )
                 if "write_key" in self.printer.parm:
                     self.write_eeprom_button.state(["!disabled"])
                     ToolTip(
@@ -1602,6 +2039,8 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.update_idletasks()
 
     def next_ip(self, event):
+        if self.usb_mode():
+            return  # there is no address to cycle through over USB
         ip = self.ip_var.get()
         if self.ip_list_cycle == None:
             self.ip_list = self.printer_scanner.get_all_printers(local=True)
@@ -1644,7 +2083,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -1684,7 +2123,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -1744,7 +2183,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -1819,7 +2258,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -1869,11 +2308,21 @@ Web site: https://github.com/Ircama/epson_print_conf
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
-                self.printer.write_poweroff_timer(int(po_timer))
-                self.status_text.insert(tk.END, '[INFO]', "info")
-                self.status_text.insert(
-                    tk.END, " Update operation completed.\n"
-                )
+                done = self.printer.write_poweroff_timer(int(po_timer))
+                if done:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END, " Update operation completed.\n"
+                    )
+                else:
+                    # Two cells have to accept the value; half a timer is not
+                    # a success, and the console log has the printer's answer.
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
+                    self.status_text.insert(
+                        tk.END,
+                        " Write operation failed: the printer refused one of"
+                        " the two cells of the power-off timer.\n"
+                    )
             except Exception as e:
                 self.handle_printer_error(e)
         else:
@@ -1894,7 +2343,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
             self.update_idletasks()
@@ -1992,7 +2441,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -2080,7 +2529,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -2132,7 +2581,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -2181,13 +2630,21 @@ Web site: https://github.com/Ircama/epson_print_conf
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
-                self.printer.write_first_ti_received_time(
+                done = self.printer.write_first_ti_received_time(
                     date_string.year, date_string.month, date_string.day
                 )
-                self.status_text.insert(tk.END, '[INFO]', "info")
-                self.status_text.insert(
-                    tk.END, " Update operation completed.\n"
-                )
+                if done:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END, " Update operation completed.\n"
+                    )
+                else:
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
+                    self.status_text.insert(
+                        tk.END,
+                        " Write operation failed: the printer refused one of"
+                        " the two cells of the received time.\n"
+                    )
             except Exception as e:
                 self.handle_printer_error(e)
         else:
@@ -2254,7 +2711,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         model = self.model_var.get()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
@@ -2264,11 +2721,11 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return
-        printer = EpsonPrinter(
+        printer = self.printer_class()(
             conf_dict=self.conf_dict,
             replace_conf=self.replace_conf,
             model=model,
-            hostname=ip_address
+            hostname=None if self.usb_mode() else ip_address
         )
         if not printer:
             return
@@ -2509,7 +2966,7 @@ Web site: https://github.com/Ircama/epson_print_conf
 
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -2533,7 +2990,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             """
             current_log_level = logging.getLogger().getEffectiveLevel()
             logging.getLogger().setLevel(logging.ERROR)
-            if not self._is_valid_ip(ip_address):
+            if not self._connection_ready(ip_address):
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(tk.END, NO_CONF_ERROR)
                 logging.getLogger().setLevel(current_log_level)
@@ -2541,9 +2998,12 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
                 return
             if not self.printer:
-                self.printer = EpsonPrinter(
+                # No model selected here: access key detection is about the
+                # keys, not about the configured parameters, and it works over
+                # either transport.
+                self.printer = self.printer_class()(
                     conf_dict=self.conf_dict,
-                    hostname=self.ip_var.get()
+                    hostname=None if self.usb_mode() else self.ip_var.get()
                 )
                 self.printer.parm = {'read_key': None}
 
@@ -2554,9 +3014,26 @@ Web site: https://github.com/Ircama/epson_print_conf
                 f" Detecting the read_key...\n"
             )
             self.update_idletasks()
+            # The scan can take minutes (65536 attempts at worst), and its log
+            # is silenced below, so report where it is: a frozen window with no
+            # output cannot be told apart from a scan that is not working.
+            seen = {"attempt": 0}
+
+            def show_progress(attempt, total, key):
+                if attempt - seen["attempt"] < 2048 and attempt != total:
+                    return
+                seen["attempt"] = attempt
+                self.status_text.insert(
+                    tk.END,
+                    "  %d/%d keys tried, now %s\n" % (attempt, total, key)
+                )
+                self.update_idletasks()
+
             read_key = None
             try:
-                read_key = self.printer.brute_force_read_key()
+                read_key = self.printer.brute_force_read_key(
+                    progress=show_progress
+                )
             except Exception as e:
                 self.handle_printer_error(e)
                 logging.getLogger().setLevel(current_log_level)
@@ -2571,7 +3048,10 @@ Web site: https://github.com/Ircama/epson_print_conf
             else:
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
-                    tk.END, f" Could not detect read_key.\n"
+                    tk.END,
+                    " Could not detect read_key: either the printer did not"
+                    " answer (check the transport) or no key was accepted."
+                    " The console reports which of the two happened.\n"
                 )
                 logging.getLogger().setLevel(current_log_level)
                 self.config(cursor="")
@@ -2842,7 +3322,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         # Confirmation message
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             return
@@ -2862,9 +3342,37 @@ Web site: https://github.com/Ircama/epson_print_conf
                 tk.END,
                 f" Starting the access key detection, please wait for many minutes...\n"
             )
+            self.status_text.insert(
+                tk.END,
+                " Press Ctrl+C to stop it; the status box reports progress.\n"
+            )
             self.config(cursor="watch")
             self.update()
-            self.after(100, lambda: run_detection())
+
+            def guarded_detection():
+                """Run the detection, and survive an interrupt.
+
+                The scan can last minutes, so Ctrl+C is the only way out of it.
+                The log level it sets (to keep the scan from flooding the log)
+                is restored even then, and the USB session is closed because
+                the interrupt may have left an exchange half way.
+                """
+                root = logging.getLogger()
+                previous_level = root.getEffectiveLevel()
+                try:
+                    run_detection()
+                except KeyboardInterrupt:
+                    self.config(cursor="")
+                    self.abandon_usb_session()
+                    self.status_text.insert(tk.END, '[WARNING]', "warn")
+                    self.status_text.insert(
+                        tk.END, " Detection interrupted by the user.\n"
+                    )
+                    self.update_idletasks()
+                finally:
+                    root.setLevel(previous_level)
+
+            self.after(100, guarded_detection)
         else:
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
@@ -2887,8 +3395,18 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
+        if self.usb_mode():
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(
+                tk.END,
+                " The printer web interface is reached over the network:"
+                " select TCP/IP.\n"
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -2921,6 +3439,18 @@ Web site: https://github.com/Ircama/epson_print_conf
         """
         Print nozzle, Print color, Print paper pass and Print paper feed tests.
         """
+        if self.usb_mode():
+            # The nozzle and colour tests are printer methods that print, and
+            # the paper-movement options are sent through LPR: both need the
+            # network transport, so the dialog is not even opened.
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END, '[ERROR] Print tests need the network'
+                ' (TCP/IP): select it instead of USB.\n', 'error'
+            )
+            self.set_cursor(self, '')
+            self.update_idletasks()
+            return
         options = [
             "Print standard nozzle test",  # 0
             "Print alternative nozzle test",  # 1
@@ -3092,7 +3622,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
 
         ip = self.ip_var.get()
-        if not self._is_valid_ip(ip):
+        if not self._connection_ready(ip):
             self.status_text.insert(
                 tk.END, '[ERROR] Invalid IP address.\n', 'error'
             )
@@ -3120,6 +3650,18 @@ Web site: https://github.com/Ircama/epson_print_conf
         Initiates nozzles cleaning routine with optional power clean.
         Displays a dialog to select a nozzle group and power clean option.
         """
+        if self.usb_mode():
+            self.show_status_text_view()
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(
+                tk.END,
+                " Cleaning the nozzles is executed by printing through LPR:"
+                " select TCP/IP.\n"
+            )
+            self.set_cursor(self, "")
+            self.update_idletasks()
+            return
+
 
         def show_clean_dialog():
             # Define groups
@@ -3278,7 +3820,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.update_idletasks()
 
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.set_cursor(self, "")
@@ -3330,8 +3872,17 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
+        if self.usb_mode():
+            self.status_text.insert(
+                tk.END, '[ERROR] This feature detects the configuration from'
+                ' SNMP-only values (model, power-off timer, MAC address):'
+                ' select TCP/IP instead of USB.\n', 'error'
+            )
+            self.config(cursor="")
+            self.update_idletasks()
+            return
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             self.config(cursor="")
@@ -3586,24 +4137,41 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
 
         def write_eeprom_values(dict_addr_val):
+            failed = None
             try:
                 for oid, value in dict_addr_val.items():
                     if not self.printer.write_eeprom(
                         oid, value, label="write_eeprom"
                     ):
-                        return False
+                        # Name the address that failed: the method answers a
+                        # plain bool, and "nothing happened" with no reason is
+                        # worse than the address to look at.
+                        failed = (oid, value)
+                        break
             except Exception as e:
                 self.handle_printer_error(e)
-            self.status_text.insert(tk.END, '[INFO]', "info")
-            self.status_text.insert(
-                tk.END, f" Write EEPROM completed.\n"
-            )
+                self.config(cursor="")
+                self.update_idletasks()
+                return
+            if failed is None:
+                self.status_text.insert(tk.END, '[INFO]', "info")
+                self.status_text.insert(
+                    tk.END, f" Write EEPROM completed.\n"
+                )
+            else:
+                self.status_text.insert(tk.END, '[ERROR]', "error")
+                self.status_text.insert(
+                    tk.END,
+                    f" Write EEPROM failed at address {failed[0]}"
+                    f" (value {failed[1]}); the following addresses were not"
+                    " written. The console log reports the printer's answer.\n"
+                )
             self.config(cursor="")
             self.update_idletasks()
 
         self.show_status_text_view()
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(tk.END, NO_CONF_ERROR)
             return
@@ -3646,7 +4214,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if (
-            not self._is_valid_ip(ip_address)
+            not self._connection_ready(ip_address)
             or not self.printer
             or not self.printer.parm
             or "read_key" not in self.printer.parm
@@ -3685,13 +4253,23 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         if response:
             try:
-                self.printer.reset_waste_ink_levels()
-                self.status_text.insert(tk.END, '[INFO]', "info")
-                self.status_text.insert(
-                    tk.END,
-                    " Waste ink levels have been reset."
-                    " Perform a power cycle of the printer now.\n"
-                )
+                done = self.printer.reset_waste_ink_levels()
+                if done:
+                    self.status_text.insert(tk.END, '[INFO]', "info")
+                    self.status_text.insert(
+                        tk.END,
+                        " Waste ink levels have been reset."
+                        " Perform a power cycle of the printer now.\n"
+                    )
+                else:
+                    # The method answers False when a cell refuses the write:
+                    # saying "reset" there would be a lie about the printer.
+                    self.status_text.insert(tk.END, '[ERROR]', "error")
+                    self.status_text.insert(
+                        tk.END,
+                        " Waste ink levels were not reset (a cell refused the"
+                        " write). The console log reports which one.\n"
+                    )
             except Exception as e:
                 self.handle_printer_error(e)
         else:
@@ -3713,7 +4291,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.show_status_text_view()
         ip_address = self.ip_var.get()
         if (
-            not self._is_valid_ip(ip_address)
+            not self._connection_ready(ip_address)
             or not self.printer
             or not self.printer.parm
             or "read_key" not in self.printer.parm
@@ -3786,6 +4364,11 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.detect_button.config(state=tk.DISABLED)  # disable button while processing
         self.show_status_text_view()
         try:
+            if self.usb_mode():
+                # There is no address to scan: the printer is whatever device
+                # the library finds on the USB bus, so list the candidates.
+                self.detect_usb_devices()
+                return
             # [{'ip': '...', 'hostname': '...', 'name': '...'}]
             printers = self.printer_scanner.get_all_printers(
                 self.ip_var.get().strip()
@@ -3844,9 +4427,64 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
 
-    def _is_valid_ip(self, ip):
+    def detect_usb_devices(self):
+        """'Detect Printers' in USB mode: list the devices the library can see.
+
+        Over USB there is no address to scan: the printer is whatever device
+        ``epson_usb`` finds on the bus. So this reports the backends available
+        on this machine and the candidate devices, and refills the 'USB Port'
+        list with them, which is also where one of them can be pinned. The model
+        still has to be chosen by hand, because the device list carries no model
+        table (the library has none).
+        """
         try:
-            ip = ipaddress.ip_address(ip)
+            from epson_usb.backends import describe_environment
+        except Exception as e:
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(tk.END, f" Cannot import epson_usb: {e}\n")
+            return
+        self.status_text.insert(tk.END, '[INFO]', "info")
+        self.status_text.insert(tk.END, " USB environment:\n")
+        for line in describe_environment().splitlines():
+            self.status_text.insert(tk.END, "  %s\n" % line)
+        devices = self._find_usb_devices()
+        if devices is None:
+            return
+        usable, candidates = self._fill_usb_ports(devices)
+        if not devices:
+            self.status_text.insert(tk.END, '[WARNING]', "warn")
+            self.status_text.insert(tk.END, " No Epson USB printer found.\n")
+            return
+        self.status_text.insert(tk.END, '[INFO]', "info")
+        self.status_text.insert(tk.END, f" Detected {len(devices)} device(s):\n")
+        for info in devices:
+            self.status_text.insert(tk.END, "  %s\n" % info)
+        self.status_text.insert(tk.END, '[INFO]', "info")
+        self.status_text.insert(
+            tk.END,
+            " Select the printer model: the device is opened on the first"
+            " command sent.\n"
+        )
+        self.status_text.insert(tk.END, '[NOTE]', "note")
+        self.status_text.insert(
+            tk.END,
+            " 'USB Port' lists the %d port(s) that can be opened out of these"
+            " %d: choose one to pin it instead of letting the library pick the"
+            " first it can open.\n" % (usable, len(devices))
+        )
+
+    def _connection_ready(self, ip):
+        """Is the connection field usable for the selected transport?
+
+        This is the single gate every panel calls before touching the printer.
+        Over SNMP it validates the address; over USB there is no address to
+        enter at all, so the check passes and the USB transport is what can
+        fail instead.
+        """
+        if self.usb_mode():
+            return True
+        try:
+            ipaddress.ip_address(ip)
             return True
         except ValueError:
             return False
@@ -3969,8 +4607,16 @@ Web site: https://github.com/Ircama/epson_print_conf
 
     def print_items(self, text, raw=True, preview=False):
         """Send items to the printer."""
+        if self.usb_mode():
+            # This goes through LPR to a network address.
+            self.show_status_text_view()
+            self.status_text.insert(
+                tk.END, '[ERROR] Printing goes through LPR to a network'
+                ' address: select TCP/IP instead of USB.\n', 'error'
+            )
+            return
         ip_address = self.ip_var.get()
-        if not self._is_valid_ip(ip_address):
+        if not self._connection_ready(ip_address):
             self.show_status_text_view()
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
@@ -4053,6 +4699,15 @@ def main():
         default=None
     )
     parser.add_argument(
+        '--usb',
+        dest='usb',
+        action="store_true",
+        help='Talk to the printer over USB (IEEE 1284.4 / D4) instead of SNMP.'
+            ' It can also be selected from the "Printer Connection" box, or by'
+            ' setting the EPSON_USB environment variable. -a/--address is not'
+            ' used in this mode'
+    )
+    parser.add_argument(
         '-P',
         "--pickle",
         dest='pickle',
@@ -4093,9 +4748,10 @@ def main():
 
     return EpsonPrinterUI(
         model=args.model,
-        hostname=args.hostname,        
+        hostname=args.hostname,
         conf_dict=conf_dict,
-        replace_conf=args.override
+        replace_conf=args.override,
+        usb=args.usb or bool(os.environ.get("EPSON_USB"))
     )
 
 

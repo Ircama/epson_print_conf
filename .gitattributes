@@ -1,0 +1,7 @@
+# Keep the repository content LF regardless of the contributor's platform.
+#
+# `epson_usb/` is a byte-for-byte copy of the `epson_usb` package of
+# https://github.com/Ircama/epson-l3251-usb-reset (see epson_usb/README.md):
+# that project pins LF the same way, and a checkout that rewrites those files
+# with CRLF would break the copy property, not the code.
+* text=auto eol=lf

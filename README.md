@@ -10,9 +10,15 @@ The software also includes a configurable printer dictionary, which can be easil
 
 ## Key Features
 
-- __SNMP Interface__: Connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections (not USB).
+- __SNMP Interface__: Connect and manage Epson printers using SNMP over TCP/IP, supporting Wi-Fi connections.
 
     Printers are queried via Simple Network Management Protocol (SNMP) with a set of Object Identifiers (OIDs) used by Epson printers. Some of them are also valid with other printer brands. SNMP is used to manage the EEPROM and read/set specific Epson configuration.
+
+- __USB Interface__: Connect and manage the same printers over the USB cable, using the IEEE 1284.4 (D4) `EPSON-CTRL` service.
+
+    That is the only way in on the models whose firmware refuses EEPROM access over the network, and it carries the same commands, the same keys and the same features (status, EEPROM read/write, waste resets, access-key detection). Use `--usb` on the command line, the "USB" choice in the GUI's "Printer Connection" box, or the `EPSON_USB` environment variable; see [epson_usb/README.md](epson_usb/README.md).
+
+    On Windows it talks to the `USBPRINT` device interface the Epson driver already publishes (native `SetupAPI`/`kernel32` calls), so **no driver is replaced** and nothing has to be installed. On Linux and macOS it claims the printer's vendor-specific interface through `libusb`, detaching the kernel driver while it works and re-attaching it on close; `libusb` and PyUSB also exist on Windows as fallbacks after the native route, but they are not what it uses by default.
 
 - __Detailed Status Reporting__: Produce a comprehensive printer status report (with options to focus on specific details).
 
@@ -164,7 +170,7 @@ This GUI runs on any Operating Systems supported by Python (not just Windows), b
 GUI usage:
 
 ```
-usage: ui.py [-h] [-m MODEL] [-a HOSTNAME] [-P PICKLE_FILE] [-O] [-d]
+usage: ui.py [-h] [-m MODEL] [-a HOSTNAME] [--usb] [-P PICKLE_FILE] [-O] [-d]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -172,6 +178,10 @@ optional arguments:
                         Printer model. Example: -m XP-205
   -a HOSTNAME, --address HOSTNAME
                         Printer host name or IP address. (Example: -a 192.168.1.87)
+  --usb                 Talk to the printer over USB (IEEE 1284.4 / D4) instead of SNMP.
+                        It can also be selected from the "Printer Connection" box, or by
+                        setting the EPSON_USB environment variable. -a/--address is not
+                        used in this mode
   -P PICKLE_FILE, --pickle PICKLE_FILE
                         Load a pickle configuration archive saved by parse_devices.py
   -O, --override        Replace the default configuration with the one in the pickle file instead of merging (default is to merge)
@@ -179,6 +189,12 @@ optional arguments:
 
 epson_print_conf GUI
 ```
+
+In USB mode the "Printer Connection" box replaces the IP address with a `USB
+Port` list: the devices that can really be opened on this machine, plus `Auto:
+first device found` to let the library choose. Pick one to pin it (two attached
+printers, or another interface of the same device); the ⟳ button next to the
+list scans the USB bus again.
 
 ## Quick Start on macOS via Docker
 
@@ -252,6 +268,24 @@ Other menu options allow to filter or clean up the configuration list, as well a
 
   - If no errors are reported in the output, proceed by pressing *Detect Configuration.*
 
+  - Over USB the scan works well (measured: 961 candidate keys in under ten
+    seconds on an XP-205). Over SNMP the printer's agent stops answering after a
+    few hundred closely spaced requests — measured on the same printer, which
+    went silent around request 500 — so that transport is not suited to a scan
+    of up to 65536 attempts. The scan now says so and stops, rather than running
+    through the remaining attempts against a printer that has stopped replying.
+    A wrong key is a *refusal* (the printer says `:NA;`), not an error: it is
+    reported at info level, so the run is not a wall of error lines. Silence is
+    watched separately from a refusal: after two attempts with no answer at all
+    the transport is re-opened once (a session left behind by an interrupted
+    command answers nothing), and after a third the scan gives up with
+    "the printer or the transport is not working" instead of continuing.
+
+  - **Ctrl+C stops the scan** and leaves the program running (the status box
+    reports "Detection interrupted by the user", and progress is shown every 256
+    attempts while it runs). The same key closes the window when no operation is
+    in progress.
+
 - Analyze Results:
 
   Each of these operations generates both a tree view and a text view. These outputs help determine if an existing configured model closely matches or is identical to the target printer. Use the right mouse button to switch between the two views for easier analysis.
@@ -295,6 +329,63 @@ of them the EEPROM remains readable and writable over *USB*, via the IEEE 1284.4
 [reinkpy](https://codeberg.org/atufi/reinkpy). A permanent waste-counter reset may
 therefore still be possible on a printer listed above, over a USB cable.
 
+This repository now ships that USB path as a library: the `epson_usb/` directory.
+It plugs into this program's single printer-access method, so no feature had to be
+duplicated, and it is reachable from the command line (`--usb`), from the GUI
+(the "Printer Connection" box) and from any other tool through `EPSON_USB`; see
+[epson_usb/README.md](epson_usb/README.md).
+
+Measured on an XP-205 (September 2026): that firmware answers an `@BDC` query
+*without* the leading zero byte which the SNMP agent of other models pads the
+reply with, e.g. `@BDC PS\r\nEE:01660F;\x0C` for the EEPROM cell at address 358.
+The reply validation used to accept only the padded form, so every value of that
+printer came back `None` ("Invalid response for OID ..."), including the
+Power-off timer. It now accepts either form: what it requires is the `0x0C`
+terminator and a `name:...;` element, the same rule the USB library uses. A
+truncated or unrelated reply is still rejected.
+
+The same printer also answers *bare* blocks, with no `@BDC PS` header at all: the
+fifth ink slot (an XP-205 has four) replies `b'ii:NA;\x0C'`, and a read it
+refuses answers `b'||:41:NA;\x0C'`. Two consequences are fixed: the framing check
+now looks for its `name:...;` element anywhere in the reply, and the cartridge
+loop tests "this slot is empty" *before* "this reply is malformed". The order
+mattered: the bare `ii:NA;` was declared invalid, so the whole cartridge list was
+abandoned with `Invalid cartridge response` logged, on a printer that had just
+listed its four cartridges.
+
+A `:NA;` reply is an *answer*, not a malformed one: it is the printer saying no.
+It is therefore no longer logged as `Invalid response`, which matters most for
+`Detect Access Keys`: that brute force sends 65536 keys, and every wrong one is
+answered this way, so the run used to log an error per attempt. A wrong key now
+reports `Invalid read key` at info level and the value is `None`, as before.
+
+A **write** is confirmed with the same shape, with the write opcode in the
+middle: `b'||:42:OK;\x0C'` (measured on the same printer, whose refusals are
+`b'||:41:NA;\x0C'`). Requiring an element with a single colon made that
+confirmation "invalid", so a write the printer had carried out was reported as
+failed — and `Detect Access Keys`, which validates the write key by writing the
+last byte of the serial number and putting it back, stopped after that test
+write: the message *"Write operation failed. Check whether the serial number is
+changed and restore it manually"* with the serial left one character off
+(`QJFK135617` -> `QJFK135618`). The check now accepts a colon inside the element,
+and the restore is retried and verified before the operation is called failed.
+
+`Set Printer Serial Number` — and the WiFi MAC address, which is written the same
+way — wrote **only the first cell** of the parameter and then reported success:
+`update_parameter()` returned from inside its own loop, so a ten-character serial
+number got one character written and the value looked unchanged, on both
+transports (the loop is transport-independent). It now writes every address and
+answers True only when all of them are accepted; verified on an XP-205 over SNMP
+and USB, where the ten cells were written, the value changed and then restored.
+
+The write methods of the power-off timer, the received time and the waste reset
+already wrote all their cells and checked each one. What did not check anything
+was the GUI: the buttons for those two timers, for *Write EEPROM* and for the
+waste reset reported "Update operation completed" regardless of the answer, and
+*Write EEPROM* said nothing at all when a cell was refused (it returned from the
+handler in silence). All four now report the failure, naming the address that
+failed where they can, and a refused write is logged at warning level so the
+printer's answer is visible at the default log level.
 On Windows, the two reports so far needed no driver replacement (no Zadig).
 On an L3250 with pyusb/libusb, interfaces 0 and 1 could not be claimed but
 interface 2 (class 255, vendor-specific) could, and the Epson driver kept
