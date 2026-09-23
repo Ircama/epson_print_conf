@@ -37,9 +37,8 @@ python -c "from epson_usb.backends import describe_environment; print(describe_e
 
 ## Quick start
 
-**Nothing to install.** `import epson_usb` works from the repository root,
-because the package sits next to the scripts; there is no `pip` step, no PyPI
-release and no separate clone.
+`import epson_usb` works from the repository root,
+because the package sits next to the scripts.
 
 ### From the command line
 
@@ -103,7 +102,7 @@ EPSON_USB=1 python3 find_printers.py
 
 The library can also be used on its own, without `epson_print_conf`.
 
-### Opening a printer — the keys are the caller's
+### Opening a printer
 
 Read and write keys are per-model facts, and the library carries none: it asks
 for them. A host program does not even need them, because its OIDs already
@@ -288,77 +287,6 @@ it so the next command opens a fresh one, and gives up with a message when
 silence continues — a scan of 65536 attempts is not the place to discover that
 the cable is not connected.
 
-## There is no printer database in here
-
-`epson_usb` is the transport half only: D4, EPSON-CTRL, EEPROM read/write,
-status blocks, backups, and the OID bridge. It carries **no model data** — no
-read/write keys, no address ranges, no counter divisors, no reset cell sets, and
-no notion of a "model" at all: no function takes a model name, and there is
-nothing to keep in sync with `epson_print_conf`'s `PRINTER_CONFIG`, which stays
-the single source of parameters. The test suite asserts exactly that: it reads
-the library's own source looking for model literals and for imports of the
-client half, and it checks that the package exposes no model registry.
-
-A caller that knows a model `epson_print_conf` does not can pass its parameters
-as `params={name: parm}` to `enable_usb_transport()`. Entries that
-`epson_print_conf` already has are never replaced: inventing another family's
-key would address the wrong EEPROM cells.
-
-## Tests, and the in-memory printer
-
-```console
-python -m unittest discover -s epson_usb/tests -t .   # from the repository root
-```
-
-No hardware and no network are needed. The suite checks the D4 handshake and the
-frame grammar, the EEPROM conventions (little-endian counters, the percentage
-divisor), the safety gates (reads never write, a dry run writes nothing, an
-unconfirmed write is a failure), the backup round trip, the integration against
-this repository's own `EpsonPrinter`, and the boundary that keeps model data out
-of the library.
-
-The fake printer is a real protocol implementation, not a stub: it consumes the
-same bytes a printer receives (packet-aligned D4 headers, credit handshake,
-`@BDC` reply blocks, `EE:xxxxxx;`, `:OK;`/`:NA;`, `@BDC ST2`) and builds its
-status block with the same helper the tests use. It holds no model data either,
-so a test tells it what to imitate:
-
-```console
-python3 -c "from epson_usb.backends.mock import MockConfig, MockTransport; \
-from epson_usb import EpsonUsbPrinter as P; \
-p = P(read_key=(0x11, 0x22), write_key=b'example8', transport=MockTransport( \
-MockConfig(read_key=(0x11, 0x22), eeprom={0x30: 0x3B, 0x31: 0x18}))); \
-print(p.read_eeprom(0x30), p.read_cell(0x31), p.get_firmware_version())"
-3B 24 AB11I5 11 May 2018
-```
-
-`MockConfig.from_model(obj)` builds that configuration off any object carrying
-the caller's facts (`read_key`, `write_key`, `serial_range`, `full_reset_cells`,
-`mirror_cells`), which is how a client drives the fake printer with its own
-tables without the library importing them.
-
-The offline example runs the `epson_print_conf` code path over that fake cable:
-
-```console
-python3 epson_usb/examples/epson_print_conf_over_usb.py --backend mock -m XP-205
-```
-
-## Package layout
-
-| file | what it holds |
-|---|---|
-| `d4.py` | the IEEE 1284.4 session: enter D4, init, open channel, credit, data |
-| `epson_ctrl.py` | the EPSON-CTRL frame grammar and the SNMP OID bridge |
-| `printer.py` | `EpsonUsbPrinter`: EEPROM, commands, status, backups |
-| `compat.py` | the `epson_print_conf` bridge (`usb_printer`, `patch_epson_print_conf`) |
-| `backends/` | the transports, the descriptor helpers and the fake printer |
-| `status.py` | the `@BDC ST2` block: split, decode, delegate |
-| `eeprom.py` | the value conventions (byte order, percentage) |
-| `backup.py` | the JSON backup format, shared with the source project's tool |
-| `util.py`, `errors.py` | packet formatting, and the exception hierarchy |
-| `examples/` | the offline end-to-end example |
-| `tests/` | the hardware-free suite |
-
 ## What does not work over USB
 
 * **Plain MIB queries** (`get_snmp_info()`, the model/MAC/power-off values the
@@ -368,47 +296,13 @@ python3 epson_usb/examples/epson_print_conf_over_usb.py --backend mock -m XP-205
 * **Printing** (`print_check_nozzles()`, `print_clean_nozzles()`,
   `print_test_color_pattern()`) — the host sends those through LPR to a network
   address and raises `NotImplementedError` over USB.
-* **The temporary reset is temporary**: the `rw` command does not survive a
-  power cycle (reported on `epson_print_conf` issue #35). A permanent reset needs
-  EEPROM writes.
-* Only the source repository has model tables, and only an L3251 has been
-  measured on hardware. Everything else is verified without a printer: against
-  the fake printer, against the original implementation's byte stream (in the
-  source repository), and against this repository's own code path.
 
-## This directory is a copy
+**## onur-kesim/epson-l3251-usb-reset**
 
-The library is maintained in its own project,
-[`Ircama/epson-l3251-usb-reset`](https://github.com/Ircama/epson-l3251-usb-reset),
-and this directory is a copy of its `epson_usb/` package. **Change it there and
-re-copy**, so the two cannot drift apart — a second copy of the same protocol
-code is exactly the failure mode the extraction was meant to remove:
+The implementation in the `epson_usb` directory currently reuses and extends code from [`onur-kesim/epson-l3251-usb-reset`](https://github.com/onur-kesim/epson-l3251-usb-reset).
 
-```console
-# from the source project
-cp epson_usb/*.py            /path/to/epson_print_conf/epson_usb/
-cp epson_usb/backends/*.py   /path/to/epson_print_conf/epson_usb/backends/
-```
+Ideally, the `epson_usb` directory could serve as a preliminary implementation of a possible future backend layer for `epson-l3251-usb-reset`.
 
-Everything the library carries is meant to stay as it is upstream, including the
-helpers only the source project's client and command line use: removing them
-here (because nothing in *this* repository calls them) breaks that copy. The only
-deliberate differences in this copy are the three fixes below, which belong in the
-source project:
+The `epson_usb` implementation is not intended to remain permanently embedded in `epson_print_conf`. A possible future approach would be to rely on an evolution of `onur-kesim/epson-l3251-usb-reset`, with its USB functionality exposed as a reusable backend/library.
 
-| file | difference |
-|---|---|
-| `compat.py` | `factory_kwargs()` no longer passes `model=`/`printer=` to a factory that merely takes `**kwargs`: the default factory forwards unknown keywords to the *transport*, so a caller that did not build the transport itself failed with `__init__() got an unexpected keyword argument 'model'` |
-| `compat.py` | `load_epson_print_conf(module_name=...)` honours its argument (it was accepted and ignored) |
-| `backends/mock.py` | the fake printer answers `vi` with a bare `vi:00:<6>;` + `0x0C`, which is the measured shape; the `@BDC PS` wrapper made the host's firmware parser raise |
-
-## Provenance
-
-| | |
-|---|---|
-| Source | [`Ircama/epson-l3251-usb-reset`](https://github.com/Ircama/epson-l3251-usb-reset) — a fork of `onur-kesim/epson-l3251-usb-reset` |
-| Version | `epson_usb` 0.1.0 |
-| Original transport | the Windows `USBPRINT` D4 implementation, verified on an Epson L3251 |
-| Added by the extraction | the library API, the `libusb` backend for Linux/macOS, the `pyusb` and raw-device backends, the `epson_print_conf` bridge, the in-memory test printer, the hardware-free suite |
-| Layer split | the library kept the protocol and lost the model tables: keys, counters and reset cells live with the client, so this directory has no printer database to disagree with yours |
-| Licence | AGPL-3.0 (`LICENSE`) |
+We are deeply grateful to `onur-kesim/epson-l3251-usb-reset` for providing the USB D4 protocol implementation and the native Windows interface on which this work builds.
