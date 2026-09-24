@@ -13,7 +13,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     owner = "Ircama";
     repo = finalAttrs.pname;
     tag = "v${finalAttrs.version}";
-    hash = "sha256-kyNg/JwK0gnjOG9ppThipcyOoQlA90zeJTfWbMPmars=";
+    hash = "sha256-j2A/hhTg2kTDpbictBS9shEgmnGdYZDFRjyX2tulLqo=";
   };
 
   nativeBuildInputs = [
