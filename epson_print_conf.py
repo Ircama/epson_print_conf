@@ -3306,16 +3306,32 @@ def get_printer_models(input_string):
     return processed_tokens
 
 
+def usb_library_available() -> bool:
+    try:
+        import epson_usb.compat  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
 def usb_transport_warning():
     """A message when USB cannot work on this machine, or None.
 
-    Windows needs nothing: the transport goes through the native USBPRINT
-    device interface, with no driver and no extra package. macOS and Linux
-    reach the printer through libusb or PyUSB, or through a raw character
-    device, so when none of the three is available "USB" can be selected and
-    then fail on the first command. Saying which piece is missing, before the
-    first command, is the whole point of this function.
     """
+    if not usb_library_available():
+        if sys.version_info < (3, 10):
+            return (
+                "The USB library (PyPI: epson-usb) is not installed: USB cannot"
+                " be selected. Its distribution declares Python 3.10 because"
+                " that is the oldest interpreter its test suite runs on; the"
+                " library itself runs here, so install it with 'pip install"
+                " --ignore-requires-python epson-usb'."
+            )
+        return (
+            "The USB library (PyPI: epson-usb) is not installed: USB cannot be"
+            " selected. Install it with 'pip install epson-usb' (it declares"
+            " Python 3.10 or later)."
+        )
     if sys.platform == "win32":
         return None
     try:
@@ -3345,10 +3361,7 @@ def enable_usb_transport(params=None):
     find_printers.py, parse_devices.py -- follows automatically, because they
     bind the name this module exposes.
 
-    ``epson_usb`` is a library hosted in the ``epson_usb/`` directory of this
-    repository (see its README, which also says what it is not). It carries no
-    printer model data: the parameters keep coming from this module's own
-    ``PRINTER_CONFIG``, which is authoritative for the models it knows. A caller
+    ``epson_usb`` is the PyPI package ``epson-usb``. A caller
     that knows a model this file does not can pass ``params={name: parm}`` --
     the shape ``EpsonPrinter(conf_dict=...)`` takes -- and entries already
     configured here are never replaced. When the library is missing, the SNMP
@@ -3411,7 +3424,7 @@ if __name__ == "__main__":
         action='store_true',
         help='Talk to the printer over USB (IEEE 1284.4 / D4) instead of SNMP. '
             'Ignores -a/--address. It can also be selected with the EPSON_USB '
-            'environment variable, or from the GUI; see epson_usb/README.md'
+            'environment variable, or from the GUI. Library: epson-usb (PyPI)'
     )
     try:
         # The backend names come from the library, so this list cannot drift.
@@ -3611,6 +3624,17 @@ if __name__ == "__main__":
     if usb_mode:
         # Switch the transport before the printer object is built. In this mode
         # -a/--address has no meaning: the device is found on the USB bus.
+        if not usb_library_available():
+            hint = "pip install epson-usb"
+            if sys.version_info < (3, 10):
+                hint = (
+                    "pip install --ignore-requires-python epson-usb (its"
+                    " distribution declares Python 3.10, the library runs here)"
+                )
+            parser.error(
+                "--usb needs the epson-usb package (it carries the backends,"
+                f" the frames and the bridge): {hint}"
+            )
         enable_usb_transport()
         warning = usb_transport_warning()
         if warning:

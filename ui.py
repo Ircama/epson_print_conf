@@ -573,6 +573,17 @@ class EpsonPrinterUI(tk.Tk):
             " network (web interface, LPR printing, SNMP-only values) are"
             " disabled.",
         )
+        if not self.usb_available():
+            # The library is a dependency, so a machine can lack it (Python 3.9
+            # and older). Offering the choice and then refusing the transport
+            # would be worse than saying why it is not offered.
+            self.usb_radio.state(["disabled"])
+            ToolTip(
+                self.usb_radio,
+                "USB is not available: the epson-usb package is not installed."
+                " Install it with 'pip install epson-usb' (Python 3.10 or"
+                " later).",
+            )
 
         # IP address entry, sharing the row with the transport selector
         self.ip_var = tk.StringVar()
@@ -1532,12 +1543,17 @@ Web site: https://github.com/Ircama/epson_print_conf
         return bool(self.usb_selected.get())
 
     def usb_available(self) -> bool:
-        """Is the ``epson_usb`` library importable in this installation?"""
+        """Is the ``epson_usb`` library (PyPI: epson-usb) importable?
+
+        The answer is the host program's: the library is a dependency now, so
+        both the CLI and the GUI must ask the same question.
+        """
         try:
-            import epson_usb.compat  # noqa: F401
+            from epson_print_conf import usb_library_available
+
+            return usb_library_available()
         except Exception:
             return False
-        return True
 
     # -- the USB port dropdown ---------------------------------------------
 
@@ -1588,11 +1604,11 @@ Web site: https://github.com/Ircama/epson_print_conf
     def report_usb_transport_warning(self):
         """Tell the user when USB cannot open a printer here.
 
-        ``epson_print_conf.usb_transport_warning()`` answers with a message on
-        macOS and Linux when neither libusb, nor PyUSB, nor a raw device node
-        is available, and always None on Windows (the transport is native
-        there). Selecting USB then fails on the first command, so the warning
-        comes first.
+        ``epson_print_conf.usb_transport_warning()`` answers with a message when
+        the library is missing on any platform, when macOS or Linux has neither
+        libusb, nor PyUSB, nor a raw device node, and with None on Windows when
+        the library is there (the transport is native). Selecting USB then fails
+        on the first command, so the warning comes first.
         """
         try:
             from epson_print_conf import usb_transport_warning
@@ -1791,6 +1807,20 @@ Web site: https://github.com/Ircama/epson_print_conf
         SNMP class stays reachable as ``epson_print_conf.NetworkEpsonPrinter``.
         """
         if not self.usb_mode():
+            return EpsonPrinter
+        if not self.usb_available():
+            # The library is a dependency: without it there is no USB transport
+            # to enable, and going on over SNMP would silently contradict the
+            # choice shown in the window.
+            if not self._usb_unavailable_reported:
+                self._usb_unavailable_reported = True
+                self.status_text.insert(tk.END, '[ERROR]', "error")
+                self.status_text.insert(
+                    tk.END,
+                    " Cannot use the USB transport: the epson-usb package is"
+                    " not installed; using SNMP.\n",
+                )
+            self.usb_selected.set(False)
             return EpsonPrinter
         try:
             import epson_print_conf

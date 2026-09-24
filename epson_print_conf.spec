@@ -88,10 +88,6 @@ blib2to3_submodules = collect_submodules('blib2to3')
 # "black" data files: https://github.com/pyinstaller/pyinstaller/issues/8270
 blib2to3_data = collect_data_files('blib2to3')
 
-# The USB transport (epson_usb) is imported lazily -- inside functions, and its
-# backends by name -- neither of which PyInstaller's analysis can follow. Without
-# collecting it here, the packaged GUI would report "Cannot enable the USB
-# transport" when USB mode is selected. The test module is not part of a build.
 epson_usb_submodules = [
     name for name in collect_submodules('epson_usb')
     if not name.startswith('epson_usb.tests')

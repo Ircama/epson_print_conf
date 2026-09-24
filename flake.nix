@@ -24,6 +24,9 @@
               black
               pyperclip
               pysnmp
+              # `--backend pyusb`: the USB library declares PyUSB too, but the
+              # choice is offered by this program, so it is required here.
+              pyusb
               pyyaml
               tkinter
               tomli

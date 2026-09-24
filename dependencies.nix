@@ -6,6 +6,7 @@
   fetchPypi,
   pillow,
   pysnmp,
+  pyusb,
   pyyaml,
   setuptools,
 }:
@@ -103,6 +104,23 @@ rec {
       hexdump2
     ];
 
+    pyproject = true;
+    build-system = [ setuptools ];
+  });
+
+  epson-usb = buildPythonPackage (finalAttrs: {
+    pname = "epson_usb";
+    version = "0.1.0";
+
+    src = fetchPypi {
+      inherit (finalAttrs) pname version;
+      hash = "sha256-hGC0jqERwqCY/7xsJxWbhbfNvhIBnKkOz779KuIirdY=";
+    };
+
+    # Declared by the upstream package as well; listed here so that the
+    # "--backend pyusb" choice does not depend on how upstream packages it.
+    dependencies = [ pyusb ];
+    doCheck = false;
     pyproject = true;
     build-system = [ setuptools ];
   });

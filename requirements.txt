@@ -9,3 +9,5 @@ tk-date-entry>=1.1.0
 hexdump2
 pyprintlpr>=1.1.1
 epson_escp2>=1.0.4
+epson-usb>=0.1.0; python_version >= "3.10"
+pyusb>=1.2

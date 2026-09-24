@@ -16,7 +16,7 @@ The software also includes a configurable printer dictionary, which can be easil
 
 - __USB Interface__: Connect and manage the same printers over the USB cable, using the IEEE 1284.4 (D4) `EPSON-CTRL` service.
 
-    That is the only way in on the models whose firmware refuses EEPROM access over the network, and it carries the same commands, the same keys and the same features (status, EEPROM read/write, waste resets, access-key detection). Use `--usb` on the command line, the "USB" choice in the GUI's "Printer Connection" box, or the `EPSON_USB` environment variable; see [epson_usb/README.md](epson_usb/README.md).
+    That is the only way in on the models whose firmware refuses EEPROM access over the network, and it carries the same commands, the same keys and the same features (status, EEPROM read/write, waste resets, access-key detection). Use `--usb` on the command line, the "USB" choice in the GUI's "Printer Connection" box, or the `EPSON_USB` environment variable; see the [epson-usb](https://pypi.org/project/epson-usb/) library.
 
     On Windows it talks to the `USBPRINT` device interface the Epson driver already publishes (native `SetupAPI`/`kernel32` calls), so **no driver is replaced** and nothing has to be installed. On Linux and macOS it claims the printer's vendor-specific interface through `libusb`, detaching the kernel driver while it works and re-attaching it on close; `libusb` and PyUSB also exist on Windows as fallbacks after the native route, but they are not what it uses by default.
 
@@ -98,6 +98,12 @@ Install requirements using *requirements.txt*:
 git clone https://github.com/Ircama/epson_print_conf
 cd epson_print_conf
 pip install -r requirements.txt
+```
+
+The USB transport is the [epson-usb](https://pypi.org/project/epson-usb/) package, which declares Python 3.10 because that is the oldest interpreter its test suite runs on, while the library itself runs on 3.9. On Python 3.9 the tool installs and works over SNMP, and USB is one command away:
+
+```bash
+pip install --ignore-requires-python epson-usb
 ```
 
 On Linux, you might also install the tkinter module: `sudo apt install python3-tk`.
@@ -303,9 +309,9 @@ It is recommended to copy the status history and keep it in a safe place after m
 
 ### Known incompatible models
 
-Some recent firmwares supported by new printers disabled SNMP EEPROM management or changed the access mode (possibly for security reasons).
+Many recent printer models — and older models that received a firmware update — disable EEPROM access over the network for security reasons: the read/write key and the related algorithm no longer work over SNMP. Such printers generally keep accepting the same commands over the USB cable, through the IEEE 1284.4 (D4) `EPSON-CTRL` service, so reconfiguration has to be done over USB. This is why epson_print_conf lets the transport be chosen: TCP/IP (SNMP) or USB.
 
-For the following models there is no known way to read the EEPROM via SNMP protocol using the adopted read/write key and the related algorithm:
+For the following models, EEPROM access over SNMP is known not to work:
 
 - [XP-7100 with firmware version YL25O7 (25 Jul 2024)](https://github.com/Ircama/epson_print_conf/issues/42) (firmware YL11K6 works)
 - Possibly [ET-7700](https://github.com/Ircama/epson_print_conf/issues/46)
@@ -319,83 +325,9 @@ For the following models there is no known way to read the EEPROM via SNMP proto
 - [EcoTank ET-2862 with firmware 05.18.XF12OB dated 12/11/2024](https://github.com/Ircama/epson_print_conf/discussions/58) and possibly ET-2860 / 2861 / 2863 / 2865 series.
 - [XP-2200 with firmware 06.58.IU05P2](https://github.com/Ircama/epson_print_conf/issues/51)
 
-The button "Temporary Reset Waste Ink Levels" works with these printers: the `rw`
-command needs only the printer serial number and no read key, and the serial is
-reported in plaintext by the status block even when the EEPROM is locked.
-
-Note that only *SNMP* EEPROM access is disabled on these models. On at least some
-of them the EEPROM remains readable and writable over *USB*, via the IEEE 1284.4
-(D4) `EPSON-CTRL` service, using the same read/write keys; see
-[reinkpy](https://codeberg.org/atufi/reinkpy). A permanent waste-counter reset may
-therefore still be possible on a printer listed above, over a USB cable.
-
-This repository now ships that USB path as a library: the `epson_usb/` directory.
-It plugs into this program's single printer-access method, so no feature had to be
-duplicated, and it is reachable from the command line (`--usb`), from the GUI
-(the "Printer Connection" box) and from any other tool through `EPSON_USB`; see
-[epson_usb/README.md](epson_usb/README.md).
-
-Measured on an XP-205 (September 2026): that firmware answers an `@BDC` query
-*without* the leading zero byte which the SNMP agent of other models pads the
-reply with, e.g. `@BDC PS\r\nEE:01660F;\x0C` for the EEPROM cell at address 358.
-The reply validation used to accept only the padded form, so every value of that
-printer came back `None` ("Invalid response for OID ..."), including the
-Power-off timer. It now accepts either form: what it requires is the `0x0C`
-terminator and a `name:...;` element, the same rule the USB library uses. A
-truncated or unrelated reply is still rejected.
-
-The same printer also answers *bare* blocks, with no `@BDC PS` header at all: the
-fifth ink slot (an XP-205 has four) replies `b'ii:NA;\x0C'`, and a read it
-refuses answers `b'||:41:NA;\x0C'`. Two consequences are fixed: the framing check
-now looks for its `name:...;` element anywhere in the reply, and the cartridge
-loop tests "this slot is empty" *before* "this reply is malformed". The order
-mattered: the bare `ii:NA;` was declared invalid, so the whole cartridge list was
-abandoned with `Invalid cartridge response` logged, on a printer that had just
-listed its four cartridges.
-
-A `:NA;` reply is an *answer*, not a malformed one: it is the printer saying no.
-It is therefore no longer logged as `Invalid response`, which matters most for
-`Detect Access Keys`: that brute force sends 65536 keys, and every wrong one is
-answered this way, so the run used to log an error per attempt. A wrong key now
-reports `Invalid read key` at info level and the value is `None`, as before.
-
-A **write** is confirmed with the same shape, with the write opcode in the
-middle: `b'||:42:OK;\x0C'` (measured on the same printer, whose refusals are
-`b'||:41:NA;\x0C'`). Requiring an element with a single colon made that
-confirmation "invalid", so a write the printer had carried out was reported as
-failed — and `Detect Access Keys`, which validates the write key by writing the
-last byte of the serial number and putting it back, stopped after that test
-write: the message *"Write operation failed. Check whether the serial number is
-changed and restore it manually"* with the serial left one character off
-(`QJFK135617` -> `QJFK135618`). The check now accepts a colon inside the element,
-and the restore is retried and verified before the operation is called failed.
-
-`Set Printer Serial Number` — and the WiFi MAC address, which is written the same
-way — wrote **only the first cell** of the parameter and then reported success:
-`update_parameter()` returned from inside its own loop, so a ten-character serial
-number got one character written and the value looked unchanged, on both
-transports (the loop is transport-independent). It now writes every address and
-answers True only when all of them are accepted; verified on an XP-205 over SNMP
-and USB, where the ten cells were written, the value changed and then restored.
-
-The write methods of the power-off timer, the received time and the waste reset
-already wrote all their cells and checked each one. What did not check anything
-was the GUI: the buttons for those two timers, for *Write EEPROM* and for the
-waste reset reported "Update operation completed" regardless of the answer, and
-*Write EEPROM* said nothing at all when a cell was refused (it returned from the
-handler in silence). All four now report the failure, naming the address that
-failed where they can, and a refused write is logged at warning level so the
-printer's answer is visible at the default log level.
-On Windows, the two reports so far needed no driver replacement (no Zadig).
-On an L3250 with pyusb/libusb, interfaces 0 and 1 could not be claimed but
-interface 2 (class 255, vendor-specific) could, and the Epson driver kept
-working ([#35](https://github.com/Ircama/epson_print_conf/issues/35#issuecomment-5460694144)).
-On an L3251, the D4 channel was opened without libusb through the Windows
-`USBPRINT` device interface, using only the Python standard library
-([epson-l3251-usb-reset](https://github.com/onur-kesim/epson-l3251-usb-reset)).
-Neither report covers other models.
-
-A separate proof-of-concept, [ez-reset](https://github.com/CiRIP/ez-reset), implements USB access to the D4 `EPSON-CTRL` service through the native Windows `USBPRINT.sys` device interface, without replacing the Epson driver and without requiring Zadig, WinUSB, or libusb.
+"Temporary Reset Waste Ink Levels" also works over SNMP on these printers: the
+`rw` command needs only the printer serial number, and the status block reports
+it in plain text even when the EEPROM is locked.
 
 ### Using the command-line tool
 
