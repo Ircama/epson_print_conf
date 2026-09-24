@@ -287,6 +287,29 @@ it so the next command opens a fresh one, and gives up with a message when
 silence continues — a scan of 65536 attempts is not the place to discover that
 the cable is not connected.
 
+## Tests
+
+Everything runs without hardware:
+
+```console
+python -m unittest discover -s epson_usb/tests -t .
+python epson_usb/tests/mutant_run.py     # proves the suite would catch a porting mistake
+```
+
+They all rest on the `mock` backend: an in-memory printer that consumes the same
+bytes a real one receives and produces the same framing back, so the protocol
+code under test never learns that it is talking to a fake.
+
+| file | what it pins |
+| --- | --- |
+| `tests/test_epson_usb.py` | the package's own behaviour: sessions, keys, safety gates, the EEPROM convention, backups, the upstream bridge, the OID bridge (`OidBridgeTests`) and end-to-end parity between the USB and SNMP envelopes (`TransportParityTests`). |
+| `tests/test_fidelity.py` | that this is a *port*: it replays the historical implementation frozen in `tests/referans/` against the same fake printer and compares key agreement, handshake packets, frame builders and golden hex. |
+| `tests/mutant_run.py` | that the suite is not vacuous: it flips the counter's byte order and the write frame's byte order, expects the suite to go red both times, and restores the files byte for byte. |
+
+Both transports are driven through the same printer in `TransportParityTests`:
+the question is never "does USB work?" but "does USB ask the printer exactly
+what the network transport asked, and get the same answer?".
+
 ## What does not work over USB
 
 * **Plain MIB queries** (`get_snmp_info()`, the model/MAC/power-off values the

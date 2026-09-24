@@ -51,10 +51,15 @@ for path in (REPO_ROOT, HERE):
         sys.path.insert(0, path)
 
 from epson_usb import EpsonUsbPrinter
-from epson_usb.backends.mock import MockConfig, MockPrinter, MockTransport
+from epson_usb.backends.mock import (
+    MOCK_SERIAL,
+    MockConfig,
+    MockPrinter,
+    MockTransport,
+)
 from epson_usb.eeprom import decode_counter, percentage
 from epson_usb.errors import EepromError
-from epson_usb.epson_ctrl import eeprom_read_frame, parse_snmp_oid
+from epson_usb.epson_ctrl import eeprom_read_frame, parse_snmp_oid, snmp_oid
 
 #: The keys and addresses the fake printer is told to imitate below. They are
 #: *not* model data of the library: they are arguments of this test file, which
@@ -776,6 +781,181 @@ class APrinterThatSkipsTheLeadingNulTests(unittest.TestCase):
         finally:
             printer.close()
         self.assertEqual(fake.eeprom_writes, [])
+
+
+class OidBridgeTests(unittest.TestCase):
+    """The OID dialect is the door a host program comes in through.
+
+    ``snmp_oid()`` and ``parse_snmp_oid()`` are the two directions of the
+    translation between an EPSON-CTRL frame and the OID an SNMP agent would
+    carry it in. They must undo each other, and the OID they produce must be the
+    one ``epson_print_conf.EpsonPrinter.epctrl_snmp_oid()`` builds: that is what
+    lets a host that already speaks SNMP reach the printer over a cable without
+    changing a line of its own code.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import epson_print_conf
+        except Exception as exc:                 # pragma: no cover
+            raise unittest.SkipTest("epson_print_conf is not importable: %s" % exc)
+        cls.host = epson_print_conf
+        config = getattr(epson_print_conf.EpsonPrinter, "PRINTER_CONFIG", {}) or {}
+        cls.known = next(
+            (name for name, entry in config.items()
+             if isinstance(entry, dict) and "read_key" in entry),
+            None,
+        )
+        if cls.known is None:                    # pragma: no cover
+            raise unittest.SkipTest("upstream configures no model with a read_key")
+
+    def test_parse_snmp_oid_is_the_inverse_of_snmp_oid(self):
+        for command, payload in (
+            ("||", bytes([0x4A, 0x36, 0x41, 0xBE, 0xA0, 0x30, 0x00])),
+            ("||", bytes([0x4A, 0x36, 0x42, 0xBD, 0x21, 0x30, 0x00, 0x11])),
+            ("st", b"\x01"),
+            ("ia", b"\x00"),
+        ):
+            with self.subTest(command=command, payload=payload):
+                oid = snmp_oid(command, payload)
+                name, parsed = parse_snmp_oid(oid)
+                self.assertEqual(name, command)
+                self.assertEqual(parsed, payload)
+
+    def test_the_oid_is_the_one_the_host_program_builds(self):
+        printer = self.host.EpsonPrinter(model=self.known)
+        for command, payload in (("||", b"\x41\xbe\xa0\x30\x00"),
+                                 ("st", b"\x01"),
+                                 ("ia", b"\x00"),
+                                 ("ii", b"\x01\x01")):
+            with self.subTest(command=command):
+                # The host takes a two-character command and its payload; the
+                # library takes the same two, so the two strings must match.
+                self.assertEqual(
+                    snmp_oid(command, payload),
+                    printer.epctrl_snmp_oid(command, list(payload)),
+                )
+
+
+class TransportParityTests(unittest.TestCase):
+    """The two transports must drive the printer identically.
+
+    ``MockPrinter.execute()`` is what a printer's SNMP agent does with the
+    payload of an EPSON-CTRL OID, so one fake printer can answer both envelopes.
+    The host program is driven over USB once and through that SNMP-shaped door
+    once, and the frames that reach the printer are compared: same commands,
+    same order, same bytes, same answers. That is the "1:1 usable" claim of
+    ``compat.py``, measured rather than asserted.
+    """
+
+    OPERATIONS = (
+        ("read_eeprom 0x30", lambda p: p.read_eeprom(0x30)),
+        ("read_eeprom list", lambda p: p.read_eeprom([0x30, 0x31])),
+        ("get_cartridges", lambda p: p.get_cartridges()),
+        ("get_printer_status", lambda p: p.get_printer_status() is not None),
+        ("get_firmware_version", lambda p: p.get_firmware_version()),
+        ("get_serial_number", lambda p: p.get_serial_number()),
+        ("write_eeprom", lambda p: p.write_eeprom(0x1C, 0x11)),
+        ("temporary_reset_waste", lambda p: p.temporary_reset_waste()),
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import epson_print_conf
+        except Exception as exc:                 # pragma: no cover
+            raise unittest.SkipTest("epson_print_conf is not importable: %s" % exc)
+        cls.host = epson_print_conf
+        config = getattr(epson_print_conf.EpsonPrinter, "PRINTER_CONFIG", {}) or {}
+        cls.known = next(
+            (name for name, entry in config.items()
+             if isinstance(entry, dict) and "read_key" in entry),
+            None,
+        )
+        if cls.known is None:                    # pragma: no cover
+            raise unittest.SkipTest("upstream configures no model with a read_key")
+        # Constructing one touches no hardware (a test below pins that); it is
+        # only needed here to read where the model keeps its serial number.
+        cls.probe = epson_print_conf.EpsonPrinter(model=cls.known)
+
+    def usb_printer(self, fake):
+        """The host class with USB as its transport (the mixin)."""
+        from epson_usb.compat import usb_printer
+
+        return usb_printer(self.host.EpsonPrinter)(
+            model=self.known, transport=MockTransport(printer=fake)
+        )
+
+    def snmp_printer(self, fake):
+        """The host class with the fake printer as its SNMP agent.
+
+        Same OID in, same frame delivered to the printer, same answer out: this
+        is the envelope a real network printer's agent provides. Lists are
+        answered in order, which is what the host's own method does.
+        """
+        printer = self.host.EpsonPrinter(model=self.known, hostname="unused")
+
+        def fetch_one(oid):
+            name, payload = parse_snmp_oid(oid)
+            frame = (
+                name.encode("ascii")
+                + len(payload).to_bytes(2, "little")
+                + payload
+            )
+            return [("OctetString", fake.execute(frame))]
+
+        def fake_fetch(oid, label="unknown"):
+            if isinstance(oid, (list, tuple)):
+                out = []
+                for element in oid:
+                    out.extend(fake_fetch(element, label=label))
+                return out
+            return fetch_one(oid)
+
+        printer.fetch_oid_values = fake_fetch
+        return printer
+
+    def serial_cells(self):
+        """Put the mock serial where *this model* keeps its serial number.
+
+        The host reads it from ``parm["serial_number"]``, which is the model's
+        business (it comes from the configuration, not from the transport), so
+        both fakes are given the same cells: otherwise the two paths would ask
+        the printer different questions and the comparison would be about the
+        model table rather than about the transport.
+        """
+        parameter = (self.probe.parm or {}).get("serial_number")
+        ranges = [parameter] if isinstance(parameter, range) else [
+            r for r in (parameter or []) if isinstance(r, range)
+        ]
+        cells = {}
+        for address_range in ranges:
+            if len(address_range) == len(MOCK_SERIAL):
+                cells.update(
+                    {a: ord(c) for a, c in zip(address_range, MOCK_SERIAL)}
+                )
+        return cells
+
+    def test_both_envelopes_deliver_the_same_frames_and_answers(self):
+        cells = self.serial_cells()
+        for name, operation in self.OPERATIONS:
+            with self.subTest(operation=name):
+                usb_fake = fake_printer(cells=dict(cells))
+                snmp_fake = fake_printer(cells=dict(cells))
+                usb = self.usb_printer(usb_fake)
+                snmp = self.snmp_printer(snmp_fake)
+                try:
+                    usb_answer = operation(usb)
+                    snmp_answer = operation(snmp)
+                finally:
+                    usb.close()
+                self.assertEqual(usb_answer, snmp_answer)
+                self.assertEqual(usb_fake.frames, snmp_fake.frames)
+                self.assertTrue(usb_fake.frames, "nothing reached the printer")
+                self.assertEqual(
+                    usb_fake.eeprom_writes, snmp_fake.eeprom_writes
+                )
 
 
 class WriteKeyValidationTests(unittest.TestCase):

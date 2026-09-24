@@ -29,9 +29,11 @@ parses the OID back into bytes:
 Nothing else in the upstream class is touched: the EEPROM address tables, the
 status decoder, the waste-level arithmetic, the service commands and every
 call site above them keep running upstream's own code. That is what
-"1:1 usable" means here, and ``testler/test_uyumluluk.py`` measures it -- both
+"1:1 usable" means here, and ``tests/test_epson_usb.py`` measures it -- both
 transports are driven against the same fake printer and their byte streams and
-results are compared.
+results are compared (``TransportParityTests``). The same file's
+``OidBridgeTests`` covers the OID side of the bridge, and
+``tests/test_fidelity.py`` covers the port's byte-level fidelity.
 
 Two hooks, and no data
 ----------------------

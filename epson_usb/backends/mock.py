@@ -13,8 +13,8 @@ meaningful:
   framing bug cannot be hidden by a permissive mock;
 * the *historical* implementation (``epson_l3251_usb_reset.py`` before it grew
   a library) can be pointed at the same fake by patching its two I/O
-  functions, which is how ``testler/test_eski_yeni_esdeger.py`` proves the
-  library is a faithful port rather than a rewrite.
+  functions, which is how ``tests/test_fidelity.py`` proves the library is a
+  faithful port rather than a rewrite.
 
 Only behaviours that are documented (or measured) are implemented. Corners
 nobody has measured are deliberately answered with ``:NA;`` instead of a

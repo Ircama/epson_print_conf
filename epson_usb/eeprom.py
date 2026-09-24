@@ -22,8 +22,9 @@ Big-endian calls both readings "full" and cannot explain the error clearing.
 
 The historical standalone tool decoded this in two separate places, so a
 mutated big-endian copy could stay green in one of them. Here there is exactly
-one function, :func:`decode_counter`, and ``testler/mutant_kos.py`` proves that
-flipping it turns the whole suite red.
+one function, :func:`decode_counter`, and ``epson_usb/tests/mutant_run.py``
+proves that flipping it (or the write frame's byte order) turns the whole suite
+red. Run it with ``python epson_usb/tests/mutant_run.py``.
 """
 
 from __future__ import annotations

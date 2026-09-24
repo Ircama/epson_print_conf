@@ -18,9 +18,10 @@ Because the two directions are a bijection, a program written against the
 SNMP transport can keep building OIDs untouched, and this package can parse
 the OID back into the exact bytes the USB link has to carry:
 :func:`parse_snmp_oid` is the inverse of :func:`snmp_oid`, and
-``testler/test_uyumluluk.py`` checks that against the real
+``epson_usb/tests/test_epson_usb.py`` checks that against the real
 ``epson_print_conf.EpsonPrinter.epctrl_snmp_oid`` whenever that package is
-importable.
+importable (``OidBridgeTests``), plus end-to-end OID parity with the SNMP
+transport (``TransportParityTests``).
 
 The EEPROM access frame (``||``) is documented in the Epson LX-300+II /
 LX-1170II service manuals (single-byte form) and reproduced, in the two-byte

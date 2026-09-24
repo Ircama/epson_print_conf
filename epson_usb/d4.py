@@ -3,9 +3,11 @@
 This module is a direct port of the D4 code that was verified on hardware
 (an Epson L3251 over USB on Windows, 2026-08-28 / 2026-09-04). Every byte
 written, every timeout and the order of the handshake steps are preserved on
-purpose: :mod:`testler.test_eski_yeni_esdeger` replays the *historical*
-implementation against the *historical* mock printer and asserts that this
-port produces an identical byte stream.
+purpose: :mod:`epson_usb.tests.test_fidelity` replays the *historical*
+implementation (frozen in ``epson_usb/tests/referans/``) against the
+*historical* mock printer and asserts that this port produces an identical byte
+stream -- the same key agreement, handshake packets, frame builders and golden
+hex.
 
 The protocol, in the order a session performs it:
 
