@@ -91,6 +91,9 @@ blib2to3_data = collect_data_files('blib2to3')
 epson_usb_submodules = [
     name for name in collect_submodules('epson_usb')
     if not name.startswith('epson_usb.tests')
+] + [
+    # Our own bridge to that library: the USB-capable EpsonPrinter subclass.
+    'epson_usb_bridge',
 ]
 
 a = Analysis(

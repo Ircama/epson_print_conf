@@ -3306,9 +3306,17 @@ def get_printer_models(input_string):
     return processed_tokens
 
 
+#: The SNMP class: ``enable_usb_transport()`` keeps it here when it replaces
+#: :class:`EpsonPrinter` with the USB-capable subclass (before that, the two
+#: names are the same class).
+NetworkEpsonPrinter = None
+
+
 def usb_library_available() -> bool:
+    """Is the USB transport usable here (the library, plus our local bridge)?"""
     try:
-        import epson_usb.compat  # noqa: F401
+        import epson_usb.printer  # noqa: F401  the library (PyPI: epson-usb)
+        import epson_usb_bridge  # noqa: F401  the bridge, next to this file
     except Exception:
         return False
     return True
@@ -3322,15 +3330,11 @@ def usb_transport_warning():
         if sys.version_info < (3, 10):
             return (
                 "The USB library (PyPI: epson-usb) is not installed: USB cannot"
-                " be selected. Its distribution declares Python 3.10 because"
-                " that is the oldest interpreter its test suite runs on; the"
-                " library itself runs here, so install it with 'pip install"
-                " --ignore-requires-python epson-usb'."
+                " be selected."
             )
         return (
             "The USB library (PyPI: epson-usb) is not installed: USB cannot be"
-            " selected. Install it with 'pip install epson-usb' (it declares"
-            " Python 3.10 or later)."
+            " selected. Install it with 'pip install epson-usb'."
         )
     if sys.platform == "win32":
         return None
@@ -3356,10 +3360,16 @@ def enable_usb_transport(params=None):
     """Let printers be reached over USB (IEEE 1284.4 / D4) instead of SNMP.
 
     Replaces this module's :class:`EpsonPrinter` with the USB-capable subclass
-    built by ``epson_usb.compat`` and returns it. Everything that does
+    built by :mod:`epson_usb_bridge` and returns it. Everything that does
     ``from epson_print_conf import EpsonPrinter`` *after* this call -- the GUI,
     find_printers.py, parse_devices.py -- follows automatically, because they
-    bind the name this module exposes.
+    bind the name this module exposes. The SNMP class stays reachable as
+    ``NetworkEpsonPrinter``.
+
+    The substitution happens here, on this module's own class object: the
+    bridge receives the class instead of looking the module up by name, so the
+    copy of this file running as ``__main__`` (``python epson_print_conf.py
+    --usb``) switches exactly like an imported one.
 
     ``epson_usb`` is the PyPI package ``epson-usb``. A caller
     that knows a model this file does not can pass ``params={name: parm}`` --
@@ -3370,16 +3380,17 @@ def enable_usb_transport(params=None):
     Needed for the models whose firmware locks the EEPROM over SNMP: on those,
     the EPSON-CTRL commands still work over a USB cable.
     """
-    global EpsonPrinter
+    global EpsonPrinter, NetworkEpsonPrinter
     try:
-        from epson_usb.compat import UsbEpsonPrinterMixin, patch_epson_print_conf
+        from epson_usb_bridge import UsbEpsonPrinterMixin, usb_printer
     except ImportError:
         return EpsonPrinter
     if issubclass(EpsonPrinter, UsbEpsonPrinterMixin):
         return EpsonPrinter                              # already enabled
-    # No module argument: the bridge resolves this module by name, which is
-    # this one (it is already being imported).
-    EpsonPrinter = patch_epson_print_conf(params=params)
+    # Built from this module's class: no module to resolve by name, and the
+    # network class is what this very object was a moment ago.
+    NetworkEpsonPrinter = EpsonPrinter
+    EpsonPrinter = usb_printer(NetworkEpsonPrinter, params=params)
     return EpsonPrinter
 
 

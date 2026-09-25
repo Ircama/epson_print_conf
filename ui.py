@@ -42,7 +42,7 @@ from text_console import TextConsole
 from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
-VERSION = "8.1.0"
+VERSION = "8.1.1"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address (not needed in USB"
@@ -1800,10 +1800,10 @@ Web site: https://github.com/Ircama/epson_print_conf
         """The ``EpsonPrinter`` class matching the selected transport.
 
         In SNMP mode this is the class imported at the top of this module. In
-        USB mode it is the subclass built by :mod:`epson_usb.compat`, which
+        USB mode it is the subclass built by :mod:`epson_usb_bridge`, which
         overrides the single method every printer access goes through
         (``fetch_oid_values``) and puts the EPSON-CTRL frame on the USB cable
-        instead of inside an SNMP request. The patch is idempotent, and the
+        instead of inside an SNMP request. The switch is idempotent, and the
         SNMP class stays reachable as ``epson_print_conf.NetworkEpsonPrinter``.
         """
         if not self.usb_mode():
