@@ -270,7 +270,7 @@ Other menu options allow to filter or clean up the configuration list, as well a
 
   If the printer is not listed in the configuration or is not manageable, press *Detect Access Keys.* This process may take several minutes to complete.
 
-  - If the message *"Could not detect read_key."* appears at the end, it means the printer cannot be controlled with the current software version (refer to "Known Incompatible Models" below).
+  - If the message *"Could not detect read_key."* appears at the end, it means the printer cannot be controlled with the current software version (refer to "Models with known SNMP EEPROM access limitations" below).
 
   - If no errors are reported in the output, proceed by pressing *Detect Configuration.*
 
@@ -307,7 +307,7 @@ The GUI displays a `[NOTE]` in the status box before performing any change, spec
 
 It is recommended to copy the status history and keep it in a safe place after making changes, so that a reverse operation can be performed when needed.
 
-### Known incompatible models
+### Models with known SNMP EEPROM access limitations
 
 Many recent printer models — and older models that received a firmware update — disable EEPROM access over the network for security reasons: the read/write key and the related algorithm no longer work over SNMP. Such printers generally keep accepting the same commands over the USB cable, through the IEEE 1284.4 (D4) `EPSON-CTRL` service, so reconfiguration has to be done over USB. This is why epson_print_conf lets the transport be chosen: TCP/IP (SNMP) or USB.
 

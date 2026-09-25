@@ -1837,31 +1837,91 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.usb_selected.set(False)
             return EpsonPrinter
 
+    #: One line per feature button: what the button does. It is the tooltip
+    #: while the button is enabled; a button that is off shows why it is off
+    #: instead (set_feature_state()).
+    FEATURE_TOOLTIPS = (
+        ("status_button",
+         "Read the printer status: ink and maintenance box levels,"
+         " paper, errors."),
+        ("web_interface_button",
+         "Open the printer web interface in the browser."),
+        ("clean_nozzles_button",
+         "Run a nozzle cleaning cycle on the selected group, optionally with a"
+         " power clean."),
+        ("print_tests_button",
+         "Print the nozzle check, the colour pattern and the paper-feed"
+         " tests."),
+        ("detect_configuration_button",
+         "Read the printer values and dump the EEPROM, then list the addresses"
+         " where each value is stored."),
+        ("detect_access_key_button",
+         "Brute-force the read_key, then validate the write_key against the"
+         " serial number."),
+        ("temp_reset_ink_waste_button",
+         "Temporarily reset the ink waste counter (until the next power cycle),"
+         " with the rw service command."),
+        ("detect_button",
+         "Search for printers: SNMP broadcast over the network, or the USB"
+         " devices found on this machine."),
+        ("read_eeprom_button",
+         "Read a list of EEPROM addresses."),
+        ("write_eeprom_button",
+         "Write values to EEPROM addresses."),
+        ("reset_button",
+         "Reset the ink waste counters to zero, writing every cell the printer"
+         " model keeps them in."),
+    )
+
+    def restore_feature_tooltips(self):
+        """Give every feature button the description of what it does.
+
+        A button that is off may be showing the reason instead, so the
+        descriptions are re-applied at every refresh, before the gating below
+        decides which buttons stay on.
+        """
+        self._feature_descriptions = {}
+        for attribute, description in self.FEATURE_TOOLTIPS:
+            widget = getattr(self, attribute, None)
+            if widget is None:
+                continue
+            self._feature_descriptions[widget] = description
+            ToolTip(widget, description)
+
+    def feature_tooltip(self, widget, warning: str = "") -> str:
+        """The description of a feature, with a warning appended when given."""
+        description = getattr(self, "_feature_descriptions", {}).get(widget, "")
+        return (description + " " + warning).strip() if warning else description
+
     def set_feature_state(self, widget, enabled: bool, why: str = ""):
-        """Enable or disable a feature button, explaining why when it is off."""
+        """Enable or disable a feature button, explaining why when it is off.
+
+        An enabled button carries the description of what it does; a disabled
+        one carries the reason it cannot be used here, which is what a user
+        who just selected the wrong transport needs to read.
+        """
+        description = getattr(self, "_feature_descriptions", {}).get(widget, "")
         if enabled:
             widget.state(["!disabled"])
-            ToolTip(widget, "")
+            ToolTip(widget, description)
         else:
             widget.state(["disabled"])
-            ToolTip(widget, why)
+            ToolTip(widget, why or description)
 
     def change_widget_states(self, index=None, value=None, op=None):
         """
         Enable or disable buttons when the transport, the IP address and the
         printer model change
         """
+        # Every feature button starts from the description of what it does; the
+        # gating below replaces it with the reason when a button is switched
+        # off. The timer entries keep their own tooltips, set where they are
+        # gated.
+        self.restore_feature_tooltips()
         ToolTip(self.get_ti_received, "")
         ToolTip(self.get_po_minutes, "")
         ToolTip(self.get_mac_addr, "")
         ToolTip(self.set_mac_addr, "")
-        ToolTip(self.read_eeprom_button, "")
-        ToolTip(self.detect_configuration_button, "")
-        ToolTip(self.clean_nozzles_button, "")
-        ToolTip(self.print_tests_button, "")
-        ToolTip(self.temp_reset_ink_waste_button, "")
-        ToolTip(self.write_eeprom_button, "")
-        ToolTip(self.reset_button, "")
         # Resolve the transport first: requesting a class whose library is not
         # available falls back to SNMP, and the gating below has to know which
         # transport is really in use.
@@ -1879,8 +1939,8 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_button.state(["!disabled"])
             self.set_feature_state(
                 self.web_interface_button, not usb,
-                "Not available in USB mode: the printer web interface is"
-                " reached over the network (TCP/IP)."
+                "The printer web interface is reached over the network: select"
+                " TCP/IP (SNMP) to open it in the browser."
             )
             self.set_feature_state(self.detect_access_key_button, True)
             self.printer = None
@@ -1953,24 +2013,29 @@ Web site: https://github.com/Ircama/epson_print_conf
                     # configuration detection reads SNMP-only MIB values.
                     self.set_feature_state(
                         self.clean_nozzles_button, not usb,
-                        "Not available in USB mode: cleaning the nozzles prints"
-                        " through LPR, so it needs the network (TCP/IP)."
+                        "Cleaning the nozzles prints through LPR over the"
+                        " network: select TCP/IP, or clean the nozzles from the"
+                        " printer's own queue."
                     )
                     self.set_feature_state(
                         self.print_tests_button, not usb,
-                        "Not available in USB mode: the print tests are sent"
-                        " through LPR, so they need the network (TCP/IP)."
+                        "The print tests are sent through LPR over the network:"
+                        " select TCP/IP, or print from the printer's own queue."
                     )
-                    self.set_feature_state(
-                        self.detect_configuration_button, not usb,
-                        "Not available in USB mode: this feature reads"
-                        " SNMP-only values (model, power-off timer, MAC address)."
-                    )
+                    # Detect Configuration works over either transport: the
+                    # model, the power-off timer and the MAC address come from
+                    # the MIB over SNMP and from the device identification and
+                    # the EEPROM over USB (see the handler).
+                    self.set_feature_state(self.detect_configuration_button, True)
                 if "write_key" in self.printer.parm:
                     self.write_eeprom_button.state(["!disabled"])
                     ToolTip(
                         self.write_eeprom_button,
-                        "Ensure you really want this before pressing this key."
+                        self.feature_tooltip(
+                            self.write_eeprom_button,
+                            "Ensure you really want this before pressing this"
+                            " key."
+                        )
                     )
 
             if self.printer.parm.get("stats", {}).get("Power off timer"):
@@ -2033,7 +2098,10 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.reset_button.state(["!disabled"])
                 ToolTip(
                     self.reset_button,
-                    "Ensure you really want this before pressing this key."
+                    self.feature_tooltip(
+                        self.reset_button,
+                        "Ensure you really want this before pressing this key."
+                    )
                 )
             else:
                 self.reset_button.state(["disabled"])
@@ -3902,15 +3970,6 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.after(100, lambda: method_to_call(cursor=False))
             return
         self.show_status_text_view()
-        if self.usb_mode():
-            self.status_text.insert(
-                tk.END, '[ERROR] This feature detects the configuration from'
-                ' SNMP-only values (model, power-off timer, MAC address):'
-                ' select TCP/IP instead of USB.\n', 'error'
-            )
-            self.config(cursor="")
-            self.update_idletasks()
-            return
         ip_address = self.ip_var.get()
         if not self._connection_ready(ip_address):
             self.status_text.insert(tk.END, '[ERROR]', "error")
@@ -3923,7 +3982,8 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f" Reading Printer SNMP values...\n"
+            " Reading the printer values (MIB over SNMP, device"
+            " identification and EEPROM over USB)...\n"
         )
         try:
             stats = self.printer.stats()
@@ -3932,7 +3992,14 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.config(cursor="")
             self.update_idletasks()
             return False
-        if not "snmp_info" in stats:
+        # Over SNMP the model, the power-off timer and the MAC address are read
+        # from the MIB. Over USB there is no MIB: the same values come from the
+        # IEEE 1284 device identification (the model) and from the EEPROM, at
+        # the addresses the selected model declares (the timer and the MAC).
+        # Whatever is still missing is reported entry by entry below, not as a
+        # failure of the whole operation.
+        snmp_info = stats.get("snmp_info") or {}
+        if not snmp_info and not self.usb_mode():
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
@@ -3993,9 +4060,14 @@ Web site: https://github.com/Ircama/epson_print_conf
             conf_data["brand_name[%s]" % c] = range(i, i + 64)
             c += 1
 
-        if "Model" in stats["snmp_info"] and stats["snmp_info"]["Model"]:
+        # The model string: from the MIB over SNMP, from the IEEE 1284 device
+        # identification over USB.
+        model_string = snmp_info.get("Model") or (
+            (stats.get("device_identification") or {}).get("Model") or [None]
+        )[0]
+        if model_string:
             model_name = [
-                val for char in stats["snmp_info"]["Model"] for val in (ord(char), 0)
+                val for char in model_string for val in (ord(char), 0)
             ]
             model_name.extend([0] * (64 - len(model_name)))
             result = detect_sequence(eeprom, model_name)
@@ -4014,21 +4086,28 @@ Web site: https://github.com/Ircama/epson_print_conf
             conf_data["serial_number[%s]" % c] = range(i.start(), i.end())
             c += 1
 
-        if "Power Off Timer" in stats["snmp_info"] and stats["snmp_info"]["Power Off Timer"]:
-            matches = re.findall(r'\d+', stats["snmp_info"]["Power Off Timer"])
+        # The minutes to look for: from the MIB over SNMP, from the printer's
+        # own EEPROM over USB (the model configuration knows the address).
+        po_mins = None
+        po_answer = snmp_info.get("Power Off Timer")
+        if po_answer:
+            matches = re.findall(r'\d+', po_answer)
             if matches:
                 po_mins = int(matches[0])
-                msb = po_mins // 256
-                lsb = po_mins % 256
-                result = detect_sequence(eeprom, (lsb, msb))
-                c = 0
-                for i in result:
-                    conf_data["po_time[%s]" % c] = [i + 1, i]
-                    c += 1
-            else:
-                conf_data["po_time"] = None
-        else:
+        if po_mins is None:
+            po_value = (stats.get("stats") or {}).get("Power off timer")
+            if isinstance(po_value, int):
+                po_mins = po_value
+        if po_mins is None:
             conf_data["po_time"] = None
+        else:
+            msb = po_mins // 256
+            lsb = po_mins % 256
+            result = detect_sequence(eeprom, (lsb, msb))
+            c = 0
+            for i in result:
+                conf_data["po_time[%s]" % c] = [i + 1, i]
+                c += 1
 
         result = detect_sequence(eeprom, [94])
         c = 0
@@ -4036,9 +4115,14 @@ Web site: https://github.com/Ircama/epson_print_conf
             conf_data["Maintenance required level[%s]" % c] = [i]
             c += 1
 
-        if "MAC Address" in stats["snmp_info"] and stats["snmp_info"]["MAC Address"]:
-            mac = self.mac_to_int_list(stats["snmp_info"]["MAC Address"])
-            result = detect_sequence(eeprom, mac)
+        # Same two sources as the power-off timer: the MIB over SNMP, the
+        # printer's own EEPROM over USB. mac_to_int_list() accepts the dashed
+        # form the EEPROM read returns.
+        mac_values = self.mac_to_int_list(
+            snmp_info.get("MAC Address") or stats.get("wifi_mac_address") or ""
+        )
+        if mac_values:
+            result = detect_sequence(eeprom, mac_values)
             c = 0
             for i in result:
                 conf_data["wifi_mac_address[%s]" % c] = range(i, i + 6)
