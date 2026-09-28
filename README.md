@@ -329,6 +329,32 @@ For the following models, EEPROM access over SNMP is known not to work:
 `rw` command needs only the printer serial number, and the status block reports
 it in plain text even when the EEPROM is locked.
 
+### Writes are verified by reading the cell back
+
+A `:OK;` answer from the printer is not proof that a byte changed. Some firmware
+(measured on an [XP-950 with firmware PG20IB](https://github.com/Ircama/epson_print_conf/issues/133))
+accepts *any* write key — including a deliberately invalid one — and answers
+`||:42:OK;` while discarding the value, so a write that changed nothing used to
+be reported as a success (and `--reset_waste_ink` claimed to have reset a
+counter it had not touched).
+
+Every byte written through `write_eeprom()` is therefore read back and compared
+with the value asked for; a mismatch is reported as a failure, whatever the
+status code said. This costs one extra round trip per byte. Pass
+`--no-verify-writes` (or construct the printer with `verify_writes=False`) to
+skip the check on firmware known to commit writes. On a printer whose EEPROM
+writes are locked, use `--temp_reset_waste_ink` instead: the `rw` command needs
+no key and genuinely commits.
+
+Because the value is also read *before* the write, the GUI can tell the two
+outcomes apart instead of calling both of them "completed": an operation that
+really changed something reports the new values (`New EEPROM values: 358: 15 ->
+60`), while one whose cells already held the requested value is reported as
+`Nothing to write: <value> already had the requested value (…); no cell was
+changed`. The second message is what a no-op write looks like — writing the same
+value the printer already had, or a write key the firmware quietly ignores —
+and it is the one to look for when a change appears not to take effect.
+
 ### Using the command-line tool
 
 ```
@@ -360,6 +386,11 @@ Optional arguments:
   --write-poweroff-timer MINUTES
                         Update the poweroff timer. Use 0xffff or 65535 to disable it.
   --dry-run             Dry-run change operations
+  --no-verify-writes    Do not read EEPROM cells back after writing them. By default every
+                        written byte is read back and compared, because some firmware
+                        answers ":OK;" to any write (even with a wrong key) while
+                        discarding the value; disabling the check saves one round trip per
+                        byte but trusts the status code.
   -R ADDRESS_SET, --read-eeprom ADDRESS_SET
                         Read the values of a list of printer EEPROM addreses. Format is:
                         address [, ...]

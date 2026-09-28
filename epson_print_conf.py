@@ -8,7 +8,7 @@ Epson Printer Configuration via SNMP (TCP/IP)
 import itertools
 from itertools import chain
 import re
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 import datetime
 import time
 import textwrap
@@ -211,7 +211,7 @@ class EpsonPrinter:
         },
         "L355": {
             "read_key": [65, 9],
-            "write_key": b"Wakatobi",
+            "write_key": b'Wakatobi',
             "main_waste": {"oids": [24, 25, 30], "divider": 65.0},
             "raw_waste_reset": {24: 0, 25: 0, 30: 0, 28: 0, 29: 0, 46: 94},
             "stats": {
@@ -1049,6 +1049,13 @@ class EpsonPrinter:
     mib_dict: dict = {}
     used_net_val: tuple = ()
     snmp_conf: object = None
+    #: Read every written cell back and compare it with the value asked for.
+    #: A `:OK;` answer is not proof that the byte changed: some firmware
+    #: (measured on an XP-950, firmware PG20IB) accepts *any* write key --
+    #: including a deliberately invalid one -- and answers `||:42:OK;` while
+    #: discarding the value, so a write that changed nothing was reported as a
+    #: success. See :meth:`write_eeprom`.
+    verify_writes: bool = True
 
     def __init__(
             self,
@@ -1057,9 +1064,10 @@ class EpsonPrinter:
             model: str = None,
             hostname: str = None,
             port: int = 161,
-            timeout: (None, float) = None,
-            retries: (None, float) = None,
-            dry_run: bool = False
+            timeout: Optional[float] = None,
+            retries: Optional[float] = None,
+            dry_run: bool = False,
+            verify_writes: bool = True
         ) -> None:
         """Initialise printer model."""
         def merge(source, destination):
@@ -1098,6 +1106,7 @@ class EpsonPrinter:
         self.timeout = timeout
         self.retries = retries
         self.dry_run = dry_run
+        self.verify_writes = verify_writes
         if self.model in self.valid_printers:
             self.parm = self.PRINTER_CONFIG[self.model]
         else:
@@ -1605,8 +1614,27 @@ class EpsonPrinter:
             self,
             oid: int,
             value: int,
-            label: str = "unknown method") -> None:
-        """Write a single byte 'value' to the Epson EEPROM address 'oid'."""
+            label: str = "unknown method",
+            report: Optional[list] = None) -> bool:
+        """Write a single byte 'value' to the Epson EEPROM address 'oid'.
+
+        A `:OK;` answer is *not* proof that the byte changed. Some firmware
+        (measured on an XP-950, firmware PG20IB) accepts any write key --
+        including a deliberately invalid one -- and answers `||:42:OK;` while
+        discarding the value, so a write that changed nothing was reported as a
+        success and `--reset_waste_ink` claimed to have reset a counter it had
+        not touched. The cell is therefore read back and compared with the
+        value asked for; a mismatch is a failure, whatever the status code
+        said. Set ``verify_writes=False`` to skip the read-back (one extra
+        round trip per byte) on firmware known to commit writes.
+
+        ``report`` is an optional list that receives one
+        ``(oid, previous, value, changed)`` tuple per written cell, so a caller
+        with a user interface can tell a real change from a write the printer
+        accepted without changing anything: ``previous`` is the value read
+        before the write (an int, or None when it could not be read) and
+        ``changed`` is False when the cell already held ``value``.
+        """
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
             return False
@@ -1614,9 +1642,17 @@ class EpsonPrinter:
             logging.error(
                 f"Missing 'write_key' parameter in configuration.")
             return False
+        previous = None
         if not self.dry_run:
-            response = self.read_eeprom(oid, label=label)
-            logging.debug(f"Previous value for {label}: {response}")
+            # The read is kept, not just logged: it is what tells a write that
+            # changed the cell from one with nothing to do.
+            read_value = self.read_eeprom(oid, label=label)
+            logging.debug(f"Previous value for {label}: {read_value}")
+            if read_value is not None:
+                try:
+                    previous = int(read_value, 16)
+                except ValueError:
+                    previous = None
         oid_string = self.eeprom_oid_write_address(oid, value, label=label)
         logging.debug(
             f"EEPROM_WRITE {label}:\n"
@@ -1640,6 +1676,45 @@ class EpsonPrinter:
                 oid, value, label
             )
             return False
+        if self.dry_run or not self.verify_writes:
+            if report is not None:
+                report.append((oid, previous, value, previous != value))
+            return True
+        # The status code is not trusted: read the cell back. A firmware that
+        # answers `:OK;` to every write (valid key or not) leaves the byte
+        # unchanged, and only the read-back can tell that apart from a real
+        # commit.
+        try:
+            read_back = self.read_eeprom(oid, label=label)
+        except (TimeoutError, AsyncioTimeoutError) as exc:
+            logging.warning(
+                "Write not verified: address %s could not be read back (%s)",
+                oid, exc
+            )
+            return False
+        if read_back is None:
+            logging.warning(
+                "Write not verified: address %s could not be read back",
+                oid
+            )
+            return False
+        if int(read_back, 16) != value:
+            logging.error(
+                "Write not committed: address %s reads %s, expected %s"
+                " (the printer answered ':OK;' but kept the old value;"
+                " the write key may be wrong, or this firmware discards"
+                " EEPROM writes -- try temporary_reset_waste())",
+                oid, read_back, f"{value:02X}"
+            )
+            return False
+        if report is not None:
+            changed = previous != value
+            if not changed:
+                logging.info(
+                    "Address %s already held %s: there was nothing to change",
+                    oid, read_back
+                )
+            report.append((oid, previous, value, changed))
         return True
 
     def status_parser(self, data):
@@ -2533,7 +2608,8 @@ class EpsonPrinter:
         self,
         parameter: str,
         value_list: list,
-        dry_run=False
+        dry_run=False,
+        report: Optional[list] = None
     ) -> bool:
         """
         Update printer parameter by writing value data to EEPROM
@@ -2572,12 +2648,14 @@ class EpsonPrinter:
             for i in self.parm[parameter]:
                 for oid, value in zip(i, value_list):
                     if not self.write_eeprom(
-                        oid, value, label="update_" + parameter
+                        oid, value, label="update_" + parameter, report=report
                     ):
                         return False
             return True
         for oid, value in zip(self.parm[parameter], value_list):
-            if not self.write_eeprom(oid, value, label="update_" + parameter):
+            if not self.write_eeprom(
+                oid, value, label="update_" + parameter, report=report
+            ):
                 return False
         return True
 
@@ -2639,9 +2717,14 @@ class EpsonPrinter:
             )
         return status
 
-    def reset_waste_ink_levels(self, dry_run=False) -> bool:
+    def reset_waste_ink_levels(
+            self, dry_run=False, report: Optional[list] = None) -> bool:
         """
         Set waste ink levels to the values specified in the configuration.
+
+        ``report`` is handed to :meth:`write_eeprom` (see there): it receives
+        one entry per written cell, so the caller can tell a real reset from a
+        printer that answered `:OK;` without changing anything.
         """
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
@@ -2650,7 +2733,9 @@ class EpsonPrinter:
             if dry_run:
                 return True
             for oid, value in self.parm["raw_waste_reset"].items():
-                if not self.write_eeprom(oid, value, label="raw_waste_reset"):
+                if not self.write_eeprom(
+                    oid, value, label="raw_waste_reset", report=report
+                ):
                     return False
             return True
         if "main_waste" not in self.parm:
@@ -2658,12 +2743,16 @@ class EpsonPrinter:
         if dry_run:
             return True
         for oid in self.parm["main_waste"]["oids"]:
-            if not self.write_eeprom(oid, 0, label="main_waste"):
+            if not self.write_eeprom(
+                oid, 0, label="main_waste", report=report
+            ):
                 return False
         if "borderless_waste" not in self.parm:
             return True
         for oid in self.parm["borderless_waste"]["oids"]:
-            if not self.write_eeprom(oid, 0, label="borderless_waste"):
+            if not self.write_eeprom(
+                oid, 0, label="borderless_waste", report=report
+            ):
                 return False
         return True
 
@@ -2758,7 +2847,8 @@ class EpsonPrinter:
         return False
 
     def write_first_ti_received_time(
-            self, year: int, month: int, day: int) -> bool:
+            self, year: int, month: int, day: int,
+            report: Optional[list] = None) -> bool:
         """Update first TI received time"""
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
@@ -2773,13 +2863,18 @@ class EpsonPrinter:
         logging.debug(
             "FTRT: %s %s = %s %s",
             hex(n // 256), hex(n % 256), n // 256, n % 256)
-        if not self.write_eeprom(msb, n // 256, label="First TI received time"):
+        if not self.write_eeprom(
+            msb, n // 256, label="First TI received time", report=report
+        ):
             return False
-        if not self.write_eeprom(lsb, n % 256, label="First TI received time"):
+        if not self.write_eeprom(
+            lsb, n % 256, label="First TI received time", report=report
+        ):
             return False
         return True
 
-    def write_poweroff_timer(self, mins: int) -> bool:
+    def write_poweroff_timer(
+            self, mins: int, report: Optional[list] = None) -> bool:
         """Update power-off timer"""
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
@@ -2794,11 +2889,11 @@ class EpsonPrinter:
             "poweroff: %s %s = %s %s",
             hex(mins // 256), hex(mins % 256), mins // 256, mins % 256)
         if not self.write_eeprom(
-            msb, mins // 256, label="Write power off timer"
+            msb, mins // 256, label="Write power off timer", report=report
         ):
             return False
         if not self.write_eeprom(
-            lsb, mins % 256, label="Write power off timer"
+            lsb, mins % 256, label="Write power off timer", report=report
         ):
             return False
         return True
@@ -3084,14 +3179,14 @@ class EpsonPrinter:
                     self.next_line = None
                     return next_line
                 if next_line != None:
-                    logginf.error("Recursion error: '%s'", next_line)
+                    logging.error("Recursion error: '%s'", next_line)
                 self.next_line = None
                 self.recursion = 0
                 return next(self.file)
 
             def pushline(self, line):
                 if self.next_line != None:
-                    logginf.error(
+                    logging.error(
                         "Line already pushed: '%s', '%s'",
                         self.next_line, line
                     )
@@ -3527,6 +3622,16 @@ if __name__ == "__main__":
         help='Dry-run change operations'
     )
     parser.add_argument(
+        '--no-verify-writes',
+        dest='no_verify_writes',
+        action='store_true',
+        help='Do not read EEPROM cells back after writing them. By default '
+            'every written byte is read back and compared, because some '
+            'firmware answers ":OK;" to any write (even with a wrong key) '
+            'while discarding the value; disabling the check saves one round '
+            'trip per byte but trusts the status code.'
+    )
+    parser.add_argument(
         '-R',
         '--read-eeprom',
         dest='read_eeprom',
@@ -3706,6 +3811,7 @@ if __name__ == "__main__":
         timeout=args.timeout,
         retries=args.retries,
         dry_run=args.dry_run,
+        verify_writes=not args.no_verify_writes,
         **usb_options)
     if args.config_file:
         if not printer.read_config_file(args.config_file[0]):

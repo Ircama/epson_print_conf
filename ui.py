@@ -42,7 +42,7 @@ from text_console import TextConsole
 from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
-VERSION = "8.1.1"
+VERSION = "8.1.2"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address (not needed in USB"
@@ -2346,6 +2346,59 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.update_idletasks()
             return False
 
+    def report_write_outcome(self, report, label, changed_message=None):
+        """Insert the status line for a write that has just finished.
+
+        ``write_eeprom()`` reads every cell back, so the cells that already
+        held the requested value are known: the printer answered `:OK;` and
+        there was nothing to change. Reporting that as "completed" is the same
+        message a real change gets, and it hides both a write key the printer
+        quietly ignored and a value that needed no update at all, so the two
+        are told apart here. ``label`` names the value in the message and
+        ``changed_message`` replaces the default success line.
+        """
+        if not report:
+            self.status_text.insert(tk.END, '[INFO]', "info")
+            self.status_text.insert(
+                tk.END, changed_message or " Update operation completed.\n"
+            )
+            return
+        written = [entry for entry in report if entry[3]]
+        unchanged = [entry for entry in report if not entry[3]]
+        if written:
+            self.status_text.insert(tk.END, '[INFO]', "info")
+            self.status_text.insert(
+                tk.END, changed_message or " Update operation completed.\n"
+            )
+            if len(written) <= 8:
+                detail = ", ".join(
+                    f"{oid}: {'?' if previous is None else previous}"
+                    f" -> {value}"
+                    for oid, previous, value, _changed in written
+                )
+                self.status_text.insert(
+                    tk.END, f" New EEPROM values: {detail}.\n"
+                )
+            if unchanged:
+                self.status_text.insert(
+                    tk.END,
+                    f" {len(unchanged)} of {len(report)} cells already held the"
+                    " requested value.\n"
+                )
+            return
+        # Nothing was written at all: this is not the same thing as a write
+        # that succeeded, so it does not get the same message.
+        cells = ", ".join(
+            f"{oid}: {'?' if previous is None else previous}"
+            for oid, previous, _value, _changed in unchanged
+        )
+        self.status_text.insert(tk.END, '[WARNING]', "warn")
+        self.status_text.insert(
+            tk.END,
+            f" Nothing to write: {label} already had the requested value"
+            f" ({cells}); no cell was changed.\n"
+        )
+
     def set_po_mins(self, cursor=True):
         if cursor:
             self.config(cursor="watch")
@@ -2406,12 +2459,12 @@ Web site: https://github.com/Ircama/epson_print_conf
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
-                done = self.printer.write_poweroff_timer(int(po_timer))
+                report = []
+                done = self.printer.write_poweroff_timer(
+                    int(po_timer), report=report
+                )
                 if done:
-                    self.status_text.insert(tk.END, '[INFO]', "info")
-                    self.status_text.insert(
-                        tk.END, " Update operation completed.\n"
-                    )
+                    self.report_write_outcome(report, "the power off timer")
                 else:
                     # Two cells have to accept the value; half a timer is not
                     # a success, and the console log has the printer's answer.
@@ -2508,19 +2561,18 @@ Web site: https://github.com/Ircama/epson_print_conf
             " the printer is required for this change to take effect.\n"
         )
         ret = None
+        report = []
         try:
             ret = self.printer.update_parameter(
                 "wifi_mac_address",
                 mac,
-                dry_run=False
+                dry_run=False,
+                report=report
             )
         except Exception as e:
             self.handle_printer_error(e)
         if ret:
-            self.status_text.insert(tk.END, '[INFO]', "info")
-            self.status_text.insert(
-                tk.END, " Update operation completed.\n"
-            )
+            self.report_write_outcome(report, "the WiFi MAC address")
         else:
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
@@ -2596,19 +2648,18 @@ Web site: https://github.com/Ircama/epson_print_conf
             " the printer is required for this change to take effect.\n"
         )
         ret = None
+        report = []
         try:
             ret = self.printer.update_parameter(
                 "serial_number",
                 [i for i in self.ser_num_var.get().encode()],
-                dry_run=False
+                dry_run=False,
+                report=report
             )
         except Exception as e:
             self.handle_printer_error(e)
         if ret:
-            self.status_text.insert(tk.END, '[INFO]', "info")
-            self.status_text.insert(
-                tk.END, " Update operation completed.\n"
-            )
+            self.report_write_outcome(report, "the serial number")
         else:
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
@@ -2728,13 +2779,14 @@ Web site: https://github.com/Ircama/epson_print_conf
         response = messagebox.askyesno(*CONFIRM_MESSAGE, default='no')
         if response:
             try:
+                report = []
                 done = self.printer.write_first_ti_received_time(
-                    date_string.year, date_string.month, date_string.day
+                    date_string.year, date_string.month, date_string.day,
+                    report=report
                 )
                 if done:
-                    self.status_text.insert(tk.END, '[INFO]', "info")
-                    self.status_text.insert(
-                        tk.END, " Update operation completed.\n"
+                    self.report_write_outcome(
+                        report, "the 'First TI received time'"
                     )
                 else:
                     self.status_text.insert(tk.END, '[ERROR]', "error")
@@ -4252,10 +4304,11 @@ Web site: https://github.com/Ircama/epson_print_conf
 
         def write_eeprom_values(dict_addr_val):
             failed = None
+            report = []
             try:
                 for oid, value in dict_addr_val.items():
                     if not self.printer.write_eeprom(
-                        oid, value, label="write_eeprom"
+                        oid, value, label="write_eeprom", report=report
                     ):
                         # Name the address that failed: the method answers a
                         # plain bool, and "nothing happened" with no reason is
@@ -4268,10 +4321,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.update_idletasks()
                 return
             if failed is None:
-                self.status_text.insert(tk.END, '[INFO]', "info")
-                self.status_text.insert(
-                    tk.END, f" Write EEPROM completed.\n"
-                )
+                self.report_write_outcome(report, "the entered addresses")
             else:
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
@@ -4367,11 +4417,12 @@ Web site: https://github.com/Ircama/epson_print_conf
             return
         if response:
             try:
-                done = self.printer.reset_waste_ink_levels()
+                report = []
+                done = self.printer.reset_waste_ink_levels(report=report)
                 if done:
-                    self.status_text.insert(tk.END, '[INFO]', "info")
-                    self.status_text.insert(
-                        tk.END,
+                    self.report_write_outcome(
+                        report,
+                        "the waste ink counters",
                         " Waste ink levels have been reset."
                         " Perform a power cycle of the printer now.\n"
                     )
