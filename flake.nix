@@ -36,6 +36,9 @@
         in
         pythonWithPackages.pkgs.callPackage ./package.nix {
           inherit pythonWithPackages;
+          # Build the source in this repository: the version comes from ui.py,
+          # so nothing about a release has to be written down in two places.
+          src = self;
         };
     in
     {
