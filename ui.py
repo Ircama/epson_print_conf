@@ -8,21 +8,19 @@ Epson Printer Configuration via SNMP (TCP/IP) or USB - GUI
 import os
 import sys
 import re
+import shutil
+import subprocess
 import threading
 import ipaddress
 import inspect
 from datetime import datetime
 import traceback
 import logging
-import webbrowser
 import pickle
 
 import asyncio
 asyncio.set_event_loop(asyncio.new_event_loop())
 
-from code import InteractiveConsole
-from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
 
 import black
 import tkinter as tk
@@ -42,7 +40,7 @@ from text_console import TextConsole
 from epson_escp2.epson_encode import TextToImageConverter, EpsonEscp2
 
 
-VERSION = "8.1.4"
+VERSION = "8.2.0"
 
 NO_CONF_ERROR = (
     " Please select a printer model and a valid IP address (not needed in USB"
@@ -260,7 +258,6 @@ class ToolTip:
 def is_dark_mode():
     """Detect if the system is using dark mode (macOS)."""
     try:
-        import subprocess
         result = subprocess.run(
             ['defaults', 'read', '-g', 'AppleInterfaceStyle'],
             capture_output=True, text=True
@@ -268,6 +265,92 @@ def is_dark_mode():
         return result.stdout.strip().lower() == 'dark'
     except Exception:
         return False
+
+
+#: Commands tried, in this order, to open a URL on the systems that are neither
+#: Windows nor macOS. They are the ones the desktop openers use, tried here one
+#: by one so that the failure of the first is not the end of the story: on a
+#: bare Linux box (a container, or WSL) xdg-open is installed and no browser
+#: is, and it then answers with one "not found" line per browser it looked for.
+#: wslview (wslu) is what reaches the Windows browser from inside WSL, which is
+#: where xdg-open has no browser to start.
+_BROWSER_COMMANDS = (
+    ("xdg-open",),
+    ("wslview",),
+    ("gio", "open"),
+    ("sensible-browser",),
+    ("x-www-browser",),
+    ("www-browser",),
+)
+
+
+def open_in_browser(url: str) -> str:
+    """Open *url* in the default browser; answer "" or the reason it did not.
+
+    ``webbrowser.open()`` answers True as soon as the opener process starts,
+    which is not the same thing as a page being shown: on a Linux box with no
+    browser installed it answers True while ``xdg-open`` writes one "not found"
+    line per browser it looked for to the terminal, ending with "no method
+    available for opening ...". The opener is run here with its output
+    captured, so that this failure becomes a single message the caller shows in
+    the status box -- together with the URL, which can still be opened by hand
+    -- and the terminal stays clean.
+    """
+    if sys.platform == "win32":
+        try:
+            os.startfile(url)  # the shell knows the default browser
+        except OSError as e:
+            return "cannot start the default browser (%s)" % e
+        return ""
+    if sys.platform == "darwin":
+        commands = [["open"]]
+    else:
+        commands = []
+        # $BROWSER wins, as it does in the webbrowser module.
+        forced = os.environ.get("BROWSER", "").split(":")[0].strip()
+        if forced:
+            commands.append(forced.split())
+        commands.extend([list(command) for command in _BROWSER_COMMANDS])
+    absent = []
+    refused = []
+    for command in commands:
+        if not shutil.which(command[0]):
+            absent.append(command[0])
+            continue
+        try:
+            process = subprocess.Popen(
+                command + [url],
+                # Only stderr is read: a command that shows the page in the
+                # terminal would otherwise fill a pipe nobody drains.
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except OSError as e:
+            refused.append("%s (%s)" % (command[0], e))
+            continue
+        try:
+            _stdout, stderr = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            # Still running after five seconds: the page is being shown (a text
+            # browser keeps the foreground), so this is not a failure, and the
+            # process is left alone rather than killed.
+            return ""
+        if process.returncode == 0:
+            return ""
+        output = (stderr or b"").decode("utf-8", "replace").strip().splitlines()
+        logging.debug(
+            "open_in_browser: %s failed with status %s: %s",
+            " ".join(command), process.returncode, output
+        )
+        refused.append(
+            "%s (%s)" % (
+                command[0],
+                output[-1] if output else "status %d" % process.returncode
+            )
+        )
+    if refused:
+        return "the system opener could not display it: " + "; ".join(refused)
+    return "no web browser is installed (looked for: %s)" % ", ".join(absent)
 
 
 class ThemeColors:
@@ -303,6 +386,62 @@ class ThemeColors:
 
 # Global theme colors instance
 theme = ThemeColors()
+
+#: Font families that carry the symbols used on the two small buttons: the
+#: model search lens (U+1F50D) and the USB port refresh arrow (U+27F3). Tk
+#: draws a character only if an installed font has it, and the Tk builds
+#: shipped on Linux usually have no emoji font at all, which is how the
+#: buttons came out empty there. The symbols are used where such a font
+#: exists, the plain word otherwise.
+_ICON_FAMILIES = (
+    "Segoe UI Emoji",     # Windows
+    "Apple Color Emoji",  # macOS
+    "Noto Color Emoji",   # most Linux distributions
+    "Noto Emoji",
+    "Symbola",
+    "EmojiOne",
+    "OpenMoji",
+)
+_icon_family_cache = []
+
+
+def icon_family():
+    """Font family that can draw the button symbols, or None for words.
+
+    Answered once, on the first call: a Tk root has to exist to list the
+    installed families, so this is first asked while the window is built.
+    ``EPSON_UI_ICONS=always`` or ``never`` overrides the detection.
+    """
+    if _icon_family_cache:
+        return _icon_family_cache[0]
+    forced = os.environ.get("EPSON_UI_ICONS", "").strip().lower()
+    if forced in ("always", "1", "yes", "true", "on"):
+        found = "TkDefaultFont"
+    elif forced in ("never", "0", "no", "false", "off"):
+        found = None
+    else:
+        found = None
+        try:
+            families = {name.lower(): name for name in tkfont.families()}
+        except Exception:
+            families = {}
+        for candidate in _ICON_FAMILIES:
+            if candidate.lower() in families:
+                found = families[candidate.lower()]
+                break
+        if found is None and not families:
+            # No family list (no display): keep what the platform ships rather
+            # than turning the symbols into words everywhere.
+            found = (
+                "TkDefaultFont" if sys.platform in ("win32", "darwin") else None
+            )
+    _icon_family_cache.append(found)
+    return found
+
+
+def icon_or_text(symbol: str, text: str) -> str:
+    """The symbol where it can be drawn, the word where it cannot."""
+    return symbol if icon_family() else text
 
 
 class EpsonPrinterUI(tk.Tk):
@@ -498,12 +637,21 @@ class EpsonPrinterUI(tk.Tk):
         # Make column minsize minimal so the button sits flush to the combobox
         model_frame.columnconfigure(2, weight=0, minsize=0)
         # Use a custom ttk style to increase the font/icon size for the button
-        try_font = ("Segoe UI Emoji", 12)
         style = ttk.Style()
         style_name = "Search.TButton"
-        style.configure(style_name, font=try_font, padding=(-3, -3))
+        icon_font_name = icon_family()
+        if icon_font_name:
+            style.configure(
+                style_name, font=(icon_font_name, 12), padding=(-3, -3)
+            )
+        else:
+            # No font can draw the symbol here, so the buttons say what they
+            # do: an empty button is worse than a narrow one. The style is
+            # shared with the USB port refresh button further down.
+            style.configure(style_name, padding=(-2, -2))
         self.model_search_button = ttk.Button(
-            model_frame, text='🔍', width=3, style=style_name,
+            model_frame, text=icon_or_text('🔍', 'Search'),
+            width=3 if icon_font_name else 6, style=style_name,
             command=self.open_model_search_popup
         )
         # Place directly adjacent to the combobox with no extra padding
@@ -627,7 +775,8 @@ class EpsonPrinterUI(tk.Tk):
             values=[self.USB_PORT_AUTO],
         )
         self.usb_port_refresh = ttk.Button(
-            ip_frame, text='⟳', width=3, style=style_name,
+            ip_frame, text=icon_or_text('⟳', 'Scan'),
+            width=3 if icon_font_name else 5, style=style_name,
             command=self.refresh_usb_ports
         )
         self.usb_port_var.trace_add('write', self.change_widget_states)
@@ -648,7 +797,7 @@ class EpsonPrinterUI(tk.Tk):
         ToolTip(
             self.usb_port_dropdown,
             "The USB devices found on this machine, listed when this box"
-            " appears and by the ⟳ button.\n"
+            " appears and by the button next to it.\n"
             "Leave the first entry selected to let the library pick the device"
             " (its default backend order), or pin one of the listed devices --"
             " needed when several printers are attached, or when the first"
@@ -1197,7 +1346,7 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f" File save operation aborted.\n"
+                " File save operation aborted.\n"
             )
             return
         # Ensure the file has the desired extension
@@ -1216,7 +1365,7 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" File save operation failed.\n"
+                " File save operation failed.\n"
             )
             return
         self.status_text.insert(tk.END, '[INFO]', "info")
@@ -1239,7 +1388,7 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f" File load operation aborted.\n"
+                " File load operation aborted.\n"
             )
             return
         if type == 0:
@@ -1278,7 +1427,7 @@ class EpsonPrinterUI(tk.Tk):
             self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f" Converting file, please wait...\n"
+                " Converting file, please wait...\n"
             )
             self.update_idletasks()
             if type == 1:
@@ -1364,7 +1513,7 @@ class EpsonPrinterUI(tk.Tk):
         self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f" Printer list cleared.\n"
+            " Printer list cleared.\n"
         )
 
     def tk_console(self):
@@ -1399,25 +1548,34 @@ class EpsonPrinterUI(tk.Tk):
         url = "https://ircama.github.io/epson_print_conf"
         self.show_status_text_view()
         try:
-            ret = webbrowser.open(url)
-            if ret:
-                self.status_text.insert(tk.END, '[INFO]', "info")
-                self.status_text.insert(
-                    tk.END, f" The browser is being opened.\n"
-                )
-            else:
-                self.status_text.insert(tk.END, '[ERROR]', "error")
-                self.status_text.insert(
-                    tk.END, f" Cannot open browser.\n"
-                )
-        except Exception as e:
-            self.status_text.insert(tk.END, '[ERROR]', "error")
-            self.status_text.insert(
-                tk.END, f" Cannot open web browser: {e}\n"
-            )
+            self.report_open_in_browser(url)
         finally:
             self.config(cursor="")
             self.update_idletasks()
+
+    def report_open_in_browser(self, url: str):
+        """Open *url* and say in the status box what happened.
+
+        The address is always reported when the browser does not come up: a
+        machine with no browser installed (a container, WSL), or a session with
+        no display, is a normal place to run this program from, and the page
+        can still be opened somewhere else.
+        """
+        try:
+            reason = open_in_browser(url)
+        except Exception as e:
+            reason = str(e)
+        if reason:
+            logging.info("Cannot open %s: %s", url, reason)
+            self.status_text.insert(tk.END, '[ERROR]', "error")
+            self.status_text.insert(
+                tk.END,
+                f" Cannot open the browser: {reason}. The address is {url}.\n"
+            )
+        else:
+            self.status_text.insert(tk.END, '[INFO]', "info")
+            self.status_text.insert(tk.END, " The browser is being opened.\n")
+        self.update_idletasks()
 
     def open_model_search_popup(self):
         """Open a modal popup allowing to search among available models
@@ -1510,13 +1668,10 @@ class EpsonPrinterUI(tk.Tk):
 
     def show_program_info(self):
         # Show program information in a popup
-        program_version = "1.0.0"  # Specify your program version
         description = """
 Epson Printer Configuration tool via SNMP (TCP/IP) or USB.
 
-A tool for managing settings of Epson printers connected over Wi-Fi
-(SNMP protocol) or over the USB cable (IEEE 1284.4 / D4, which also
-works on the models whose firmware refuses EEPROM access over SNMP).
+A tool for managing settings of Epson printers connected over Wi-Fi (SNMP protocol) or over USB.
 
 Web site: https://github.com/Ircama/epson_print_conf
 """
@@ -1739,7 +1894,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         return True
 
     def refresh_usb_ports(self):
-        """Scan the USB bus and refill the port list (the ⟳ button)."""
+        """Scan the USB bus and refill the port list (the refresh button)."""
         devices = self._find_usb_devices()
         if devices is None:
             return
@@ -2139,7 +2294,6 @@ Web site: https://github.com/Ircama/epson_print_conf
     def next_ip(self, event):
         if self.usb_mode():
             return  # there is no address to cycle through over USB
-        ip = self.ip_var.get()
         if self.ip_list_cycle == None:
             self.ip_list = self.printer_scanner.get_all_printers(local=True)
             self.ip_list_cycle = 0
@@ -2163,7 +2317,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         if isinstance(e, TimeoutError):
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f" Printer is unreachable or offline.\n"
+                tk.END, " Printer is unreachable or offline.\n"
             )
         else:
             self.status_text.insert(tk.END, '[ERROR]', "error")
@@ -2193,7 +2347,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Missing 'Power off timer' in configuration\n",
+                " Missing 'Power off timer' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2240,7 +2394,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Improper values in printer serial number.\n",
+                " Improper values in printer serial number.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2249,7 +2403,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Cannot retrieve the printer serial number.\n",
+                " Cannot retrieve the printer serial number.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2258,7 +2412,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Cannot retrieve the printer serial number. Possibly a printer firmware update disabled the operation.\n",
+                " Cannot retrieve the printer serial number. Possibly a printer firmware update disabled the operation.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2300,7 +2454,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Cannot retrieve the printer WiFi MAC address.\n",
+                " Cannot retrieve the printer WiFi MAC address.\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2421,7 +2575,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Missing 'Power off timer' in configuration\n",
+                " Missing 'Power off timer' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2479,7 +2633,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         else:
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f" Set Power off timer aborted.\n"
+                tk.END, " Set Power off timer aborted.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -2576,7 +2730,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         else:
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f" Write operation failed.\n"
+                tk.END, " Write operation failed.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -2663,7 +2817,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         else:
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f" Write operation failed.\n"
+                tk.END, " Write operation failed.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -2690,7 +2844,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Missing 'First TI received time' in configuration\n",
+                " Missing 'First TI received time' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2742,7 +2896,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
                 tk.END,
-                f" Missing 'First TI received time' in configuration\n",
+                " Missing 'First TI received time' in configuration\n",
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -2801,7 +2955,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f" Change of 'First TI received time' aborted.\n",
+                " Change of 'First TI received time' aborted.\n",
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -3161,7 +3315,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f" Detecting the read_key...\n"
+                " Detecting the read_key...\n"
             )
             self.update_idletasks()
             # The scan can take minutes (65536 attempts at worst), and its log
@@ -3232,7 +3386,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f" Detecting the serial number...\n"
+                " Detecting the serial number...\n"
             )
             try:
                 hex_bytes, matches = self.printer.find_serial_number(
@@ -3248,7 +3402,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
                     tk.END,
-                    f" Cannot detect the serial number.\n"
+                    " Cannot detect the serial number.\n"
                 )
             left_ser_num = None
             for match in matches:
@@ -3521,7 +3675,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f" Starting the access key detection, please wait for many minutes...\n"
+                " Starting the access key detection, please wait for many minutes...\n"
             )
             self.status_text.insert(
                 tk.END,
@@ -3557,7 +3711,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         else:
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f" Detect access key aborted.\n"
+                tk.END, " Detect access key aborted.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -3566,6 +3720,23 @@ Web site: https://github.com/Ircama/epson_print_conf
         widget.config(cursor=cursor_type)
         for child in widget.winfo_children():
             self.set_cursor(child, cursor_type)
+
+    @staticmethod
+    def printer_web_url(address: str) -> str:
+        """The printer web interface as a URL.
+
+        ``webbrowser.open()`` hands its argument to the platform opener, and on
+        Linux that is ``xdg-open``: given a bare address like
+        ``192.168.178.29`` it looks for a *file* of that name and answers
+        "file '192.168.178.29' does not exist". A URL needs its scheme, so it
+        is added here when the address has none (an IP address or a host name,
+        optionally with a port or a path); an address that already carries a
+        scheme is left alone.
+        """
+        address = (address or "").strip()
+        if not address or "://" in address:
+            return address
+        return "http://" + address
 
     def web_interface(self, cursor=True):
         if cursor:
@@ -3596,22 +3767,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not self.printer:
             return
         try:
-            ret = webbrowser.open(ip_address)
-            if ret:
-                self.status_text.insert(tk.END, '[INFO]', "info")
-                self.status_text.insert(
-                    tk.END, f" The browser is being opened.\n"
-                )
-            else:
-                self.status_text.insert(tk.END, '[ERROR]', "error")
-                self.status_text.insert(
-                    tk.END, f" Cannot open browser.\n"
-                )
-        except Exception as e:
-            self.status_text.insert(tk.END, '[ERROR]', "error")
-            self.status_text.insert(
-                tk.END, f" Cannot open web browser: {e}\n"
-            )
+            self.report_open_in_browser(self.printer_web_url(ip_address))
         finally:
             self.config(cursor="")
             self.update_idletasks()
@@ -3983,19 +4139,19 @@ Web site: https://github.com/Ircama/epson_print_conf
             if ret is None:
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
-                    tk.END, f" clean_nozzles internal error.\n"
+                    tk.END, " clean_nozzles internal error.\n"
                 )
             elif ret is False:
                 self.status_text.insert(tk.END, '[ERROR]', "error")
                 self.status_text.insert(
-                    tk.END, f" Printer is unreachable or offline.\n"
+                    tk.END, " Printer is unreachable or offline.\n"
                 )
             else:
                 self.status_text.insert(tk.END, '[INFO]', "info")
                 self.status_text.insert(tk.END,
-                    f" Initiated cleaning of nozzles."
+                    " Initiated cleaning of nozzles."
                     #f" Selected procedure: {group_index}, {power_clean}, {has_alt_mode}"
-                    f"\n"
+                    "\n"
                 )
             self.set_cursor(self, "")
             self.update_idletasks()
@@ -4017,7 +4173,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
                 tk.END,
-                f" Nozzles cleaning operation aborted by user.\n"
+                " Nozzles cleaning operation aborted by user.\n"
             )
             self.set_cursor(self, "")
             self.update_idletasks()
@@ -4095,7 +4251,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f" Reading EEPROM values, please wait for some minutes...\n"
+            " Reading EEPROM values, please wait for some minutes...\n"
         )
         self.update()
         try:
@@ -4126,7 +4282,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         self.status_text.insert(tk.END, '[INFO]', "info")
         self.status_text.insert(
             tk.END,
-            f" Analyzing EEPROM values...\n"
+            " Analyzing EEPROM values...\n"
         )
         self.update()
 
@@ -4247,7 +4403,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.status_text.insert(tk.END, '[INFO]', "info")
             self.status_text.insert(
                 tk.END,
-                f" Operation completed.\n"
+                " Operation completed.\n"
             )
             self.update_idletasks()
             self.config(cursor="")
@@ -4328,7 +4484,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             else:
                 self.status_text.insert(tk.END, '[WARNING]', "warn")
                 self.status_text.insert(
-                    tk.END, f" Write EEPROM aborted.\n"
+                    tk.END, " Write EEPROM aborted.\n"
                 )
                 self.config(cursor="")
                 self.update_idletasks()
@@ -4401,7 +4557,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         if not response:
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f" Waste ink levels reset aborted.\n"
+                tk.END, " Waste ink levels reset aborted.\n"
             )
             self.config(cursor="")
             self.update_idletasks()
@@ -4471,7 +4627,7 @@ Web site: https://github.com/Ircama/epson_print_conf
         else:
             self.status_text.insert(tk.END, '[WARNING]', "warn")
             self.status_text.insert(
-                tk.END, f" Waste ink levels reset aborted.\n"
+                tk.END, " Waste ink levels reset aborted.\n"
             )
         self.config(cursor="")
         self.update_idletasks()
@@ -4590,7 +4746,7 @@ Web site: https://github.com/Ircama/epson_print_conf
                         self.status_text.insert(tk.END, '[ERROR]', "error")
                         self.status_text.insert(
                             tk.END,
-                            f' Printer model unknown.\n'
+                            ' Printer model unknown.\n'
                         )
                         self.model_var.set("")
                 else:
@@ -4816,7 +4972,7 @@ Web site: https://github.com/Ircama/epson_print_conf
             self.show_status_text_view()
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f" Missing IP address or printer host name.\n"
+                tk.END, " Missing IP address or printer host name.\n"
             )
             return
         text = "| **Printer Data**\n\n\n" + text
@@ -4863,11 +5019,11 @@ Web site: https://github.com/Ircama/epson_print_conf
                     )
                 else:
                     lpr.send(packet)  # Send to printer via LPR
-        except Exception as e:
+        except Exception:
             self.show_status_text_view()
             self.status_text.insert(tk.END, '[ERROR]', "error")
             self.status_text.insert(
-                tk.END, f" Printer is unreachable or offline.\n"
+                tk.END, " Printer is unreachable or offline.\n"
             )
 
 

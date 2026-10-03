@@ -33,7 +33,7 @@ jobs:
       NODE_ENV: production
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup environment
         run: |
           mv .jekyll-gh-pages/* .
@@ -62,7 +62,7 @@ jobs:
       - name: Build Jekyll Site
         run: bundle exec jekyll build
       - name: Upload artifact for Pages
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
 
   # Deployment job
   deploy:
@@ -74,4 +74,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

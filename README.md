@@ -100,11 +100,7 @@ cd epson_print_conf
 pip install -r requirements.txt
 ```
 
-The USB transport is the [epson-usb](https://pypi.org/project/epson-usb/) package, which declares Python 3.10 because that is the oldest interpreter its test suite runs on, while the library itself runs on 3.9. On Python 3.9 the tool installs and works over SNMP, and USB is one command away:
-
-```bash
-pip install --ignore-requires-python epson-usb
-```
+The USB transport is the [epson-usb](https://pypi.org/project/epson-usb/) package. Version 0.1.2 or later is required: it is the first release whose `EpsonUsbPrinter` tries the other USB interfaces of the device when the D4 handshake on the first one gets no answer (see "The USB interface" below). `pip install -r requirements.txt` installs it.
 
 On Linux, you might also install the tkinter module: `sudo apt install python3-tk`.
 
@@ -199,18 +195,59 @@ epson_print_conf GUI
 In USB mode the "Printer Connection" box replaces the IP address with a `USB
 Port` list: the devices that can really be opened on this machine, plus `Auto:
 first device found` to let the library choose. Pick one to pin it (two attached
-printers, or another interface of the same device); the ⟳ button next to the
-list scans the USB bus again.
+printers, or another interface of the same device); the button next to the list
+(`⟳`, or `Scan` where no font can draw the symbol) scans the USB bus again.
+
+### The USB interface
 
 The `USB Port` list pins the *device*; which USB *interface* of it carries D4 is
-negotiated when the first command is sent. A printer exposes several interfaces
-and only one of them answers D4 -- not always the one the library picks (measured
-on an L3250: interface 0 never answered the handshake, interface 1 worked) -- so
-the other interfaces are tried when the handshake fails, preferring interface 1.
-On the command line `--interface 1,2,0` sets the order, `--interface auto` (the
-default) keeps the library choice as the first attempt, and `--interface none`
-disables the fallback. When an interface other than the first choice answers, the
-program logs which one it was.
+negotiated when the first command is sent, by the library (`epson-usb` 0.1.2 or
+later). A printer exposes several interfaces and only one of them answers D4 --
+not always the one the library picks first (measured on an L3250: interface 0
+never answered the handshake, interface 1 worked) -- so the other interfaces are
+tried in turn until one answers, and the log reports which one it was.
+
+`--interface N` (command line) or `usb_options={'interface': N}` pins one
+interface by hand: the automatic choice and the walk through the alternatives
+are then both off, which is what a printer whose D4 channel is unusual needs.
+Only the backends that claim an interface directly (`libusb`, `pyusb`) can be
+told; on Windows the interface is part of the `--device` path (`MI_0x`), where
+the driver publishes one device interface per USB interface.
+
+`--list-usb` prints what the machine exposes -- the available backends, the
+candidate devices, and the interfaces of each one in the order they are tried --
+and exits without opening anything. It is the answer to "which `--device` /
+`--interface` should I use", and it works with the printer off (it then says
+there is none):
+
+```
+$ python epson_print_conf.py --list-usb
+USB environment:
+  platform: win32 (3.14.7)
+  available backends: usbprint, libusb, pyusb, mock
+  ...
+5 USB candidate(s) in 3 view(s): the same printer is listed once per backend, and
+once per USB interface on Windows, where the interface is the mi_0x element of
+the path.
+  usbprint 04b8:0896 -- one device with 3 USB interfaces (mi_01, mi_00, mi_02);
+the interface is the mi_0x element of the path
+      --device "\\?\usb#vid_04b8&pid_0896&mi_01#...#{...}"
+      (the other interfaces are the same path with mi_01 replaced)
+  libusb 04b8:0896 -- interfaces, in the order they are tried: 0, 1
+      --device "1:6"
+      --interface N pins one of them (this backend accepts it)
+  pyusb 04b8:0896
+      --device "1:6"
+      --interface N pins one of them (this backend accepts it)
+```
+
+The list is of *candidates*, not of printers: the same machine is reached
+through the native Windows route (one `USBPRINT` device interface per USB
+interface, which is why the three `mi_0x` names belong to one entry, with one
+`--device` shown) and again through `libusb` and `pyusb`, which report it by
+`bus:address`. Only the `libusb` view says which interface numbers exist and in
+which order they are tried; on Windows the interface is the `mi_0x` element of
+the `--device` path.
 
 ## Quick Start on macOS via Docker
 
@@ -396,12 +433,17 @@ Optional arguments:
   --device DEVICE       USB device to open (a bus:address pair such as 1:4, a device path,
                         or the Windows interface path). Implies --usb
   --interface INTERFACE
-                        USB interface number(s) to try, in order (for example 1, or 1,2,0);
-                        implies --usb. A printer exposes several USB interfaces and only one
-                        answers D4, which is not always the one the library picks: the other
-                        interfaces are tried when the handshake fails, preferring interface 1.
-                        Use --interface auto (the default) to keep the library choice as the
-                        first attempt, or --interface none to disable the fallback
+                        USB interface number to open (for example 1), for the printers
+                        whose firmware does not answer D4 on the interface the library
+                        picks first: choosing one turns the automatic choice and the
+                        fallback to the other interfaces off (epson-usb 0.1.2 and later).
+                        Implies --usb. Only the backends that claim an interface directly
+                        (libusb, pyusb) can be told: on Windows the interface is part of
+                        the --device path
+  --list-usb            List the Epson USB devices and the interfaces of each one (nothing
+                        is opened), then exit: it is the answer to "which
+                        --device/--interface should I use". With --backend only that backend
+                        is enumerated
   -p PORT, --port PORT  Printer port (default is 161)
   -i, --info            Print all available information and statistics (default option)
   -q QUERY_NAME, --query QUERY_NAME

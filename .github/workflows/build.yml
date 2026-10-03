@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0  # Fetch all history for accurate commits and tags
@@ -31,7 +31,7 @@ jobs:
           git push origin main
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           architecture: 'x64'
@@ -64,7 +64,7 @@ jobs:
           > ${{ github.workspace }}-CHANGELOG.txt
 
       - name: Create Release, uploading the epson_print_conf.zip asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           body_path: ${{ github.workspace }}-CHANGELOG.txt

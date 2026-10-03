@@ -130,7 +130,6 @@ def generate_config_from_xml(
                             if info.tag == "report":
                                 chars["stats"] = {}
                                 fatal = []
-                                irc = ""
                                 for number in info:
                                     if number.tag == "fatals" and add_fatal_errors:
                                         for n in number:

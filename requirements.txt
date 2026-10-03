@@ -9,5 +9,9 @@ tk-date-entry>=1.1.0
 hexdump2
 pyprintlpr>=1.1.1
 epson_escp2>=1.0.4
-epson-usb>=0.1.0; python_version >= "3.10"
+# 0.1.2 is the first release whose EpsonUsbPrinter walks the candidate USB
+# interfaces when the D4 handshake on the first one gets no answer (before
+# that, the interface had to be chosen by hand). No python_version marker:
+# since 0.1.1 the distribution declares Python >= 3.9.
+epson-usb>=0.1.2
 pyusb>=1.2

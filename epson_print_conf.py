@@ -13,6 +13,7 @@ import datetime
 import time
 import textwrap
 import ast
+import inspect
 import logging
 import os
 import sys
@@ -27,11 +28,18 @@ except ImportError:  # pragma: no cover - asyncio is always there
 import yaml
 from pathlib import Path
 import pickle
-import abc
 import hashlib
 import struct
 
-from pysnmp.hlapi.v1arch.asyncio import *
+# Only the names this module uses: the star import hid typos (F403/F405) and
+# pulled the whole pysnmp v1arch API into the module namespace.
+from pysnmp.hlapi.v1arch.asyncio import (
+    CommunityData,
+    ObjectIdentity,
+    ObjectType,
+    SnmpDispatcher,
+    UdpTransportTarget,
+)
 from pyasn1.type.univ import OctetString as OctetStringType
 from pysnmp_sync_adapter import (
     get_cmd_sync,
@@ -612,7 +620,6 @@ class EpsonPrinter:
                 "Maintenance required level of 2nd waste ink counter": [47],
             },
             "serial_number": range(192, 202),
-            "alias": ["XP-343", "XP-345"],
         },
         "XP-422": {
             "alias": ["XP-423", "XP-425", "XP-225"],
@@ -700,7 +707,6 @@ class EpsonPrinter:
                 "Maintenance required level of 2nd waste ink counter": [53],
             },
             "serial_number": range(216, 226),
-            "alias": ["XP-611", "XP-615"],
         },
         "XP-620": {
             "read_key": [87, 5],
@@ -1654,7 +1660,7 @@ class EpsonPrinter:
             return False
         if "write_key" not in self.parm:
             logging.error(
-                f"Missing 'write_key' parameter in configuration.")
+                "Missing 'write_key' parameter in configuration.")
             return False
         previous = None
         if not self.dry_run:
@@ -2311,7 +2317,7 @@ class EpsonPrinter:
             r"vi:00:(.{6})", firmware_string.decode("latin-1", "replace"))
         if not match:
             logging.error(
-                f"Invalid response for %s: '%s'",
+                "Invalid response for %s: '%s'",
                 label, repr(firmware_string)
             )
             return None
@@ -2364,7 +2370,7 @@ class EpsonPrinter:
         tag, cartridges_string = self.fetch_oid_values(oid, label=label)[0]
         if self.invalid_response(cartridges_string):
             logging.error(
-                f"Invalid response for %s: '%s'",
+                "Invalid response for %s: '%s'",
                 label, repr(cartridges_string)
             )
         if not cartridges_string:
@@ -2504,7 +2510,7 @@ class EpsonPrinter:
                 break
             if self.invalid_response(cartridge):
                 logging.error(
-                    f"Invalid cartridge response: '%s'",
+                    "Invalid cartridge response: '%s'",
                     repr(cartridge)
                 )
                 return None
@@ -2791,7 +2797,7 @@ class EpsonPrinter:
                 label="Check nozzles",
                 timeout=240
             ) as lpr:
-                resp = lpr.send(pattern)
+                lpr.send(pattern)
             return True
         except Exception as e:
             logging.error("LPR error: %s", e)
@@ -2832,7 +2838,7 @@ class EpsonPrinter:
                 label="Check nozzles",
                 timeout=240
             ) as lpr:
-                resp = lpr.send(pattern)
+                lpr.send(pattern)
             return True
         except Exception as e:
             logging.error("LPR error: %s", e)
@@ -3093,7 +3099,7 @@ class EpsonPrinter:
         hex_bytes = self.read_eeprom_many(
             eeprom_range, label="detect_serial_number"
         )
-        if hex_bytes is [None]:
+        if hex_bytes == [None]:
             return hex_bytes, None
         # Convert the hex bytes to characters
         sequence = ''.join(chr(int(byte, 16)) for byte in hex_bytes)
@@ -3462,6 +3468,130 @@ def usb_library_available() -> bool:
     return True
 
 
+def _usb_identity(info):
+    """``vid:pid`` of a candidate, read back from the path when needed.
+
+    The Windows ``USBPRINT`` backend cannot report the product id before the
+    device is opened, so it would print ``04b8:0000``; the path carries it.
+    Showing the real identity is what makes it visible that the USBPRINT
+    paths, ``libusb`` and ``pyusb`` are all views of the same printer.
+    """
+    if info.product_id:
+        return info.vid_pid
+    match = re.search(
+        r"vid_([0-9a-f]{4})&pid_([0-9a-f]{4})", info.path or "", re.IGNORECASE
+    )
+    if match:
+        return "%s:%s" % (match.group(1).lower(), match.group(2).lower())
+    return info.vid_pid
+
+
+def _usb_device_key(info):
+    """Which device a candidate belongs to, as far as it can be told.
+
+    The same printer is enumerated once per backend, and on Windows once per
+    USB interface (``mi_00``/``mi_01``/...): those entries are only alternative
+    ways to open one device. The ``USBPRINT`` paths differ by their ``mi_0x``
+    element alone, which is therefore dropped; the other backends identify the
+    device with ``bus:address``. A cross-backend identity is not deducible (the
+    USBPRINT path carries no bus address), so it is not claimed: the grouping
+    keeps one entry per backend view of a device.
+    """
+    path = (info.path or "").lower()
+    if info.backend == "usbprint":
+        path = re.sub(r"&mi_[0-9a-f]{2}", "", path)
+    return info.backend, path
+
+
+def usb_interface_lines(backend=None):
+    """Lines describing the Epson USB devices and their interfaces.
+
+    Used by ``--list-usb``: it answers "what does this machine expose, and
+    which interface should I pin?", which is what ``--device`` and
+    ``--interface`` need in order to be of any use. Nothing is opened here --
+    the enumeration only reads the device descriptors -- so the command is
+    safe to run with the printer in use, and it works with the printer off
+    (the answer is then "no Epson USB printer found").
+
+    A printer reached through two backends, or through the several USB
+    interfaces the Windows driver publishes, is one device: the candidates are
+    grouped, so that the same machine is not proposed once per alternative way
+    to open it.
+    """
+    try:
+        from epson_usb.backends import describe_environment, find_devices
+    except Exception as exc:
+        return ["epson_usb is not available: %s" % exc]
+    lines = ["USB environment:"] + [
+        "  " + line for line in describe_environment().splitlines()
+    ]
+    try:
+        devices = find_devices(backends=[backend] if backend else None)
+    except Exception as exc:
+        lines.append("Cannot list the USB devices: %s" % exc)
+        return lines
+    if not devices:
+        lines.append("No Epson USB printer found.")
+        return lines
+    groups = []
+    for info in devices:
+        key = _usb_device_key(info)
+        group = next((entry for entry in groups if entry[0] == key), None)
+        if group is None:
+            groups.append((key, [info]))
+        else:
+            group[1].append(info)
+    lines.append(
+        "%d USB candidate(s) in %d view(s): the same printer is listed once per"
+        " backend, and once per USB interface on Windows, where the interface"
+        " is the mi_0x element of the path."
+        % (len(devices), len(groups))
+    )
+    for _key, members in groups:
+        first = members[0]
+        candidates = [
+            int(number)
+            for number in (first.extra or {}).get("candidate_interfaces", ())
+            if number is not None
+        ]
+        elements = []
+        for info in members:
+            match = re.search(r"mi_[0-9a-f]{2}", info.path or "", re.IGNORECASE)
+            if match and match.group(0) not in elements:
+                elements.append(match.group(0))
+        if len(elements) > 1:
+            note = (
+                " -- one device with %d USB interfaces (%s); the interface is"
+                " the mi_0x element of the path"
+                % (len(elements), ", ".join(elements))
+            )
+        elif candidates:
+            note = (
+                " -- interfaces, in the order they are tried: %s"
+                % ", ".join(str(number) for number in candidates)
+            )
+        elif first.interface is not None:
+            note = " -- interface %s" % first.interface
+        else:
+            note = ""
+        lines.append("  %s %s%s" % (first.backend, _usb_identity(first), note))
+        # One --device per view: when the view is made of several interfaces
+        # (the Windows driver publishes one device interface each), they are
+        # the same path with that element replaced, so printing all of them
+        # would only repeat the same printer.
+        lines.append('      --device "%s"' % first.path)
+        if len(elements) > 1:
+            lines.append(
+                "      (the other interfaces are the same path with %s"
+                " replaced)" % elements[0]
+            )
+        if first.backend in ("libusb", "pyusb"):
+            lines.append(
+                "      --interface N pins one of them (this backend accepts it)"
+            )
+    return lines
+
+
 def usb_transport_warning():
     """A message when USB cannot work on this machine, or None.
 
@@ -3548,35 +3678,33 @@ if __name__ == "__main__":
     def auto_int(x):
         return int(x, 0)
 
-    def interface_spec(value):
-        """Parse ``--interface``: ``1``, ``1,2,0``, ``auto`` or ``none``.
+    def usb_interface_supported(backend, device=None):
+        """Can the backend that would be used be told which interface to open?
 
-        Returns the interface numbers to try, in order. ``auto`` (the default,
-        and what the option means when it is not given) keeps the choice made
-        by the library and tries the other interfaces when D4 does not answer;
-        ``none`` keeps the library's choice only. The function is used by
-        argparse as the option's type, so a bad value is a usage error rather
-        than something that fails later on the printer.
+        ``libusb`` and ``pyusb`` accept ``interface=``; the Windows
+        ``USBPRINT`` transport does not (its device path already names the
+        interface), and neither does a raw device node or the fake printer.
+        Without ``--backend`` the question is about the first backend of the
+        platform default order, unless ``--device`` names one (``--device
+        mock``), exactly as the library's own ``open_transport()`` reads it.
         """
-        text = value.strip().lower()
-        if text in ("auto", "default", "library"):
-            return None
-        if text in ("none", "off", "library-only"):
-            return []
         try:
-            numbers = [
-                int(part, 0)
-                for part in text.replace(";", ",").split(",")
-                if part.strip()
-            ]
-        except ValueError:
-            numbers = []
-        if not numbers:
-            raise argparse.ArgumentTypeError(
-                "expected a USB interface number, a comma-separated list of"
-                " them (for example 1 or 1,2,0), or auto/none: %r" % value
+            from epson_usb.backends import (
+                BACKEND_PATHS, DEFAULT_ORDER, FALLBACK_ORDER, backend_class
             )
-        return numbers
+
+            backend = backend or (device if device in BACKEND_PATHS else None)
+            if not backend:
+                order = DEFAULT_ORDER.get(sys.platform, FALLBACK_ORDER)
+                backend = order[0] if order else None
+            if not backend:
+                return True
+            return "interface" in inspect.signature(
+                backend_class(backend).__init__
+            ).parameters
+        except Exception:
+            # The library knows its own transports better than this check does.
+            return True
 
     parser = argparse.ArgumentParser(
         epilog='Epson Printer Configuration via SNMP (TCP/IP)'
@@ -3589,7 +3717,7 @@ if __name__ == "__main__":
         action="store",
         help='Printer model. Example: -m XP-205'
         ' (use ? to print all supported models)',
-        required=True
+        required=False
     )
     parser.add_argument(
         '-a',
@@ -3632,15 +3760,24 @@ if __name__ == "__main__":
         '--interface',
         dest='interface',
         action='store',
-        type=interface_spec,
+        type=int,
         metavar='INTERFACE',
-        help='USB interface number(s) to try, in order (for example 1, or '
-            '1,2,0); implies --usb. A printer exposes several USB interfaces '
-            'and only one answers D4, which is not always the one the library '
-            'picks: the other interfaces are tried when the handshake fails, '
-            'preferring interface 1. Use --interface auto (the default) to '
-            'keep the library choice as the first attempt, or --interface '
-            'none to disable the fallback'
+        help='USB interface number to open (for example 1), for the printers'
+            ' whose firmware does not answer D4 on the interface the library'
+            ' picks first: choosing one turns the automatic choice and the'
+            ' fallback to the other interfaces off (epson-usb 0.1.2 and'
+            ' later). Implies --usb. Only the backends that claim an interface'
+            ' directly (libusb, pyusb) can be told: on Windows the interface'
+            ' is part of the --device path'
+    )
+    parser.add_argument(
+        '--list-usb',
+        dest='list_usb',
+        action='store_true',
+        help='List the Epson USB devices and the interfaces of each one'
+            ' (nothing is opened), then exit: it is the answer to "which'
+            ' --device/--interface should I use". With --backend only that'
+            ' backend is enumerated'
     )
     parser.add_argument(
         '-p',
@@ -3824,6 +3961,18 @@ if __name__ == "__main__":
             "file instead of merging (default is to merge)",
     )
     args = parser.parse_args()
+    if not args.model and not args.list_usb:
+        parser.error('-m/--model is required (use -m ? to list the models)')
+    if args.list_usb:
+        # A question about the machine, not about the printer: no model and no
+        # address are needed, and no printer is opened.
+        if not usb_library_available():
+            parser.error(
+                "--list-usb needs the epson-usb package (pip install epson-usb)"
+            )
+        for line in usb_interface_lines(args.backend):
+            print(line)
+        quit()
     # --backend/--device/--interface only mean something over USB, so they
     # imply it.
     usb_mode = bool(
@@ -3891,9 +4040,24 @@ if __name__ == "__main__":
             if args.device:
                 usb_options['device'] = args.device
             if args.interface is not None:
-                # An ordered list, or [] to keep the library's own choice with
-                # no fallback (see epson_usb_bridge.InterfaceTryingUsbPrinter).
-                usb_options['interfaces'] = args.interface
+                # The interface is pinned through the library's own transport
+                # option: epson-usb runs the D4 handshake and, when the chosen
+                # interface does not answer, there is no fallback (the point
+                # of choosing one by hand). Without it the library walks the
+                # device's candidate interfaces until one answers.
+                if usb_interface_supported(args.backend, args.device):
+                    usb_options['interface'] = args.interface
+                else:
+                    logging.warning(
+                        "USB interface selection is not available with the"
+                        " backend that would be used here (its device path"
+                        " already names the interface, or it exposes none):"
+                        " --interface %s ignored. Choose the device instead"
+                        " with --device (on Windows the interface is the mi_0x"
+                        " element of the USBPRINT path); --interface works with"
+                        " --backend libusb or --backend pyusb.",
+                        args.interface,
+                    )
         else:
             logging.warning(
                 "epson_usb is not available: --usb/--backend/--device/"
@@ -3951,7 +4115,7 @@ if __name__ == "__main__":
                 print("List of known keys:")
                 print("\n".join(printer.list_known_keys()))
             else:
-                print(f"Could not detect read_key.")
+                print("Could not detect read_key.")
         if args.ftrt:
             print_opt = True
             if printer.write_first_ti_received_time(
