@@ -48,6 +48,20 @@ something the host does not:
     extras built on top of it (reading a cell, writing a cell set) work on the
     *same* open device instead of a second one.
 
+Choosing the USB interface
+--------------------------
+
+A printer exposes several USB interfaces and only one of them answers D4, but
+which one is not something the descriptors say reliably: the L3250 measured for
+issue #35 has a vendor-specific interface 0 that never answers and interface 1
+that works, while the library's automatic choice prefers vendor-specific
+interfaces. The default factory here is therefore
+:class:`InterfaceTryingUsbPrinter`: when the handshake fails on the first
+choice, it asks the backends which interfaces the device has and tries them
+(:data:`PREFERRED_USB_INTERFACES` first), so the printer is reached without
+having to name the interface. ``interfaces=[...]`` gives the order; ``[]`` keeps
+the library's choice and nothing else.
+
 What cannot work over USB, and says so instead of pretending:
 
 * plain MIB OIDs (``get_snmp_info``) -- there is no SNMP agent on a USB cable,
@@ -73,8 +87,12 @@ from epson_usb.printer import EpsonUsbPrinter
 __all__ = [
     "usb_printer",
     "UsbEpsonPrinterMixin",
+    "InterfaceTryingUsbPrinter",
     "upstream_knows_model",
     "factory_kwargs",
+    "backend_accepts_interface",
+    "device_interfaces",
+    "PREFERRED_USB_INTERFACES",
 ]
 
 log = logging.getLogger(__name__)
@@ -134,6 +152,189 @@ def factory_kwargs(factory: Callable, available: Mapping[str, object],
     return out
 
 
+#: Interface numbers tried first when the printer has to fall back to another
+#: one of its USB interfaces (see :class:`InterfaceTryingUsbPrinter`).
+#: Interface 1 is what answered D4 on the printer measured for issue #35: an
+#: L3250 whose vendor-specific interface 0 never answered the handshake while
+#: interface 1 negotiated D4 revision 0x10. The library prefers vendor-specific
+#: interfaces, so the preference is applied here, after a failure.
+PREFERRED_USB_INTERFACES = (1,)
+
+
+def backend_accepts_interface(backend: Optional[str]) -> bool:
+    """Does this backend's transport take an ``interface=`` number?
+
+    The library lets a caller pin the USB interface on the transports that
+    claim one directly (``libusb`` and ``pyusb``). The Windows ``USBPRINT``
+    transport instead receives the interface *inside* the device path, so it
+    has no such argument and must not be given one.
+    """
+    if not backend:
+        return False
+    try:
+        from epson_usb.backends import backend_class
+
+        parameters = inspect.signature(backend_class(backend).__init__).parameters
+    except Exception:
+        return False
+    return "interface" in parameters
+
+
+def device_interfaces(device=None, backend=None, instance_id=None):
+    """``(backend, [interface numbers])`` of the device that would be opened.
+
+    The numbers come from the enumeration the library already performs
+    (``DeviceInfo.extra['interfaces']``), so this asks a question about a
+    device that has just refused to answer, without probing anything new. It
+    is only ever called after a D4 failure. Backends that do not report
+    interfaces -- the Windows ``USBPRINT`` paths already name the interface,
+    PyUSB reports one device -- answer with an empty list, and the caller then
+    keeps the library's own choice.
+    """
+    try:
+        from epson_usb.backends import find_devices
+
+        devices = find_devices(
+            backends=[backend] if backend else None, instance_id=instance_id
+        )
+    except Exception:
+        return None, []
+    for info in devices:
+        if device is None or info.path == device:
+            numbers = [
+                int(entry["number"])
+                for entry in (info.extra or {}).get("interfaces", ())
+                if isinstance(entry, dict) and entry.get("number") is not None
+            ]
+            return info.backend, numbers
+    return (backend, []) if device is not None else (None, [])
+
+
+class InterfaceTryingUsbPrinter(EpsonUsbPrinter):
+    """An :class:`EpsonUsbPrinter` that tries one USB interface after another.
+
+    A printer exposes several USB interfaces and only one of them answers D4,
+    but the descriptors do not say which one reliably: the L3250 measured for
+    issue #35 has a vendor-specific interface 0 that never answers and an
+    interface 1 that works, while the library's automatic choice prefers
+    vendor-specific interfaces. When the handshake on the first choice fails,
+    this object asks the backends which interfaces the device has and tries
+    them all, :data:`PREFERRED_USB_INTERFACES` first.
+
+    ``interfaces`` controls the behaviour:
+
+    * ``None`` (the default) -- the library's own choice, then the alternatives
+      as described above, with nothing to pass;
+    * a non-empty sequence -- these interface numbers first, in the order
+      given, then the remaining ones (same preference);
+    * ``[]`` -- no fallback at all: exactly the library's own choice.
+
+    ``interface=N`` (the library's own transport option) is accepted too and
+    promoted to a one-element list, so the alternatives are still tried after
+    it.
+    """
+
+    def __init__(self, *args, interfaces=None, interface=None, **kwargs) -> None:
+        if interface is not None:
+            interfaces = (
+                [interface] if interfaces is None else [interface, *interfaces]
+            )
+        #: ``None`` = library choice plus fallback; ``[]`` = library choice only;
+        #: a list = these first, then the remaining ones.
+        self._interface_order = (
+            None if interfaces is None else [int(number) for number in interfaces]
+        )
+        #: The interface that answered last time, tried first by a later open
+        #: (the key scan closes and re-opens the session on purpose).
+        self._working_interface = None
+        # ``interface`` is deliberately not forwarded: it becomes a list entry,
+        # so that it never reaches a transport that does not declare it.
+        super().__init__(*args, **kwargs)
+
+    def _fallback_order(self):
+        """Interface numbers to try, in order (empty when there are none)."""
+        if self._interface_order == []:
+            return []
+        order = list(self._interface_order or [])
+        backend, numbers = device_interfaces(
+            self._device, self._backend, self._instance_id
+        )
+        backend = backend or self._backend
+        if not backend_accepts_interface(backend):
+            # A transport that does not take ``interface=`` names the interface
+            # in its device path instead (Windows USBPRINT), or has no notion of
+            # interfaces at all. Asking for a number there cannot work, so the
+            # request is dropped rather than turned into a failed open.
+            if order:
+                log.warning(
+                    "The %s backend cannot be told which USB interface to use"
+                    " (its device path already names one, or it exposes none):"
+                    " --interface %s ignored",
+                    backend or "current", ",".join(str(n) for n in order),
+                )
+            return []
+        if not numbers:
+            return order
+        if self._backend is None and backend:
+            # ``interface=`` reaches a transport of one backend only, and this
+            # is the backend the enumeration saw the interfaces through.
+            self._backend = backend
+        remaining = sorted(
+            numbers,
+            key=lambda number: (
+                number not in PREFERRED_USB_INTERFACES, number
+            ),
+        )
+        order.extend(number for number in remaining if number not in order)
+        return order
+
+    def open(self):
+        """Open the device, trying the alternative interfaces on failure."""
+        if self.session is not None and self.session.connected:
+            return self
+        order = self._fallback_order()
+        attempts = ([None] if self._interface_order is None else []) + order
+        if not attempts:
+            return super().open()
+        if self._working_interface is not None:
+            # An interface already answered: try it first, so re-opening the
+            # session does not repeat the attempts that failed.
+            attempts = [self._working_interface] + [
+                number for number in attempts
+                if number != self._working_interface
+            ]
+        errors = []
+        for number in attempts:
+            if number is None:
+                self._transport_kwargs.pop("interface", None)
+            else:
+                self._transport_kwargs["interface"] = number
+            try:
+                printer = super().open()
+            except Exception as exc:
+                errors.append(
+                    "%s: %s"
+                    % (
+                        "the interface chosen by the library"
+                        if number is None else "interface %s" % number,
+                        exc,
+                    )
+                )
+                self.close()
+                continue
+            self._working_interface = number
+            if errors:
+                # Say which interface was the one that worked: the handshake on
+                # the others failed for a reason the user may want to know.
+                log.warning(
+                    "USB: D4 answered on interface %s; the earlier attempt(s)"
+                    " failed (%s). To select it directly: --interface %s.",
+                    number, "; ".join(errors), number,
+                )
+            return printer
+        raise TransportError("no USB interface answered D4: %s" % "; ".join(errors))
+
+
 class UsbEpsonPrinterMixin:
     """Gives an ``EpsonPrinter`` subclass a USB transport instead of SNMP.
 
@@ -149,8 +350,10 @@ class UsbEpsonPrinterMixin:
 
     #: Builds the :class:`~epson_usb.printer.EpsonUsbPrinter` used for the USB
     #: link. Override (or pass ``usb_factory=``) to create an object that holds
-    #: keys: see the module docstring.
-    usb_factory: Callable[..., EpsonUsbPrinter] = EpsonUsbPrinter
+    #: keys: see the module docstring. The default tries the printer's other
+    #: USB interfaces when D4 does not answer on the first choice; pass
+    #: ``interfaces=`` (or ``usb_options={'interfaces': ...}``) to order them.
+    usb_factory: Callable[..., EpsonUsbPrinter] = InterfaceTryingUsbPrinter
 
     #: The USB side of the printer.
     usb: EpsonUsbPrinter
@@ -166,6 +369,7 @@ class UsbEpsonPrinterMixin:
         device=None,
         backend: Optional[str] = None,
         instance_id: Optional[str] = None,
+        interfaces=None,
         transport=None,
         usb_timeouts=None,
         **kwargs,
@@ -226,6 +430,14 @@ class UsbEpsonPrinterMixin:
                     # Whatever else the caller needs to reach the device, such
                     # as {"config": MockConfig(...)} for the fake printer.
                     **(dict(usb_options) if usb_options else {}),
+                    # The USB interfaces to try, in order. Only passed when the
+                    # caller picked an order: the default factory falls back to
+                    # the alternatives on its own, and a custom factory has no
+                    # reason to receive this.
+                    **(
+                        {"interfaces": interfaces}
+                        if interfaces is not None else {}
+                    ),
                 },
             )
         )

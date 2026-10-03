@@ -202,6 +202,16 @@ first device found` to let the library choose. Pick one to pin it (two attached
 printers, or another interface of the same device); the ⟳ button next to the
 list scans the USB bus again.
 
+The `USB Port` list pins the *device*; which USB *interface* of it carries D4 is
+negotiated when the first command is sent. A printer exposes several interfaces
+and only one of them answers D4 -- not always the one the library picks (measured
+on an L3250: interface 0 never answered the handshake, interface 1 worked) -- so
+the other interfaces are tried when the handshake fails, preferring interface 1.
+On the command line `--interface 1,2,0` sets the order, `--interface auto` (the
+default) keeps the library choice as the first attempt, and `--interface none`
+disables the fallback. When an interface other than the first choice answers, the
+program logs which one it was.
+
 ## Quick Start on macOS via Docker
 
 Prerequirements: Docker, a VNC client (e.g. TigerVNC, RealVNC, Remmina)
@@ -269,6 +279,10 @@ Other menu options allow to filter or clean up the configuration list, as well a
 - Detect Access Keys:
 
   If the printer is not listed in the configuration or is not manageable, press *Detect Access Keys.* This process may take several minutes to complete.
+
+  Before running the scan, consider finding the access keys of the printer with the import of an external printer configuration database (see "How to import an external printer configuration DB" above): a configuration that already carries the keys makes the scan unnecessary, and the confirmation dialog of the GUI says so.
+
+  The `write_key` is validated by writing a byte of the EEPROM (the last byte of the serial number, plus one) and **reading it back**: only a write that really changed the cell accepts the key, because some firmware answers `:OK;` to any key while discarding the write (issue #133). The original value is restored and verified, and the GUI reports the address that was written and restored when a key is found.
 
   - If the message *"Could not detect read_key."* appears at the end, it means the printer cannot be controlled with the current software version (refer to "Models with known SNMP EEPROM access limitations" below).
 
@@ -358,8 +372,9 @@ and it is the one to look for when a change appears not to take effect.
 ### Using the command-line tool
 
 ```
-python epson_print_conf.py [-h] -m MODEL -a HOSTNAME [-p PORT] [-i] [-q QUERY_NAME]
-                           [--reset_waste_ink] [--temp_reset_waste_ink] [-d]
+python epson_print_conf.py [-h] -m MODEL -a HOSTNAME [--usb] [--backend BACKEND]
+                           [--device DEVICE] [--interface INTERFACE] [-p PORT] [-i]
+                           [-q QUERY_NAME] [--reset_waste_ink] [--temp_reset_waste_ink] [-d]
                            [--write-first-ti-received-time YEAR MONTH DAY]
                            [--write-poweroff-timer MINUTES] [--dry-run] [-R ADDRESS_SET]
                            [-W ADDRESS_VALUE_SET] [-e FIRST_ADDRESS LAST_ADDRESS]
@@ -373,6 +388,20 @@ Optional arguments:
                         models)
   -a HOSTNAME, --address HOSTNAME
                         Printer host name or IP address. (Example: -a 192.168.1.87)
+  --usb                 Talk to the printer over USB (IEEE 1284.4 / D4) instead of SNMP.
+                        Ignores -a/--address. It can also be selected with the EPSON_USB
+                        environment variable, or from the GUI. Library: epson-usb (PyPI)
+  --backend BACKEND     USB backend to use (usbprint | libusb | pyusb | raw | mock).
+                        Implies --usb
+  --device DEVICE       USB device to open (a bus:address pair such as 1:4, a device path,
+                        or the Windows interface path). Implies --usb
+  --interface INTERFACE
+                        USB interface number(s) to try, in order (for example 1, or 1,2,0);
+                        implies --usb. A printer exposes several USB interfaces and only one
+                        answers D4, which is not always the one the library picks: the other
+                        interfaces are tried when the handshake fails, preferring interface 1.
+                        Use --interface auto (the default) to keep the library choice as the
+                        first attempt, or --interface none to disable the fallback
   -p PORT, --port PORT  Printer port (default is 161)
   -i, --info            Print all available information and statistics (default option)
   -q QUERY_NAME, --query QUERY_NAME

@@ -3384,6 +3384,17 @@ Web site: https://github.com/Ircama/epson_print_conf
                 self.status_text.insert(
                     tk.END, f" Detected write_key: {found_write_key}\n"
                 )
+                # The key is not accepted because the printer said ':OK;' --
+                # some firmware says that to any key while discarding the write
+                # (issue #133). It is accepted because the byte really changed
+                # and was read back, so the proof is spelled out here.
+                self.status_text.insert(tk.END, '[NOTE]', "note")
+                self.status_text.insert(
+                    tk.END,
+                    f" The key was verified by writing address"
+                    f" {last_ser_num_addr}, reading the new value back and"
+                    f" restoring {last_ser_num_value}.\n"
+                )
                 if not old_write_key or old_write_key != found_write_key:
                     if old_write_key and old_write_key != found_write_key:
                         self.status_text.insert(tk.END, '[ERROR]', "error")
@@ -3465,6 +3476,20 @@ Web site: https://github.com/Ircama/epson_print_conf
                     " Unable to detect the write key by validating"
                     " against any of the known ones.\n"
                 )
+                # Every candidate was tested by writing a byte and reading it
+                # back, so the two possible reasons are worth stating: no known
+                # key writes on this printer, or none of the writes changed the
+                # cell (a firmware that answers ':OK;' to any key and discards
+                # the value -- issue #133) -- in which case no key can be
+                # found here.
+                self.status_text.insert(tk.END, '[NOTE]', "note")
+                self.status_text.insert(
+                    tk.END,
+                    " Each candidate was tried by writing an EEPROM byte and"
+                    " reading it back: no write took effect on this printer"
+                    " with any of them. The console log names the address"
+                    " that did not change.\n"
+                )
             logging.getLogger().setLevel(current_log_level)
             self.config(cursor="")
             self.update_idletasks()
@@ -3483,6 +3508,12 @@ Web site: https://github.com/Ircama/epson_print_conf
             "Results will be shown in the status box.\n\n"
             "Make sure not to switch off the printer while the process"
             " is running and disable the auto power-off timer.\n\n"
+            "Before you proceed, consider finding the access keys of your\n"
+            "printer with the printer configuration database import\n"
+            "procedures described in the help (File menu: 'Import a XML'\n"
+            "and 'Import a TOML', which also accept a web URL): a\n"
+            "configuration that already carries the access keys makes this\n"
+            "operation unnecessary.\n\n"
             "Are you sure you want to proceed?",
             default='no'
         )

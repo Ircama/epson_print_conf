@@ -3103,27 +3103,53 @@ class EpsonPrinter:
         return write_key_list
 
     def validate_write_key(self, addr, value, label):
-        """ Validate write_key by writing values to the EEPROM
+        """Validate write_key by writing a byte and reading it back
+
+        A write key can only be validated by writing, and the only proof that
+        the write key is the right one is that the byte *changed*: the test
+        write sets the cell to ``value + 1`` (``value - 1`` when the byte is
+        255, which has no successor) and the cell is then read back. The status
+        code alone proves nothing -- firmware measured on an XP-950 answers
+        ``:OK;`` to any write key, valid or not, while discarding the value
+        (issue #133) -- so a key is accepted only when the read-back shows the
+        new value, and ``False`` (not ``None``) is answered otherwise: a write
+        key that does not write is simply not the right one, and the caller's
+        scan has to go on to the next candidate.
 
         The test write *changes a byte of the printer* -- that is how the key is
         validated -- so putting it back is the important half of the operation.
         A single lost reply must not leave the printer modified: the restore is
         therefore retried and verified, and when it cannot be done at all the
-        failure is reported with the exact write that fixes it by hand.
+        failure is reported with the exact write that fixes it by hand (that,
+        and only that, is the ``None`` answer).
         """
-        if not self.write_eeprom(addr, value + 1, label=label):  # test write
+        test_value = value + 1 if value < 0xFF else value - 1
+        if not self.write_eeprom(addr, test_value, label=label):  # test write
             logging.warning(
                 "Write-key check: the test write of %d to address %d was"
-                " refused; nothing was changed", value + 1, addr
+                " refused or was not committed (the cell did not take the"
+                " value); this write key does not write, and nothing was"
+                " changed", test_value, addr
             )
-            return None
+            return False
+        ret_value = None
         try:
             ret_value = int(self.read_eeprom(addr, label=label), 16)
         except (TypeError, ValueError):
-            ret_value = None
             logging.warning(
                 "Write-key check: address %d could not be read back after the"
-                " test write", addr
+                " test write; the change cannot be proved", addr
+            )
+        if ret_value == test_value:
+            logging.info(
+                "Write-key check: address %d changed to %d and read back as"
+                " such; this write key really writes", addr, test_value
+            )
+        else:
+            logging.info(
+                "Write-key check: address %d reads %s after the test write of"
+                " %d (expected %d); this write key cannot write",
+                addr, ret_value, test_value, test_value
             )
         for attempt in range(3):
             # A moment before writing again: the two writes of this sequence
@@ -3138,7 +3164,7 @@ class EpsonPrinter:
                 except (TypeError, ValueError):
                     pass
                 if current == value:
-                    return ret_value == value + 1
+                    return ret_value == test_value
             logging.warning(
                 "Write-key check: restoring address %d to %d failed (attempt"
                 " %d of 3), the cell reads %s",
@@ -3503,6 +3529,36 @@ if __name__ == "__main__":
     def auto_int(x):
         return int(x, 0)
 
+    def interface_spec(value):
+        """Parse ``--interface``: ``1``, ``1,2,0``, ``auto`` or ``none``.
+
+        Returns the interface numbers to try, in order. ``auto`` (the default,
+        and what the option means when it is not given) keeps the choice made
+        by the library and tries the other interfaces when D4 does not answer;
+        ``none`` keeps the library's choice only. The function is used by
+        argparse as the option's type, so a bad value is a usage error rather
+        than something that fails later on the printer.
+        """
+        text = value.strip().lower()
+        if text in ("auto", "default", "library"):
+            return None
+        if text in ("none", "off", "library-only"):
+            return []
+        try:
+            numbers = [
+                int(part, 0)
+                for part in text.replace(";", ",").split(",")
+                if part.strip()
+            ]
+        except ValueError:
+            numbers = []
+        if not numbers:
+            raise argparse.ArgumentTypeError(
+                "expected a USB interface number, a comma-separated list of"
+                " them (for example 1 or 1,2,0), or auto/none: %r" % value
+            )
+        return numbers
+
     parser = argparse.ArgumentParser(
         epilog='Epson Printer Configuration via SNMP (TCP/IP)'
     )
@@ -3552,6 +3608,20 @@ if __name__ == "__main__":
         metavar='DEVICE',
         help='USB device to open (a bus:address pair such as 1:4, a device '
             'path, or the Windows interface path). Implies --usb'
+    )
+    parser.add_argument(
+        '--interface',
+        dest='interface',
+        action='store',
+        type=interface_spec,
+        metavar='INTERFACE',
+        help='USB interface number(s) to try, in order (for example 1, or '
+            '1,2,0); implies --usb. A printer exposes several USB interfaces '
+            'and only one answers D4, which is not always the one the library '
+            'picks: the other interfaces are tried when the handshake fails, '
+            'preferring interface 1. Use --interface auto (the default) to '
+            'keep the library choice as the first attempt, or --interface '
+            'none to disable the fallback'
     )
     parser.add_argument(
         '-p',
@@ -3735,8 +3805,11 @@ if __name__ == "__main__":
             "file instead of merging (default is to merge)",
     )
     args = parser.parse_args()
-    # --backend/--device only mean something over USB, so they imply it.
-    usb_mode = bool(args.usb or args.backend or args.device)
+    # --backend/--device/--interface only mean something over USB, so they
+    # imply it.
+    usb_mode = bool(
+        args.usb or args.backend or args.device or args.interface is not None
+    )
     if usb_mode:
         # Switch the transport before the printer object is built. In this mode
         # -a/--address has no meaning: the device is found on the USB bus.
@@ -3798,9 +3871,14 @@ if __name__ == "__main__":
                 usb_options['backend'] = args.backend
             if args.device:
                 usb_options['device'] = args.device
+            if args.interface is not None:
+                # An ordered list, or [] to keep the library's own choice with
+                # no fallback (see epson_usb_bridge.InterfaceTryingUsbPrinter).
+                usb_options['interfaces'] = args.interface
         else:
             logging.warning(
-                "epson_usb is not available: --usb/--backend/--device ignored"
+                "epson_usb is not available: --usb/--backend/--device/"
+                "--interface ignored"
             )
     printer = EpsonPrinter(
         conf_dict=conf_dict,
