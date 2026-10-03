@@ -1303,6 +1303,18 @@ class EpsonPrinter:
         else:
             return write_op
 
+    @staticmethod
+    def _config_pairs(entry):
+        """``[(tag, value), ...]`` for one MIB entry of a config file.
+
+        ``read_config_file()`` stores one ``(tag, value)`` pair per OID, while
+        the callers of ``fetch_oid_values()`` expect the list of pairs the live
+        SNMP path builds: returning the bare pair made every reader unpack the
+        tag string instead ("ValueError: too many values to unpack"). An entry
+        that already holds a list of pairs is kept as it is.
+        """
+        return entry if isinstance(entry, list) else [entry]
+
     def fetch_oid_values(
         self,
         oid: Union[str, List[Union[str, List[str]]]],
@@ -1330,7 +1342,7 @@ class EpsonPrinter:
                         "MIB '%s' not in config. Operation: %s", oid, label
                     )
                     return [(None, False)]
-                return self.mib_dict[oid]
+                return self._config_pairs(self.mib_dict[oid])
             else:
                 # list case: map through dict
                 results = []
@@ -1343,7 +1355,9 @@ class EpsonPrinter:
                             )
                             results.append((None, False))
                         else:
-                            results.append(self.mib_dict[element])
+                            results.extend(
+                                self._config_pairs(self.mib_dict[element])
+                            )
                     else:
                         # inner list grouping not supported by config
                         results.append((None, False))
@@ -2321,6 +2335,11 @@ class EpsonPrinter:
             f"  ADDRESS: {oid}"
         )
         tag, device_id = self.fetch_oid_values(oid, label=label)[0]
+        if not device_id or not isinstance(device_id, (bytes, bytearray)):
+            logging.error(
+                "No usable answer to the 'di' command (%s): the printer did not"
+                " answer the device identification", label)
+            return None
         key_map = {
             "MFG": "Manufacturer",
             "CMD": "Commands",
