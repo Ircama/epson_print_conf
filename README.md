@@ -431,12 +431,6 @@ regenerated to retain the new metadata. After a successful reset, power-cycle
 the printer and check its live status: zero counters alone do not prove that
 the waste-pad error has cleared.
 
-Offline regression tests (no printer or network access):
-
-```sh
-python -m unittest discover -s tests -v
-```
-
 ### Using the command-line tool
 
 ```
