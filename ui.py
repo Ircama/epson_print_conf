@@ -4585,6 +4585,13 @@ Web site: https://github.com/Ircama/epson_print_conf
                     self.config(cursor="")
                     self.update_idletasks()
                     return
+            commit = self.printer.parm.get("waste_reset_commit")
+            if commit and not self.get_current_eeprom_values(
+                commit.keys(), "Waste reset completion flags"
+            ):
+                self.config(cursor="")
+                self.update_idletasks()
+                return
             for i in self.printer.parm:
                 if i.endswith("_waste") and "oids" in self.printer.parm[i]:
                     if not self.get_current_eeprom_values(
@@ -4614,13 +4621,13 @@ Web site: https://github.com/Ircama/epson_print_conf
                         " Perform a power cycle of the printer now.\n"
                     )
                 else:
-                    # The method answers False when a cell refuses the write:
-                    # saying "reset" there would be a lie about the printer.
+                    # Counters may have changed even if completion failed.
                     self.status_text.insert(tk.END, '[ERROR]', "error")
                     self.status_text.insert(
                         tk.END,
-                        " Waste ink levels were not reset (a cell refused the"
-                        " write). The console log reports which one.\n"
+                        " Waste ink reset did not complete. A required read,"
+                        " write or verification failed, or the reset"
+                        " configuration is unsupported. See the console log.\n"
                     )
             except Exception as e:
                 self.handle_printer_error(e)
