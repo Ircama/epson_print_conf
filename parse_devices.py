@@ -35,6 +35,48 @@ def text_to_dict(text):
     return {b[i]: b[i + 1] for i in range(0, len(b), 2)}
 
 
+def parse_waste_reset_commit(reset):
+    """Preserve query/AND/write close steps, without evaluating XML code.
+
+    None marks an unsupported close operation: keep the model readable, but
+    make reset_waste_ink_levels refuse an incomplete reset sequence.
+    """
+    masks = {}
+    for close in reset.findall("close"):
+        children = list(close)
+        if (
+            close.attrib or (close.text or "").strip()
+            or [child.tag for child in children] != ["query", "var", "write"]
+            or any(child.attrib or len(child) or (child.tail or "").strip()
+                   for child in children)
+        ):
+            return None
+        query = re.fullmatch(
+            r"(0x[0-9a-fA-F]+)\s+(\$[a-zA-Z_][a-zA-Z_0-9]*)",
+            (children[0].text or "").strip(),
+        )
+        if query is None:
+            return None
+        address, variable = query.groups()
+        var = re.escape(variable)
+        operation = re.fullmatch(
+            var + r"\s*:\s*" + var + r"\s+(0x[0-9a-fA-F]+)\s+&",
+            (children[1].text or "").strip(),
+        )
+        write = re.fullmatch(
+            r"(0x[0-9a-fA-F]+)\s+" + var,
+            (children[2].text or "").strip(),
+        )
+        if operation is None or write is None:
+            return None
+        oid, mask = int(address, 16), int(operation[1], 16)
+        if (oid != int(write[1], 16) or oid > 0xFFFF or mask > 0xFF
+                or oid in masks):
+            return None
+        masks[oid] = mask
+    return masks
+
+
 def traverse_data(element, depth=0):
     indent = '    ' * depth
     if element.tag and not element.attrib and element.text and element.text.strip():
@@ -173,6 +215,28 @@ def generate_config_from_xml(
                                 chars["raw_waste_reset"] = text_to_dict(
                                     operations.text
                                 )
+                                # A later reset spec replaces both the bytes
+                                # and the close operation inherited so far.
+                                chars.pop("waste_reset_commit", None)
+                                chars.pop("waste_reset_commit_error", None)
+                                if operations.find("close") is not None:
+                                    commit = parse_waste_reset_commit(operations)
+                                    if commit is None:
+                                        # Keep the failure separate from the
+                                        # mask mapping: merging built-in model
+                                        # data must not hide an unsupported
+                                        # imported completion operation.
+                                        chars["waste_reset_commit_error"] = (
+                                            "Unsupported XML waste reset close"
+                                            " operation; waste reset disabled"
+                                        )
+                                        logging.warning(
+                                            "%s: unsupported waste reset close"
+                                            " operation; waste reset disabled",
+                                            printer_short_name,
+                                        )
+                                    else:
+                                        chars["waste_reset_commit"] = commit
                             if operations.tag == "query":
                                 count = 0
                                 for counter in operations:

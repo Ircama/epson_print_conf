@@ -422,6 +422,10 @@ class EpsonPrinter:
                 48: 0, 49: 0, 47: 0, 52: 0, 53: 0, 54: 94, 50: 0, 51: 0,
                 55: 94, 28: 0, 252: 0, 253: 0, 254: 0, 255: 94
             },
+            # L3250 waste/reset/close in devices.xml. Verified on an ET-2814
+            # with XF26P8: zero counters alone left ST2 overflow 0x10 active.
+            # Clear bit 0 only; the remaining bits belong to other state.
+            "waste_reset_commit": {0x100: 0xFE},
             "stats": {
                 "Maintenance required level of 1st waste ink counter": [54],
                 "Maintenance required level of 2nd waste ink counter": [55],
@@ -2742,10 +2746,46 @@ class EpsonPrinter:
             )
         return status
 
+    def _read_waste_reset_flag(self, oid):
+        """Read a completion byte without guessing when it is unavailable."""
+        try:
+            raw = self.read_eeprom(oid, label="waste_reset_commit")
+        except (TimeoutError, AsyncioTimeoutError) as exc:
+            logging.error("Cannot read waste reset flag at %s: %s", oid, exc)
+            return None
+        if not isinstance(raw, str) or not re.fullmatch(r"[0-9a-fA-F]{2}", raw):
+            logging.error("Cannot read waste reset flag at %s: %r", oid, raw)
+            return None
+        return int(raw, 16)
+
+    def _commit_waste_reset(self, masks, report):
+        """Apply the configured byte AND masks after all counter writes."""
+        for oid, mask in masks.items():
+            # Read again after the counters: preserve the flag's current bits,
+            # not a value cached before the reset.
+            previous = self._read_waste_reset_flag(oid)
+            if previous is None:
+                return False
+            value = previous & mask
+            if value == previous:
+                if report is not None:
+                    report.append((oid, previous, value, False))
+                continue
+            if not self.write_eeprom(
+                oid, value, label="waste_reset_commit", report=report
+            ):
+                return False
+            # Always verify this completion step, even with --no-verify-writes.
+            # An ACK alone must not report a completed reset.
+            if self._read_waste_reset_flag(oid) != value:
+                logging.error("Waste reset completion not verified at %s", oid)
+                return False
+        return True
+
     def reset_waste_ink_levels(
             self, dry_run=False, report: Optional[list] = None) -> bool:
         """
-        Set waste ink levels to the values specified in the configuration.
+        Set waste ink levels and apply any configured completion byte masks.
 
         ``report`` is handed to :meth:`write_eeprom` (see there): it receives
         one entry per written cell, so the caller can tell a real reset from a
@@ -2754,32 +2794,46 @@ class EpsonPrinter:
         if not self.parm:
             logging.error("EpsonPrinter - invalid API usage")
             return None
+        if self.parm.get("waste_reset_commit_error"):
+            logging.error("%s", self.parm["waste_reset_commit_error"])
+            return False
+        masks = self.parm.get("waste_reset_commit", {})
+        if not isinstance(masks, dict) or any(
+            type(oid) is not int or not 0 <= oid <= 0xFFFF
+            or type(mask) is not int or not 0 <= mask <= 0xFF
+            for oid, mask in masks.items()
+        ):
+            logging.error("Unsupported or invalid waste reset completion data")
+            return False
+        if "raw_waste_reset" not in self.parm and "main_waste" not in self.parm:
+            return None
+        if dry_run or self.dry_run:
+            return True
+        # Fail before touching any counters if their completion flag cannot
+        # be read. This is also needed when the counters already read zero.
+        for oid in masks:
+            if self._read_waste_reset_flag(oid) is None:
+                return False
         if "raw_waste_reset" in self.parm:
-            if dry_run:
-                return True
             for oid, value in self.parm["raw_waste_reset"].items():
                 if not self.write_eeprom(
                     oid, value, label="raw_waste_reset", report=report
                 ):
                     return False
-            return True
-        if "main_waste" not in self.parm:
-            return None
-        if dry_run:
-            return True
+            return self._commit_waste_reset(masks, report)
         for oid in self.parm["main_waste"]["oids"]:
             if not self.write_eeprom(
                 oid, 0, label="main_waste", report=report
             ):
                 return False
         if "borderless_waste" not in self.parm:
-            return True
+            return self._commit_waste_reset(masks, report)
         for oid in self.parm["borderless_waste"]["oids"]:
             if not self.write_eeprom(
                 oid, 0, label="borderless_waste", report=report
             ):
                 return False
-        return True
+        return self._commit_waste_reset(masks, report)
 
     def print_check_nozzles(self, type=0):
         """

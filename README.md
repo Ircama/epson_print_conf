@@ -406,6 +406,31 @@ changed`. The second message is what a no-op write looks like — writing the sa
 value the printer already had, or a write key the firmware quietly ignores —
 and it is the one to look for when a change appears not to take effect.
 
+### Model-specific waste reset completion
+
+Some profiles need a completion step after writing the counter bytes. On an
+ET-2814 with firmware XF26P8, all 14 reset bytes stayed correct across a restart,
+but ST2 still reported waste-pad overflow. Clearing bit 0 of EEPROM `0x100`, as
+specified by the L3250 family's `waste/reset/close` in
+[devices.xml](https://github.com/CiRIP/ez-reset/blob/master/src/ez_reset/devices.xml),
+then restarting cleared the error ([#135](https://github.com/Ircama/epson_print_conf/issues/135)).
+
+The ET-2812 profile and its aliases now carry `waste_reset_commit: {0x100: 0xFE}`.
+This optional mapping contains EEPROM addresses and byte AND masks. A reset
+checks that these bytes are readable before writing counters, then reads them
+again and applies the masks after all counter writes succeed. Other bits are
+preserved, unchanged completion bytes are not rewritten, and completion writes
+are read back even when `--no-verify-writes` is set. A failed step returns failure
+without retrying the reset. Profiles without this field keep their existing
+reset sequence; this address must not be applied to arbitrary models.
+
+XML imports preserve the corresponding `query` / byte AND / `write` close form.
+Other close forms leave the model readable but disable its waste reset, instead
+of silently dropping a required operation. Existing pickle files need to be
+regenerated to retain the new metadata. After a successful reset, power-cycle
+the printer and check its live status: zero counters alone do not prove that
+the waste-pad error has cleared.
+
 ### Using the command-line tool
 
 ```
