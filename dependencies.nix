@@ -45,7 +45,7 @@ rec {
 
     src = fetchPypi {
       inherit (finalAttrs) pname version;
-      hash = "sha256-5cd98e429b6a1ef29a994390894442fc3426b8b1710c0017b5fe8805a4df5778";
+      hash = "sha256-kK1/Os9yBkU+A6jRvxkUMvBK+iTkZ4IZKoZsh6BwsYM=";
     };
 
     pyproject = true;
