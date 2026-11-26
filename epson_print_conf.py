@@ -2906,7 +2906,7 @@ class EpsonPrinter:
         """
         escp2 = EpsonEscp2()
         pattern = escp2.clean_nozzles(
-            group_index, power_clean=False, has_alt_mode=None
+            group_index, power_clean=power_clean, has_alt_mode=has_alt_mode
         )
         if not self.hostname:
             return None
